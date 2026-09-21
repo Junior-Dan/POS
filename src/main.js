@@ -327,10 +327,36 @@ function bindEvents() {
     const sale = store.sales.find(s => s.receiptNo.toLowerCase() === receiptNo.toLowerCase());
     if (!sale) return alert("Original receipt not found!");
 
+    if (sale.refunded) return alert("This sale has already been refunded!");
+
+    sale.refunded = true;
+    sale.refundAmount = amount;
+    sale.refundReason = reason;
+
+    // Restock items to inventory
+    sale.items.forEach(item => {
+      const prod = store.products.find(p => p.id === item.productId);
+      if (prod) {
+        prod.stock += item.qty;
+        store.stockMovements.unshift({
+          timestamp: new Date().toISOString(),
+          productId: prod.id,
+          productName: `${prod.brand} ${prod.name}`,
+          type: "REFUND_RESTOCK",
+          qty: item.qty,
+          ref: sale.receiptNo,
+          user: store.currentUser.name,
+          reason: `Restocked on Refund: ${reason}`
+        });
+      }
+    });
+
     store.logAudit("Processed Refund", receiptNo, `Sale KES ${sale.total}`, `Refund KES ${amount}`, reason);
-    alert(`Refund of KSh ${amount.toLocaleString()} approved for Receipt ${receiptNo}.`);
+    store.save();
+
     window.closeModal('returnRefundModal');
     initApp();
+    alert(`Refund of KSh ${amount.toLocaleString()} approved for Receipt ${receiptNo}. Items restocked to inventory!`);
   };
 
   // Keyboard Shortcuts

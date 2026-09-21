@@ -14,11 +14,94 @@ export function renderReceiptModal() {
           <!-- Dynamic Thermal Content -->
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="window.print()"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Receipt</button>
-        <button class="btn btn-primary" onclick="closeModal('receiptModal'); switchTab('pos');">Done / New Sale</button>
+      <div class="modal-footer" style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%;">
+          <button class="btn btn-secondary" onclick="window.print()"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
+          <button class="btn btn-secondary" onclick="closeModal('receiptModal'); switchTab('sales');">View Sales & Returns</button>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="closeModal('receiptModal'); switchTab('pos');">New Sale</button>
       </div>
     </div>
   </div>
   `;
 }
+
+window.renderReceiptHtml = function(sale) {
+  const container = document.getElementById('receiptContent');
+  if (!container) return;
+  container.innerHTML = `
+    <div style="text-align:center; font-family:'Courier New', monospace; font-size:12px; color:#111; line-height:1.4;">
+      <div style="font-weight:900; font-size:15px; letter-spacing:1px;">CELLAR WINES & SPIRITS</div>
+      <div style="font-size:11px; color:#444;">Nairobi CBD Main Branch</div>
+      <div style="font-size:10px; color:#444;">Alcohol License: NBI/CL/2026/04881</div>
+      <div style="font-size:10px; color:#444;">KRA PIN: P051234567Z</div>
+      <div style="border-bottom:1px dashed #444; margin:8px 0;"></div>
+      
+      <div style="display:flex; justify-content:space-between; font-weight:700;">
+        <span>RECEIPT #:</span>
+        <span>${sale.receiptNo}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span>DATE:</span>
+        <span>${new Date(sale.timestamp).toLocaleString()}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span>CASHIER:</span>
+        <span>${sale.cashierName}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span>PAYMENT:</span>
+        <span>${sale.paymentMethod}</span>
+      </div>
+      
+      <div style="border-bottom:1px dashed #444; margin:8px 0;"></div>
+      
+      <table style="width:100%; text-align:left; font-size:11px; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid #ddd;">
+            <th style="padding-bottom:4px;">Item</th>
+            <th style="text-align:center; padding-bottom:4px;">Qty</th>
+            <th style="text-align:right; padding-bottom:4px;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sale.items.map(i => `
+            <tr>
+              <td style="padding:3px 0;">${i.name} <span style="font-size:9.5px; color:#666;">(${i.size})</span></td>
+              <td style="text-align:center; padding:3px 0;">${i.qty}</td>
+              <td style="text-align:right; padding:3px 0; font-weight:700;">KES ${i.total.toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      <div style="border-bottom:1px dashed #444; margin:8px 0;"></div>
+      
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span>Subtotal:</span>
+        <span>KES ${sale.subtotal.toLocaleString()}</span>
+      </div>
+      ${sale.discount > 0 ? `
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:#c00;">
+        <span>Discount (${sale.discount}%):</span>
+        <span>- KES ${sale.discount.toLocaleString()}</span>
+      </div>
+      ` : ''}
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span>VAT (16% Included):</span>
+        <span>KES ${sale.tax.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-weight:900; font-size:15px; margin-top:6px; padding-top:4px; border-top:1px solid #111;">
+        <span>TOTAL PAID:</span>
+        <span>KES ${sale.total.toLocaleString()}</span>
+      </div>
+      
+      <div style="border-bottom:1px dashed #444; margin:10px 0 6px 0;"></div>
+      <div style="font-weight:700; font-size:11px; letter-spacing:0.5px;">KRA eTIMS FISCAL PROOF</div>
+      <div style="font-size:10px; color:#333;">CU Serial: ${sale.etimsCuNum}</div>
+      <div style="font-size:10px; color:#333;">Control Code: ${sale.etimsControlCode}</div>
+      <div style="margin-top:8px; font-weight:700; font-size:11px;">*** THANK YOU FOR YOUR BUSINESS ***</div>
+      <div style="font-size:9.5px; color:#666; margin-top:2px;">DRINK RESPONSIBLY. NOT FOR SALE TO PERSONS UNDER 18.</div>
+    </div>
+  `;
+};

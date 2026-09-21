@@ -68,19 +68,21 @@ export function renderPosView() {
             <span class="total-amount" id="posTotalDue">KSh 0</span>
           </div>
 
-          <div class="payment-actions">
-            <button class="btn btn-primary btn-lg" id="payCashBtn" style="grid-column: span 2; background:var(--green); color:#111;">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
-              <span>CASH PAYMENT</span>
+          <div class="payment-actions" style="display:flex; flex-direction:column; gap:8px;">
+            <button class="btn btn-primary btn-lg" id="payQuickBtn" style="background: linear-gradient(135deg, #d3a94e, #b8860b); color: #000; font-weight:700; width:100%; font-size:14px;">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span>COMPLETE SALE (ASSUME PAID)</span>
             </button>
-            <button class="btn btn-secondary btn-lg" id="payMpesaBtn" style="background:#00a040; color:#fff;">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>
-              <span>M-PESA STK PUSH</span>
-            </button>
-            <button class="btn btn-secondary btn-lg" id="paySplitBtn">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.17-2.83L3 3"/><path d="m21 3-7.83 7.87A4 4 0 0 0 12 13.7V22"/></svg>
-              <span>SPLIT PAYMENT</span>
-            </button>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+              <button class="btn btn-secondary btn-lg" id="payCashBtn" style="background:var(--surface-light); border:1px solid var(--accent); color:var(--accent);">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+                <span>CASH (EXACT)</span>
+              </button>
+              <button class="btn btn-secondary btn-lg" id="payMpesaBtn" style="background:#00a040; color:#fff;">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>
+                <span>M-PESA STK</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -106,6 +108,15 @@ function bindPosToolbarEvents() {
       window.filterPosCat('ALL');
     };
   }
+
+  const payQuickBtn = document.getElementById('payQuickBtn');
+  if (payQuickBtn) payQuickBtn.onclick = () => window.completePosSale('CASH');
+
+  const payCashBtn = document.getElementById('payCashBtn');
+  if (payCashBtn) payCashBtn.onclick = () => window.completePosSale('CASH');
+
+  const payMpesaBtn = document.getElementById('payMpesaBtn');
+  if (payMpesaBtn) payMpesaBtn.onclick = () => window.completePosSale('M-PESA');
 }
 
 function renderProductGridHtml() {
@@ -222,3 +233,86 @@ function refreshCartUi() {
   if (document.getElementById('posTaxAmount')) document.getElementById('posTaxAmount').textContent = `KSh ${tax.toFixed(2)}`;
   if (document.getElementById('posTotalDue')) document.getElementById('posTotalDue').textContent = `KSh ${total.toLocaleString()}`;
 }
+
+window.completePosSale = function(paymentMethod = 'CASH') {
+  if (currentCart.length === 0) {
+    alert("Cart is empty! Tap products from catalogue to add to cart.");
+    return;
+  }
+
+  const subtotal = currentCart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
+  
+  const proceedWithCheckout = () => {
+    const discountAmt = (subtotal * discPercent) / 100;
+    const total = subtotal - discountAmt;
+    const tax = total * 0.16;
+
+    const sale = {
+      id: `SALE-${Date.now()}`,
+      receiptNo: `REC-2026-${Math.floor(1000 + Math.random()*9000)}`,
+      timestamp: new Date().toISOString(),
+      cashierName: store.currentUser.name,
+      shiftId: store.currentShift.id,
+      items: currentCart.map(item => ({
+        productId: item.productId,
+        name: item.name,
+        size: item.size,
+        price: item.price,
+        costSnapshot: item.costSnapshot,
+        qty: item.qty,
+        total: item.price * item.qty
+      })),
+      subtotal,
+      discount: discountAmt,
+      tax,
+      total,
+      paymentMethod,
+      etimsStatus: "TRANSMITTED",
+      etimsCuNum: `KRA202609210${Math.floor(1000 + Math.random()*9000)}`,
+      etimsControlCode: `${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+      refunded: false
+    };
+
+    // Deduct physical stock & record stock movement ledger
+    currentCart.forEach(item => {
+      const prod = store.products.find(p => p.id === item.productId);
+      if (prod) {
+        prod.stock -= item.qty;
+        store.stockMovements.unshift({
+          timestamp: new Date().toISOString(),
+          productId: prod.id,
+          productName: `${prod.brand} ${prod.name}`,
+          type: "SALE",
+          qty: -item.qty,
+          ref: sale.receiptNo,
+          user: store.currentUser.name,
+          reason: `POS Checkout (${paymentMethod})`
+        });
+      }
+    });
+
+    store.sales.unshift(sale);
+    store.logAudit(
+      "Completed POS Sale",
+      sale.receiptNo,
+      "-",
+      `KES ${sale.total.toLocaleString()}`,
+      `Payment Method: ${paymentMethod} (Assumed Paid)`
+    );
+    store.save();
+
+    currentCart = [];
+    
+    if (window.renderReceiptHtml) window.renderReceiptHtml(sale);
+    window.openModal('receiptModal');
+
+    if (window.renderAllApp) window.renderAllApp();
+  };
+
+  if (discPercent > 5) {
+    requestManagerAuth(`Authorize Discount of ${discPercent}% (Over 5% Policy Limit)`, proceedWithCheckout);
+  } else {
+    proceedWithCheckout();
+  }
+};
