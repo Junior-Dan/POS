@@ -88,14 +88,10 @@ export function renderDashboardView() {
     <div class="grid-2">
       <div class="section-card">
         <div class="section-header">
-          <div style="display:flex; align-items:center; gap:10px;">
+          <div>
             <div class="section-title">Today's Hourly Traffic</div>
-            <div style="display:flex; align-items:center; gap:6px; background:var(--green-soft); border:1px solid rgba(78,191,123,0.3); padding:3px 10px; border-radius:12px;">
-              <span class="live-pulse-dot"></span>
-              <span style="font-size:10.5px; font-weight:800; color:var(--green); letter-spacing:0.5px;">LIVE REAL-TIME</span>
-            </div>
+            <span class="section-subtitle">Sales revenue stream by operational hour</span>
           </div>
-          <span class="section-subtitle">Real-time 24-hour transaction stream</span>
         </div>
         <div style="height: 240px; position:relative;">
           <canvas id="chartHourlySales"></canvas>
@@ -193,6 +189,16 @@ export function initDashboardCharts() {
     const catLabels = Object.keys(catMap);
     const catData = Object.values(catMap);
 
+    // Create Gold Gradient Fill for Hourly Line Chart
+    const ctx = ctxH.getContext('2d');
+    let gradient = 'rgba(211, 169, 78, 0.15)';
+    if (ctx) {
+      gradient = ctx.createLinearGradient(0, 0, 0, 220);
+      gradient.addColorStop(0, 'rgba(211, 169, 78, 0.45)');
+      gradient.addColorStop(0.7, 'rgba(211, 169, 78, 0.08)');
+      gradient.addColorStop(1, 'rgba(211, 169, 78, 0.0)');
+    }
+
     // Smooth In-Place Data Update for Hourly Sales Line Chart (Graph Smoothly Moves!)
     if (chartHourly && chartHourly.ctx && chartHourly.ctx.canvas === ctxH) {
       chartHourly.data.labels = traffic.hours;
@@ -209,14 +215,17 @@ export function initDashboardCharts() {
             label: 'Revenue (KES)',
             data: traffic.data,
             borderColor: '#d3a94e',
-            backgroundColor: 'rgba(211, 169, 78, 0.15)',
-            borderWidth: 2.5,
-            pointBackgroundColor: '#d3a94e',
-            pointBorderColor: '#ffffff',
-            pointRadius: 4,
-            pointHoverRadius: 6,
+            borderWidth: 3,
+            backgroundColor: gradient,
             fill: true,
-            tension: 0.35
+            tension: 0.4,
+            pointBackgroundColor: '#d3a94e',
+            pointBorderColor: '#0a0a0c',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointHoverBackgroundColor: '#ffffff',
+            pointHoverBorderColor: '#d3a94e'
           }]
         },
         options: {
@@ -229,6 +238,13 @@ export function initDashboardCharts() {
           plugins: {
             legend: { display: false },
             tooltip: {
+              backgroundColor: '#19191e',
+              titleColor: '#d3a94e',
+              bodyColor: '#f3f1ed',
+              borderColor: 'rgba(211, 169, 78, 0.4)',
+              borderWidth: 1,
+              padding: 10,
+              displayColors: false,
               callbacks: {
                 label: function(context) {
                   const idx = context.dataIndex;
@@ -241,20 +257,16 @@ export function initDashboardCharts() {
           },
           scales: {
             x: {
-              grid: { color: 'rgba(255, 255, 255, 0.05)' },
-              ticks: { 
-                color: '#8e8e93', 
-                font: { size: 10.5 },
-                autoSkip: true,
-                maxTicksLimit: 12
-              }
+              grid: { color: 'rgba(255, 255, 255, 0.04)', drawBorder: false },
+              ticks: { color: '#a8a49c', font: { size: 11, weight: '600' } }
             },
             y: {
-              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              grid: { color: 'rgba(255, 255, 255, 0.04)', drawBorder: false },
               ticks: { 
-                color: '#8e8e93', 
-                font: { size: 11 },
+                color: '#a8a49c', 
+                font: { size: 11, weight: '600' },
                 callback: function(val) {
+                  if (val >= 1000) return 'KSh ' + (val/1000).toFixed(0) + 'k';
                   return 'KSh ' + val.toLocaleString();
                 }
               },
