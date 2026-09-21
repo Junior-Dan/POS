@@ -9,6 +9,10 @@ let activeCategoryFilter = "ALL";
 export function renderPosView() {
   const categories = ["ALL", ...new Set(store.products.map(p => p.category))];
   
+  setTimeout(() => {
+    bindPosToolbarEvents();
+  }, 50);
+
   return `
   <div class="view-container" id="view-pos">
     <div class="pos-grid">
@@ -36,7 +40,7 @@ export function renderPosView() {
       <div class="pos-cart">
         <div class="cart-header">
           <div class="cart-title">Cart & Checkout</div>
-          <button class="btn btn-danger btn-sm" id="posClearCartBtn">Clear Cart</button>
+          <button class="btn btn-danger btn-sm" id="posClearCartBtn" onclick="clearCart()">Clear Cart</button>
         </div>
 
         <div class="cart-items-list" id="posCartItemsList">
@@ -83,6 +87,25 @@ export function renderPosView() {
     </div>
   </div>
   `;
+}
+
+function bindPosToolbarEvents() {
+  const searchInput = document.getElementById('posSearchInput');
+  const clearBtn = document.getElementById('posClearSearchBtn');
+
+  if (searchInput) {
+    searchInput.oninput = () => {
+      const grid = document.getElementById('posProductGrid');
+      if (grid) grid.innerHTML = renderProductGridHtml();
+    };
+  }
+
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      if (searchInput) searchInput.value = '';
+      window.filterPosCat('ALL');
+    };
+  }
 }
 
 function renderProductGridHtml() {
@@ -163,8 +186,24 @@ window.updateCartQty = function(index, delta) {
   refreshCartUi();
 };
 
+window.clearCart = function() {
+  currentCart = [];
+  refreshCartUi();
+};
+
 window.filterPosCat = function(cat) {
   activeCategoryFilter = cat;
+  
+  // Highlight clicked category pill and remove active class from others
+  const pills = document.querySelectorAll('#posCategoryPills .cat-pill');
+  pills.forEach(pill => {
+    if (pill.textContent.trim() === cat) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+
   const grid = document.getElementById('posProductGrid');
   if (grid) grid.innerHTML = renderProductGridHtml();
 };
