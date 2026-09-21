@@ -245,9 +245,9 @@ export class CellarStore {
   }
 
   getHourlySalesTraffic() {
-    const hours = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
-    const data = [0, 0, 0, 0, 0, 0, 0, 0];
-    const orders = [0, 0, 0, 0, 0, 0, 0, 0];
+    const hours = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM', '12 AM', '2 AM', '4 AM', '6 AM'];
+    const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     
     const todaySales = this.getTodaySales().filter(s => !s.refunded);
 
@@ -261,7 +261,11 @@ export class CellarStore {
       else if (h >= 16 && h < 18) idx = 4;
       else if (h >= 18 && h < 20) idx = 5;
       else if (h >= 20 && h < 22) idx = 6;
-      else if (h >= 22 || h < 8) idx = 7;
+      else if (h >= 22 && h < 24) idx = 7;
+      else if (h >= 0 && h < 2) idx = 8;
+      else if (h >= 2 && h < 4) idx = 9;
+      else if (h >= 4 && h < 6) idx = 10;
+      else if (h >= 6 && h < 8) idx = 11;
 
       data[idx] += s.total;
       orders[idx] += 1;
