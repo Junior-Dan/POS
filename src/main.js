@@ -260,11 +260,8 @@ function bindEvents() {
   // Close Shift Modal Handlers
   window.handleCloseShift = () => {
     requestManagerAuth("Reconcile Cash & Close Active Shift", () => {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const cashSales = store.sales.filter(s => s.paymentMethod === 'CASH' && s.timestamp.startsWith(todayStr)).reduce((a,s)=>a+s.total, 0);
-      const mpesaSales = store.sales.filter(s => s.paymentMethod === 'M-PESA' && s.timestamp.startsWith(todayStr)).reduce((a,s)=>a+s.total, 0);
-      const cashMovementsTotal = store.cashMovements.reduce((a,c)=>a+c.amount, 0);
-      const expectedCash = 5000 + cashSales + cashMovementsTotal;
+      const expectedCash = store.getExpectedCashInDrawer();
+      const mpesaSales = store.getTodayNetMpesaSales();
 
       document.getElementById('shiftModalExpectedCash').textContent = `KSh ${expectedCash.toLocaleString()}`;
       document.getElementById('shiftModalExpectedMpesa').textContent = `KSh ${mpesaSales.toLocaleString()}`;
@@ -277,10 +274,7 @@ function bindEvents() {
     const actualCash = parseFloat(document.getElementById('shiftActualCashInput').value) || 0;
     const notes = document.getElementById('shiftNotesInput').value.trim();
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const cashSales = store.sales.filter(s => s.paymentMethod === 'CASH' && s.timestamp.startsWith(todayStr)).reduce((a,s)=>a+s.total, 0);
-    const cashMovementsTotal = store.cashMovements.reduce((a,c)=>a+c.amount, 0);
-    const expectedCash = 5000 + cashSales + cashMovementsTotal;
+    const expectedCash = store.getExpectedCashInDrawer();
     const variance = actualCash - expectedCash;
 
     store.shifts.unshift({

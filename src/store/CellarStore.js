@@ -137,36 +137,83 @@ export class CellarStore {
     return this.sales.filter(s => s.timestamp.startsWith(todayStr));
   }
 
-  getTodayRevenue() {
+  getTodayGrossSales() {
     return this.getTodaySales().reduce((acc, s) => acc + s.total, 0);
   }
 
-  getTodayCogs() {
-    return this.getTodaySales().reduce((acc, s) => {
-      return acc + s.items.reduce((iAcc, item) => iAcc + (item.costSnapshot * item.qty), 0);
-    }, 0);
+  getTodayRefunds() {
+    return this.getTodaySales()
+      .filter(s => s.refunded)
+      .reduce((acc, s) => acc + (s.refundAmount !== undefined ? s.refundAmount : s.total), 0);
   }
 
-  getTodayGrossProfit() {
-    return this.getTodayRevenue() - this.getTodayCogs();
+  getTodayRevenue() {
+    return this.getTodayGrossSales() - this.getTodayRefunds();
   }
 
-  getTodayItemsSold() {
-    return this.getTodaySales().reduce((acc, s) => {
-      return acc + s.items.reduce((iAcc, item) => iAcc + item.qty, 0);
-    }, 0);
+  getTodayNetSales() {
+    return this.getTodayRevenue();
   }
 
-  getTodayCashTotal() {
+  getTodayCashSales() {
     return this.getTodaySales()
       .filter(s => s.paymentMethod === 'CASH')
       .reduce((acc, s) => acc + s.total, 0);
   }
 
-  getTodayMpesaTotal() {
+  getTodayCashRefunds() {
+    return this.getTodaySales()
+      .filter(s => s.paymentMethod === 'CASH' && s.refunded)
+      .reduce((acc, s) => acc + (s.refundAmount !== undefined ? s.refundAmount : s.total), 0);
+  }
+
+  getTodayNetCashSales() {
+    return this.getTodayCashSales() - this.getTodayCashRefunds();
+  }
+
+  getTodayCashTotal() {
+    return this.getTodayNetCashSales();
+  }
+
+  getTodayMpesaSales() {
     return this.getTodaySales()
       .filter(s => s.paymentMethod === 'M-PESA')
       .reduce((acc, s) => acc + s.total, 0);
+  }
+
+  getTodayMpesaRefunds() {
+    return this.getTodaySales()
+      .filter(s => s.paymentMethod === 'M-PESA' && s.refunded)
+      .reduce((acc, s) => acc + (s.refundAmount !== undefined ? s.refundAmount : s.total), 0);
+  }
+
+  getTodayNetMpesaSales() {
+    return this.getTodayMpesaSales() - this.getTodayMpesaRefunds();
+  }
+
+  getTodayMpesaTotal() {
+    return this.getTodayNetMpesaSales();
+  }
+
+  getTodayCashMovementsTotal() {
+    return this.cashMovements.reduce((acc, c) => acc + c.amount, 0);
+  }
+
+  getExpectedCashInDrawer() {
+    const floatAmt = this.currentShift?.openingFloat || 5000;
+    return floatAmt + this.getTodayNetCashSales() + this.getTodayCashMovementsTotal();
+  }
+
+  getTodayCogs() {
+    return this.getTodaySales()
+      .filter(s => !s.refunded)
+      .reduce((acc, s) => {
+        return acc + s.items.reduce((iAcc, item) => iAcc + (item.costSnapshot * item.qty), 0);
+      }, 0);
+  }
+
+  getTodayGrossProfit() {
+    return this.getTodayNetSales() - this.getTodayCogs();
   }
 
   getCategorySalesBreakdown() {

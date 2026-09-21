@@ -2,28 +2,64 @@ import { store } from '../store/CellarStore.js';
 import { requestManagerAuth } from '../services/authService.js';
 
 export function renderShiftView() {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const cashSales = store.sales.filter(s => s.paymentMethod === 'CASH' && s.timestamp.startsWith(todayStr)).reduce((a,s)=>a+s.total, 0);
-  const mpesaSales = store.sales.filter(s => s.paymentMethod === 'M-PESA' && s.timestamp.startsWith(todayStr)).reduce((a,s)=>a+s.total, 0);
-  const expectedCash = 10000 + cashSales;
+  const openingFloat = store.currentShift?.openingFloat || 5000;
+  const grossSales = store.getTodayGrossSales();
+  const totalRefunds = store.getTodayRefunds();
+  const netSales = store.getTodayNetSales();
+  const netCashSales = store.getTodayNetCashSales();
+  const netMpesaSales = store.getTodayNetMpesaSales();
+  const cashMovements = store.getTodayCashMovementsTotal();
+  const expectedCash = store.getExpectedCashInDrawer();
 
   return `
   <div class="view-container" id="view-shift">
-    <div class="grid-3">
+    <div class="grid-4" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
       <div class="stat-card accent">
         <span class="stat-title">Active Shift</span>
-        <span class="stat-value">Shift #104</span>
-        <span class="stat-subtext">Cashier: ${store.currentUser.name}</span>
+        <span class="stat-value">${store.currentShift?.id || 'SHIFT-101'}</span>
+        <span class="stat-subtext">Cashier: ${store.currentUser.name} | Float: KSh ${openingFloat.toLocaleString()}</span>
       </div>
       <div class="stat-card green">
         <span class="stat-title">Expected Cash In Drawer</span>
         <span class="stat-value">KSh ${expectedCash.toLocaleString()}</span>
-        <span class="stat-subtext">Opening Float + Cash Sales - Cash Out</span>
+        <span class="stat-subtext">Float (5k) + Net Cash Sales (${netCashSales.toLocaleString()}) + Move (${cashMovements.toLocaleString()})</span>
       </div>
       <div class="stat-card blue">
-        <span class="stat-title">Total M-PESA Sales</span>
-        <span class="stat-value">KSh ${mpesaSales.toLocaleString()}</span>
-        <span class="stat-subtext">Confirmed Daraja transactions</span>
+        <span class="stat-title">Net M-PESA Sales</span>
+        <span class="stat-value">KSh ${netMpesaSales.toLocaleString()}</span>
+        <span class="stat-subtext">M-PESA Sales - Refunds</span>
+      </div>
+      <div class="stat-card yellow" style="border-left:4px solid var(--accent);">
+        <span class="stat-title">Net Shift Revenue</span>
+        <span class="stat-value">KSh ${netSales.toLocaleString()}</span>
+        <span class="stat-subtext">Gross (${grossSales.toLocaleString()}) - Refunds (${totalRefunds.toLocaleString()})</span>
+      </div>
+    </div>
+
+    <!-- Reconciliation Financial Summary Card -->
+    <div class="section-card" style="margin-bottom:16px; background:var(--surface);">
+      <div class="section-title" style="font-size:14px; margin-bottom:10px;">Shift Sales & Returns Reconciliation Ledger</div>
+      <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; font-size:12.5px; text-align:center; padding:12px; background:var(--bg-elevated); border-radius:var(--radius-md); border:1px solid var(--border);">
+        <div>
+          <div style="color:var(--text-dim); font-size:11px;">GROSS SALES</div>
+          <div style="font-size:16px; font-weight:700; color:var(--text-bright);">KSh ${grossSales.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-dim); font-size:11px;">RETURNS / REFUNDS</div>
+          <div style="font-size:16px; font-weight:700; color:var(--red);">- KSh ${totalRefunds.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-dim); font-size:11px;">NET REVENUE</div>
+          <div style="font-size:16px; font-weight:700; color:var(--accent);">KSh ${netSales.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-dim); font-size:11px;">NET CASH SALES</div>
+          <div style="font-size:16px; font-weight:700; color:var(--green);">KSh ${netCashSales.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-dim); font-size:11px;">NET M-PESA SALES</div>
+          <div style="font-size:16px; font-weight:700; color:#00a040;">KSh ${netMpesaSales.toLocaleString()}</div>
+        </div>
       </div>
     </div>
 
@@ -56,7 +92,7 @@ export function renderShiftView() {
                 <td>${c.user}</td>
                 <td>${c.reason}</td>
               </tr>
-            `).join('') || '<tr><td colspan="5">No cash drawer movements recorded today</td></tr>'}
+            `).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">No cash drawer movements recorded today</td></tr>'}
           </tbody>
         </table>
       </div>
