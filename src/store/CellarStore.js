@@ -1,0 +1,225 @@
+import { INITIAL_PRODUCTS } from '../data/initialProducts.js';
+import { INITIAL_USERS } from '../data/initialUsers.js';
+import { INITIAL_SUPPLIERS } from '../data/initialSuppliers.js';
+
+export class CellarStore {
+  constructor() {
+    this.listeners = [];
+    this.loadStore();
+  }
+
+  subscribe(listener) {
+    this.listeners.push(listener);
+  }
+
+  notify() {
+    this.listeners.forEach(fn => fn());
+  }
+
+  loadStore() {
+    const raw = localStorage.getItem("cellar_v1_store");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        this.products = parsed.products || INITIAL_PRODUCTS;
+        this.users = parsed.users || INITIAL_USERS;
+        this.suppliers = parsed.suppliers || INITIAL_SUPPLIERS;
+        this.sales = parsed.sales || [];
+        this.stockMovements = parsed.stockMovements || [];
+        this.cashMovements = parsed.cashMovements || [];
+        this.expenses = parsed.expenses || [];
+        this.auditLogs = parsed.auditLogs || [];
+        this.purchases = parsed.purchases || [];
+        this.customers = parsed.customers || [];
+        this.etimsQueue = parsed.etimsQueue || [];
+        this.shifts = parsed.shifts || [];
+        this.currentShift = parsed.currentShift || {
+          id: "SHIFT-101",
+          cashierId: "U3",
+          cashierName: "John Omondi",
+          startTime: new Date().toISOString(),
+          openingFloat: 5000,
+          status: "ACTIVE"
+        };
+        this.currentUser = this.users[0];
+        return;
+      } catch (e) {
+        console.error("Error parsing store, re-seeding clean state", e);
+      }
+    }
+    this.seedClean();
+  }
+
+  seedClean() {
+    this.products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
+    this.users = JSON.parse(JSON.stringify(INITIAL_USERS));
+    this.suppliers = JSON.parse(JSON.stringify(INITIAL_SUPPLIERS));
+    
+    // Clean operational data: ZERO dummy sales/expenses/movements
+    this.sales = [];
+    this.stockMovements = this.products.map(p => ({
+      timestamp: new Date().toISOString(),
+      productId: p.id,
+      productName: `${p.brand} ${p.name}`,
+      type: "OPENING_STOCK",
+      qty: p.stock,
+      ref: "INIT-CATALOG",
+      user: "System",
+      reason: "Initial Catalogue Opening Stock"
+    }));
+    this.cashMovements = [];
+    this.expenses = [];
+    this.auditLogs = [
+      {
+        timestamp: new Date().toISOString(),
+        user: "System",
+        action: "Store Initialized Clean",
+        item: "Main Operations",
+        oldVal: "-",
+        newVal: "Clean State Active",
+        reason: "Operational dataset reset"
+      }
+    ];
+    this.purchases = [];
+    this.customers = [
+      { id: "C1", name: "Walk-in Customer", phone: "N/A", visits: 0, totalSpend: 0 }
+    ];
+    this.etimsQueue = [];
+    this.shifts = [];
+    this.currentShift = {
+      id: "SHIFT-101",
+      cashierId: "U3",
+      cashierName: "John Omondi",
+      startTime: new Date().toISOString(),
+      openingFloat: 5000,
+      status: "ACTIVE"
+    };
+    this.currentUser = this.users[0];
+    this.save();
+  }
+
+  save() {
+    const data = {
+      products: this.products,
+      users: this.users,
+      suppliers: this.suppliers,
+      sales: this.sales,
+      stockMovements: this.stockMovements,
+      cashMovements: this.cashMovements,
+      expenses: this.expenses,
+      auditLogs: this.auditLogs,
+      purchases: this.purchases,
+      customers: this.customers,
+      etimsQueue: this.etimsQueue,
+      shifts: this.shifts,
+      currentShift: this.currentShift
+    };
+    localStorage.setItem("cellar_v1_store", JSON.stringify(data));
+    this.notify();
+  }
+
+  logAudit(action, item, oldVal, newVal, reason) {
+    this.auditLogs.unshift({
+      timestamp: new Date().toISOString(),
+      user: this.currentUser.name,
+      action,
+      item,
+      oldVal: String(oldVal),
+      newVal: String(newVal),
+      reason
+    });
+    this.save();
+  }
+
+  // --- DYNAMIC CALCULATORS ---
+  getTodaySales() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return this.sales.filter(s => s.timestamp.startsWith(todayStr));
+  }
+
+  getTodayRevenue() {
+    return this.getTodaySales().reduce((acc, s) => acc + s.total, 0);
+  }
+
+  getTodayCogs() {
+    return this.getTodaySales().reduce((acc, s) => {
+      return acc + s.items.reduce((iAcc, item) => iAcc + (item.costSnapshot * item.qty), 0);
+    }, 0);
+  }
+
+  getTodayGrossProfit() {
+    return this.getTodayRevenue() - this.getTodayCogs();
+  }
+
+  getTodayItemsSold() {
+    return this.getTodaySales().reduce((acc, s) => {
+      return acc + s.items.reduce((iAcc, item) => iAcc + item.qty, 0);
+    }, 0);
+  }
+
+  getTodayCashTotal() {
+    return this.getTodaySales()
+      .filter(s => s.paymentMethod === 'CASH')
+      .reduce((acc, s) => acc + s.total, 0);
+  }
+
+  getTodayMpesaTotal() {
+    return this.getTodaySales()
+      .filter(s => s.paymentMethod === 'M-PESA')
+      .reduce((acc, s) => acc + s.total, 0);
+  }
+
+  getCategorySalesBreakdown() {
+    const map = {};
+    this.sales.forEach(s => {
+      s.items.forEach(i => {
+        const prod = this.products.find(p => p.id === i.productId);
+        const cat = prod ? prod.category : "Other";
+        if (!map[cat]) map[cat] = 0;
+        map[cat] += i.total;
+      });
+    });
+    return map;
+  }
+
+  getHourlySalesTraffic() {
+    const hours = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
+    const data = [0, 0, 0, 0, 0, 0, 0, 0];
+    
+    this.getTodaySales().forEach(s => {
+      const h = new Date(s.timestamp).getHours();
+      if (h >= 8 && h < 10) data[0] += s.total;
+      else if (h >= 10 && h < 12) data[1] += s.total;
+      else if (h >= 12 && h < 14) data[2] += s.total;
+      else if (h >= 14 && h < 16) data[3] += s.total;
+      else if (h >= 16 && h < 18) data[4] += s.total;
+      else if (h >= 18 && h < 20) data[5] += s.total;
+      else if (h >= 20 && h < 22) data[6] += s.total;
+      else if (h >= 22) data[7] += s.total;
+    });
+    return { hours, data };
+  }
+
+  getBrandProfitabilityMatrix() {
+    const brandMap = {};
+    this.sales.forEach(s => {
+      s.items.forEach(i => {
+        const prod = this.products.find(p => p.id === i.productId);
+        const brand = prod ? prod.brand : "Unknown";
+        if (!brandMap[brand]) {
+          brandMap[brand] = { units: 0, revenue: 0, cogs: 0 };
+        }
+        brandMap[brand].units += i.qty;
+        brandMap[brand].revenue += i.total;
+        brandMap[brand].cogs += (i.costSnapshot * i.qty);
+      });
+    });
+    return Object.entries(brandMap).map(([brand, val]) => {
+      const margin = val.revenue - val.cogs;
+      const marginPct = val.revenue > 0 ? ((margin / val.revenue) * 100).toFixed(1) : 0;
+      return { brand, units: val.units, revenue: val.revenue, cogs: val.cogs, margin, marginPct };
+    });
+  }
+}
+
+export const store = new CellarStore();
