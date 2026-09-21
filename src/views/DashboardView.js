@@ -1,4 +1,5 @@
 import { store } from '../store/CellarStore.js';
+import Chart from 'chart.js/auto';
 
 let chartHourly, chartCategory;
 
@@ -12,7 +13,11 @@ export function renderDashboardView() {
   const lowStock = store.products.filter(p => p.stock <= p.reorder);
 
   setTimeout(() => {
-    initDashboardCharts();
+    try {
+      initDashboardCharts();
+    } catch (e) {
+      console.warn("Chart initialization notice:", e);
+    }
   }, 50);
 
   // Top products calculation from actual sales
@@ -171,43 +176,50 @@ export function renderDashboardView() {
 }
 
 function initDashboardCharts() {
+  const ChartClass = typeof Chart !== 'undefined' ? Chart : window.Chart;
+  if (!ChartClass) return;
+
   const ctxH = document.getElementById('chartHourlySales');
   const ctxC = document.getElementById('chartCategorySales');
   if (!ctxH || !ctxC) return;
 
-  if (chartHourly) chartHourly.destroy();
-  if (chartCategory) chartCategory.destroy();
+  try {
+    if (chartHourly) chartHourly.destroy();
+    if (chartCategory) chartCategory.destroy();
 
-  const traffic = store.getHourlySalesTraffic();
-  chartHourly = new Chart(ctxH, {
-    type: 'line',
-    data: {
-      labels: traffic.hours,
-      datasets: [{
-        label: 'Sales (KES)',
-        data: traffic.data,
-        borderColor: '#d3a94e',
-        backgroundColor: 'rgba(211, 169, 78, 0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-  });
+    const traffic = store.getHourlySalesTraffic();
+    chartHourly = new ChartClass(ctxH, {
+      type: 'line',
+      data: {
+        labels: traffic.hours,
+        datasets: [{
+          label: 'Sales (KES)',
+          data: traffic.data,
+          borderColor: '#d3a94e',
+          backgroundColor: 'rgba(211, 169, 78, 0.1)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
 
-  const catMap = store.getCategorySalesBreakdown();
-  const catLabels = Object.keys(catMap);
-  const catData = Object.values(catMap);
+    const catMap = store.getCategorySalesBreakdown();
+    const catLabels = Object.keys(catMap);
+    const catData = Object.values(catMap);
 
-  chartCategory = new Chart(ctxC, {
-    type: 'doughnut',
-    data: {
-      labels: catLabels.length ? catLabels : ['No Sales Yet'],
-      datasets: [{
-        data: catData.length ? catData : [1],
-        backgroundColor: ['#d3a94e', '#4ebf7b', '#4a9eff', '#aa77ff', '#e05648', '#f3f1ed']
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-  });
+    chartCategory = new ChartClass(ctxC, {
+      type: 'doughnut',
+      data: {
+        labels: catLabels.length ? catLabels : ['No Sales Yet'],
+        datasets: [{
+          data: catData.length ? catData : [1],
+          backgroundColor: ['#d3a94e', '#4ebf7b', '#4a9eff', '#aa77ff', '#e05648', '#f3f1ed']
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  } catch (err) {
+    console.warn("Could not render charts:", err);
+  }
 }

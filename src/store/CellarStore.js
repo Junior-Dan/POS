@@ -155,6 +155,14 @@ export class CellarStore {
     return this.getTodayRevenue();
   }
 
+  getTodayItemsSold() {
+    return this.getTodaySales()
+      .filter(s => !s.refunded)
+      .reduce((acc, s) => {
+        return acc + s.items.reduce((iAcc, item) => iAcc + item.qty, 0);
+      }, 0);
+  }
+
   getTodayCashSales() {
     return this.getTodaySales()
       .filter(s => s.paymentMethod === 'CASH')
