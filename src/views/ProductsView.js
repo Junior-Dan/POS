@@ -1,4 +1,5 @@
 import { store } from '../store/CellarStore.js';
+import { requestManagerAuth } from '../services/authService.js';
 
 export function renderProductsView() {
   return `
@@ -43,11 +44,14 @@ export function renderProductsView() {
                 <td><span class="size-badge">${p.size}</span></td>
                 <td><span style="font-family:monospace; font-size:11px;">${p.sku} / ${p.barcode}</span></td>
                 <td>KSh ${p.cost.toLocaleString()}</td>
-                <td><strong>KSh ${p.price.toLocaleString()}</strong></td>
+                <td><strong style="color:var(--accent);">KSh ${p.price.toLocaleString()}</strong></td>
                 <td><span class="${p.stock <= p.reorder ? 'badge badge-danger' : 'badge badge-success'}">${p.stock}</span></td>
                 <td>${p.active ? '<span class="badge badge-success">ACTIVE</span>' : '<span class="badge badge-danger">INACTIVE</span>'}</td>
                 <td>
-                  <button class="btn btn-secondary btn-sm" onclick="toggleProductActive('${p.id}')">${p.active ? 'Deactivate' : 'Activate'}</button>
+                  <div style="display:flex; gap:6px;">
+                    <button class="btn btn-primary btn-sm" onclick="editProductPrice('${p.id}')">✏️ Edit Price</button>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleProductActive('${p.id}')">${p.active ? 'Deactivate' : 'Activate'}</button>
+                  </div>
                 </td>
               </tr>
             `).join('')}
@@ -58,6 +62,30 @@ export function renderProductsView() {
   </div>
   `;
 }
+
+window.editProductPrice = function(id) {
+  const p = store.products.find(x => x.id === id);
+  if (!p) return;
+
+  requestManagerAuth(`Change Price / Specifications for ${p.brand} ${p.name}`, () => {
+    document.getElementById('productModalTitle').textContent = `Edit Product: ${p.brand} ${p.name}`;
+    document.getElementById('prodEditId').value = p.id;
+    document.getElementById('prodBrandInput').value = p.brand;
+    document.getElementById('prodNameInput').value = p.name;
+    document.getElementById('prodCategorySelect').value = p.category;
+    document.getElementById('prodSizeSelect').value = p.size;
+    document.getElementById('prodAbvInput').value = p.abv;
+    document.getElementById('prodSkuInput').value = p.sku;
+    document.getElementById('prodBarcodeInput').value = p.barcode;
+    document.getElementById('prodStockInput').value = p.stock;
+    document.getElementById('prodCostInput').value = p.cost;
+    document.getElementById('prodPriceInput').value = p.price;
+    document.getElementById('prodReorderInput').value = p.reorder;
+    document.getElementById('prodHighValueInput').checked = !!p.highValue;
+    
+    window.openModal('addProductModal');
+  });
+};
 
 window.toggleProductActive = function(id) {
   const p = store.products.find(x => x.id === id);

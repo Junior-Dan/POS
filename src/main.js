@@ -151,10 +151,20 @@ function bindEvents() {
     if (editId) {
       const prod = store.products.find(p => p.id === editId);
       if (prod) {
+        const oldPrice = prod.price;
+        const oldCost = prod.cost;
+
         prod.brand = brand; prod.name = name; prod.category = category; prod.size = size;
         prod.abv = abv; prod.sku = sku; prod.barcode = barcode; prod.cost = cost; prod.price = price;
         prod.reorder = reorder; prod.highValue = highValue;
-        store.logAudit("Edited Product", prod.name, "-", `KES ${price}`, "Product updated");
+
+        store.logAudit(
+          "Price & Specification Edit",
+          `${prod.brand} ${prod.name} (${prod.size})`,
+          `Sell: KES ${oldPrice.toLocaleString()} | Cost: KES ${oldCost.toLocaleString()}`,
+          `Sell: KES ${price.toLocaleString()} | Cost: KES ${cost.toLocaleString()}`,
+          "Manager Authorized Price Modification"
+        );
       }
     } else {
       const newProd = {
