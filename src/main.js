@@ -382,6 +382,10 @@ export function switchTab(viewId) {
   if (titleEl && targetBtn) {
     titleEl.textContent = targetBtn.querySelector('span:last-child').textContent;
   }
+
+  if (viewId === 'dashboard' && window.triggerDashboardCharts) {
+    setTimeout(() => window.triggerDashboardCharts(), 50);
+  }
 }
 
 window.switchTab = switchTab;

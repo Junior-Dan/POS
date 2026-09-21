@@ -240,19 +240,26 @@ export class CellarStore {
   getHourlySalesTraffic() {
     const hours = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
     const data = [0, 0, 0, 0, 0, 0, 0, 0];
+    const orders = [0, 0, 0, 0, 0, 0, 0, 0];
     
-    this.getTodaySales().forEach(s => {
+    this.getTodaySales().filter(s => !s.refunded).forEach(s => {
       const h = new Date(s.timestamp).getHours();
-      if (h >= 8 && h < 10) data[0] += s.total;
-      else if (h >= 10 && h < 12) data[1] += s.total;
-      else if (h >= 12 && h < 14) data[2] += s.total;
-      else if (h >= 14 && h < 16) data[3] += s.total;
-      else if (h >= 16 && h < 18) data[4] += s.total;
-      else if (h >= 18 && h < 20) data[5] += s.total;
-      else if (h >= 20 && h < 22) data[6] += s.total;
-      else if (h >= 22) data[7] += s.total;
+      let idx = -1;
+      if (h >= 8 && h < 10) idx = 0;
+      else if (h >= 10 && h < 12) idx = 1;
+      else if (h >= 12 && h < 14) idx = 2;
+      else if (h >= 14 && h < 16) idx = 3;
+      else if (h >= 16 && h < 18) idx = 4;
+      else if (h >= 18 && h < 20) idx = 5;
+      else if (h >= 20 && h < 22) idx = 6;
+      else if (h >= 22 || h < 8) idx = 7;
+
+      if (idx >= 0) {
+        data[idx] += s.total;
+        orders[idx] += 1;
+      }
     });
-    return { hours, data };
+    return { hours, data, orders };
   }
 
   getBrandProfitabilityMatrix() {

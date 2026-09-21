@@ -175,7 +175,7 @@ export function renderDashboardView() {
   `;
 }
 
-function initDashboardCharts() {
+export function initDashboardCharts() {
   const ChartClass = typeof Chart !== 'undefined' ? Chart : window.Chart;
   if (!ChartClass) return;
 
@@ -193,15 +193,52 @@ function initDashboardCharts() {
       data: {
         labels: traffic.hours,
         datasets: [{
-          label: 'Sales (KES)',
+          label: 'Revenue (KES)',
           data: traffic.data,
           borderColor: '#d3a94e',
-          backgroundColor: 'rgba(211, 169, 78, 0.1)',
+          backgroundColor: 'rgba(211, 169, 78, 0.15)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#d3a94e',
+          pointBorderColor: '#ffffff',
+          pointRadius: 4,
+          pointHoverRadius: 6,
           fill: true,
-          tension: 0.4
+          tension: 0.35
         }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const idx = context.dataIndex;
+                const orderCount = traffic.orders ? traffic.orders[idx] : 0;
+                return ` Revenue: KSh ${context.parsed.y.toLocaleString()} (${orderCount} sales)`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { color: '#8e8e93', font: { size: 11 } }
+          },
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { 
+              color: '#8e8e93', 
+              font: { size: 11 },
+              callback: function(val) {
+                return 'KSh ' + val.toLocaleString();
+              }
+            },
+            beginAtZero: true
+          }
+        }
+      }
     });
 
     const catMap = store.getCategorySalesBreakdown();
@@ -214,12 +251,25 @@ function initDashboardCharts() {
         labels: catLabels.length ? catLabels : ['No Sales Yet'],
         datasets: [{
           data: catData.length ? catData : [1],
-          backgroundColor: ['#d3a94e', '#4ebf7b', '#4a9eff', '#aa77ff', '#e05648', '#f3f1ed']
+          backgroundColor: ['#d3a94e', '#4ebf7b', '#4a9eff', '#aa77ff', '#e05648', '#f3f1ed'],
+          borderWidth: 2,
+          borderColor: '#131316'
         }]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#aaaaaa', font: { size: 11 }, boxWidth: 12 }
+          }
+        }
+      }
     });
   } catch (err) {
     console.warn("Could not render charts:", err);
   }
 }
+
+window.triggerDashboardCharts = initDashboardCharts;
