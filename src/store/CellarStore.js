@@ -133,8 +133,15 @@ export class CellarStore {
 
   // --- DYNAMIC CALCULATORS ---
   getTodaySales() {
-    const todayStr = new Date().toISOString().split('T')[0];
-    return this.sales.filter(s => s.timestamp.startsWith(todayStr));
+    const now = new Date();
+    const tYear = now.getFullYear();
+    const tMonth = now.getMonth();
+    const tDate = now.getDate();
+
+    return this.sales.filter(s => {
+      const d = new Date(s.timestamp);
+      return d.getFullYear() === tYear && d.getMonth() === tMonth && d.getDate() === tDate;
+    });
   }
 
   getTodayGrossSales() {
@@ -226,7 +233,7 @@ export class CellarStore {
 
   getCategorySalesBreakdown() {
     const map = {};
-    this.sales.forEach(s => {
+    this.getTodaySales().filter(s => !s.refunded).forEach(s => {
       s.items.forEach(i => {
         const prod = this.products.find(p => p.id === i.productId);
         const cat = prod ? prod.category : "Other";
@@ -244,29 +251,38 @@ export class CellarStore {
       return h > 12 ? `${h - 12} PM` : `${h} AM`;
     };
 
-    const hours = [];
-    const data = [];
-    const orders = [];
-
-    // 24 real-time hourly slots (00:00 to 23:00)
-    for (let h = 0; h < 24; h++) {
-      hours.push(formatHourLabel(h));
-      data.push(0);
-      orders.push(0);
-    }
+    let startHour = 8;
+    let endHour = 23;
 
     const todaySales = this.getTodaySales().filter(s => !s.refunded);
 
     todaySales.forEach(s => {
       const h = new Date(s.timestamp).getHours();
-      if (h >= 0 && h < 24) {
-        data[h] += s.total;
-        orders[h] += 1;
+      if (h < startHour) startHour = h;
+      if (h > endHour) endHour = h;
+    });
+
+    const hours = [];
+    const data = [];
+    const orders = [];
+
+    for (let h = startHour; h <= endHour; h++) {
+      hours.push(formatHourLabel(h));
+      data.push(0);
+      orders.push(0);
+    }
+
+    todaySales.forEach(s => {
+      const h = new Date(s.timestamp).getHours();
+      const idx = h - startHour;
+      if (idx >= 0 && idx < data.length) {
+        data[idx] += s.total;
+        orders[idx] += 1;
       }
     });
 
     const currentHour = new Date().getHours();
-    return { hours, data, orders, currentHour };
+    return { hours, data, orders, startHour, endHour, currentHour };
   }
 
   getBrandProfitabilityMatrix() {
