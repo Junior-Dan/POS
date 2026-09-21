@@ -20,7 +20,7 @@ export function renderPosView() {
       <div class="pos-catalog">
         <div class="pos-toolbar">
           <div style="position:relative; flex:1;">
-            <input type="text" class="form-input" id="posSearchInput" placeholder="🔎 Scan barcode or type product name, brand, SKU (e.g. JWB)... [F2]">
+            <input type="text" class="form-input" id="posSearchInput" placeholder="Scan barcode or type product name, brand, SKU (e.g. JWB)... [F2]">
           </div>
           <button class="btn btn-secondary" id="posClearSearchBtn">Clear Filter</button>
         </div>

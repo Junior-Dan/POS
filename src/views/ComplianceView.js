@@ -22,7 +22,7 @@ export function renderComplianceView() {
       <div class="section-card">
         <div class="section-header">
           <div class="section-title">KRA eTIMS Transmission Feed</div>
-          <button class="btn btn-secondary btn-sm">🔄 Sync Pending Queue</button>
+          <button class="btn btn-secondary btn-sm"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Sync Pending Queue</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; font-size:12.5px;">
           <div><strong>KRA PIN:</strong> P051234567Z</div>

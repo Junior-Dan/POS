@@ -7,7 +7,7 @@ export function renderPinPadModal() {
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span>Manager Authorization Required</span>
         </div>
-        <button class="modal-close" onclick="closeModal('pinModal')">✕</button>
+        <button class="modal-close" onclick="closeModal('pinModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
       </div>
       <div class="modal-body">
         <div style="text-align:center; font-size:13.5px; color:var(--text-dim);" id="pinActionDescription">
@@ -31,7 +31,7 @@ export function renderPinPadModal() {
           <button class="pin-btn" onclick="pressPin('9')">9</button>
           <button class="pin-btn" onclick="clearPin()">C</button>
           <button class="pin-btn" onclick="pressPin('0')">0</button>
-          <button class="pin-btn" onclick="submitPin()">✓</button>
+          <button class="pin-btn" onclick="submitPin()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:18px; height:18px;"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
         </div>
         <div id="pinErrorMsg" style="color:var(--red); font-size:12px; text-align:center; font-weight:700; height:16px;"></div>
       </div>

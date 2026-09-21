@@ -7,7 +7,7 @@ export function renderCashModal() {
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
           <span>Cash Payment</span>
         </div>
-        <button class="modal-close" onclick="closeModal('cashPaymentModal')">✕</button>
+        <button class="modal-close" onclick="closeModal('cashPaymentModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
       </div>
       <div class="modal-body">
         <div style="text-align:center;">

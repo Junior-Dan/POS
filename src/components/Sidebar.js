@@ -17,7 +17,7 @@ export function renderSidebar(currentUser) {
           <span class="branch-label">Active Branch</span>
           <span class="branch-name" id="currentBranchName">Nairobi CBD Main</span>
         </div>
-        <span style="font-size:12px; color:var(--text-faint)">▼</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; color:var(--text-faint);"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </div>
     </div>
 
