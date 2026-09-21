@@ -238,28 +238,35 @@ export class CellarStore {
   }
 
   getHourlySalesTraffic() {
-    const hours = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
-    const data = [0, 0, 0, 0, 0, 0, 0, 0];
-    const orders = [0, 0, 0, 0, 0, 0, 0, 0];
-    
-    this.getTodaySales().filter(s => !s.refunded).forEach(s => {
-      const h = new Date(s.timestamp).getHours();
-      let idx = -1;
-      if (h >= 8 && h < 10) idx = 0;
-      else if (h >= 10 && h < 12) idx = 1;
-      else if (h >= 12 && h < 14) idx = 2;
-      else if (h >= 14 && h < 16) idx = 3;
-      else if (h >= 16 && h < 18) idx = 4;
-      else if (h >= 18 && h < 20) idx = 5;
-      else if (h >= 20 && h < 22) idx = 6;
-      else if (h >= 22 || h < 8) idx = 7;
+    const formatHourLabel = (h) => {
+      if (h === 0) return '12 AM';
+      if (h === 12) return '12 PM';
+      return h > 12 ? `${h - 12} PM` : `${h} AM`;
+    };
 
-      if (idx >= 0) {
-        data[idx] += s.total;
-        orders[idx] += 1;
+    const hours = [];
+    const data = [];
+    const orders = [];
+
+    // 24 real-time hourly slots (00:00 to 23:00)
+    for (let h = 0; h < 24; h++) {
+      hours.push(formatHourLabel(h));
+      data.push(0);
+      orders.push(0);
+    }
+
+    const todaySales = this.getTodaySales().filter(s => !s.refunded);
+
+    todaySales.forEach(s => {
+      const h = new Date(s.timestamp).getHours();
+      if (h >= 0 && h < 24) {
+        data[h] += s.total;
+        orders[h] += 1;
       }
     });
-    return { hours, data, orders };
+
+    const currentHour = new Date().getHours();
+    return { hours, data, orders, currentHour };
   }
 
   getBrandProfitabilityMatrix() {

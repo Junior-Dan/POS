@@ -88,12 +88,16 @@ export function renderDashboardView() {
     <div class="grid-2">
       <div class="section-card">
         <div class="section-header">
-          <div class="section-title-box">
+          <div style="display:flex; align-items:center; gap:10px;">
             <div class="section-title">Today's Hourly Traffic</div>
+            <div style="display:flex; align-items:center; gap:6px; background:var(--green-soft); border:1px solid rgba(78,191,123,0.3); padding:3px 10px; border-radius:12px;">
+              <span class="live-pulse-dot"></span>
+              <span style="font-size:10.5px; font-weight:800; color:var(--green); letter-spacing:0.5px;">LIVE REAL-TIME</span>
+            </div>
           </div>
-          <span class="section-subtitle">Sales volume by hour</span>
+          <span class="section-subtitle">Real-time 24-hour transaction stream</span>
         </div>
-        <div style="height: 240px;">
+        <div style="height: 240px; position:relative;">
           <canvas id="chartHourlySales"></canvas>
         </div>
       </div>
@@ -224,7 +228,12 @@ export function initDashboardCharts() {
         scales: {
           x: {
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            ticks: { color: '#8e8e93', font: { size: 11 } }
+            ticks: { 
+              color: '#8e8e93', 
+              font: { size: 10.5 },
+              autoSkip: true,
+              maxTicksLimit: 12
+            }
           },
           y: {
             grid: { color: 'rgba(255, 255, 255, 0.05)' },

@@ -88,6 +88,22 @@ function bindEvents() {
   window.openModal = (id) => document.getElementById(id)?.classList.add('active');
   window.closeModal = (id) => document.getElementById(id)?.classList.remove('active');
 
+  // Real-time Live Store Subscription & Ticker
+  if (!window._liveTickerStarted) {
+    window._liveTickerStarted = true;
+    store.subscribe(() => {
+      if (activeViewId === 'dashboard' && window.triggerDashboardCharts) {
+        window.triggerDashboardCharts();
+      }
+    });
+
+    setInterval(() => {
+      if (activeViewId === 'dashboard' && window.triggerDashboardCharts) {
+        window.triggerDashboardCharts();
+      }
+    }, 4000);
+  }
+
   // User Switcher
   const switchBtn = document.getElementById('switchUserBtn');
   if (switchBtn) {
