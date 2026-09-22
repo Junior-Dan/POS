@@ -80,9 +80,24 @@ export class CellarStore {
         reason: "Operational dataset reset"
       }
     ];
-    this.purchases = [];
+    this.purchases = [
+      {
+        id: "PO-2026-041",
+        supplierId: "SUP1",
+        supplierName: "Kenya Breweries Limited (KBL)",
+        dateIssued: new Date().toISOString().split('T')[0],
+        status: "ORDERED",
+        deliveryDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        items: [
+          { productId: "P101", name: "Johnnie Walker Black Label 750ml", qtyOrdered: 12, qtyReceived: 0, unitCost: 3200, totalCost: 38400 }
+        ],
+        totalValue: 38400,
+        notes: "Restock order for weekend inventory"
+      }
+    ];
     this.customers = [
-      { id: "C1", name: "Walk-in Customer", phone: "N/A", visits: 0, totalSpend: 0 }
+      { id: "C1", name: "Walk-in Customer", phone: "N/A", email: "-", visits: 0, totalSpend: 0 },
+      { id: "C2", name: "David Mwangi", phone: "0712345678", email: "david@example.com", visits: 3, totalSpend: 24500 }
     ];
     this.etimsQueue = [];
     this.shifts = [];
