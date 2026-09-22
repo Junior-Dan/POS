@@ -1,6 +1,7 @@
 import { INITIAL_PRODUCTS } from '../data/initialProducts.js';
 import { INITIAL_USERS } from '../data/initialUsers.js';
 import { INITIAL_SUPPLIERS } from '../data/initialSuppliers.js';
+import { INITIAL_BRANCHES } from '../data/initialBranches.js';
 
 export class CellarStore {
   constructor() {
@@ -24,6 +25,61 @@ export class CellarStore {
         this.products = parsed.products || INITIAL_PRODUCTS;
         this.users = parsed.users || INITIAL_USERS;
         this.suppliers = parsed.suppliers || INITIAL_SUPPLIERS;
+        this.branches = parsed.branches || INITIAL_BRANCHES;
+        this.activeBranchId = parsed.activeBranchId || "B1";
+        
+        this.businessProfile = parsed.businessProfile || {
+          name: "Cisco Wines & Spirits",
+          phone: "0722 000 111",
+          email: "info@ciscowines.co.ke",
+          address: "Kenyatta Avenue, Nairobi CBD",
+          kraPin: "P051234567S",
+          regNo: "CPR/2024/99182",
+          receiptName: "CISCO WINES & SPIRITS",
+          receiptPhone: "0722 000 111",
+          receiptAddress: "Kenyatta Avenue, Nairobi CBD"
+        };
+
+        this.paymentSettings = parsed.paymentSettings || {
+          cashEnabled: true,
+          mpesaEnabled: true,
+          cardEnabled: true,
+          bankEnabled: true,
+          creditEnabled: false
+        };
+
+        this.receiptSettings = parsed.receiptSettings || {
+          showLogo: true,
+          showCashierName: true,
+          showTaxBreakdown: true,
+          printCopies: 1,
+          headerText: "CISCO WINES & SPIRITS",
+          footerText: "Thank you for shopping at Cisco Wines! Quality Wines & Spirits."
+        };
+
+        this.shiftSettings = parsed.shiftSettings || {
+          defaultFloat: 5000,
+          requireCashDeclaration: true,
+          maxVarianceThreshold: 1000,
+          requireManagerVarianceApproval: true
+        };
+
+        this.securitySettings = parsed.securitySettings || {
+          sessionTimeoutMinutes: 30,
+          autoLogoutOnIdle: false,
+          requirePinForRefunds: true,
+          requirePinForPriceOverride: true,
+          requirePinForStockAdjustments: true,
+          maxDiscountPercentWithoutAuth: 5
+        };
+
+        this.systemPreferences = parsed.systemPreferences || {
+          currencySymbol: "KSh",
+          taxRate: 16,
+          dateFormat: "DD/MM/YYYY",
+          theme: "dark"
+        };
+
         this.sales = parsed.sales || [];
         this.stockMovements = parsed.stockMovements || [];
         this.cashMovements = parsed.cashMovements || [];
@@ -35,6 +91,7 @@ export class CellarStore {
         this.shifts = parsed.shifts || [];
         this.currentShift = parsed.currentShift || {
           id: "SHIFT-101",
+          branchId: "B1",
           cashierId: "U3",
           cashierName: "John Omondi",
           startTime: new Date().toISOString(),
@@ -54,8 +111,62 @@ export class CellarStore {
     this.products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
     this.users = JSON.parse(JSON.stringify(INITIAL_USERS));
     this.suppliers = JSON.parse(JSON.stringify(INITIAL_SUPPLIERS));
+    this.branches = JSON.parse(JSON.stringify(INITIAL_BRANCHES));
+    this.activeBranchId = "B1";
+
+    this.businessProfile = {
+      name: "Cisco Wines & Spirits",
+      phone: "0722 000 111",
+      email: "info@ciscowines.co.ke",
+      address: "Kenyatta Avenue, Nairobi CBD",
+      kraPin: "P051234567S",
+      regNo: "CPR/2024/99182",
+      receiptName: "CISCO WINES & SPIRITS",
+      receiptPhone: "0722 000 111",
+      receiptAddress: "Kenyatta Avenue, Nairobi CBD"
+    };
+
+    this.paymentSettings = {
+      cashEnabled: true,
+      mpesaEnabled: true,
+      cardEnabled: true,
+      bankEnabled: true,
+      creditEnabled: false
+    };
+
+    this.receiptSettings = {
+      showLogo: true,
+      showCashierName: true,
+      showTaxBreakdown: true,
+      printCopies: 1,
+      headerText: "CISCO WINES & SPIRITS",
+      footerText: "Thank you for shopping at Cisco Wines! Quality Wines & Spirits."
+    };
+
+    this.shiftSettings = {
+      defaultFloat: 5000,
+      requireCashDeclaration: true,
+      maxVarianceThreshold: 1000,
+      requireManagerVarianceApproval: true
+    };
+
+    this.securitySettings = {
+      sessionTimeoutMinutes: 30,
+      autoLogoutOnIdle: false,
+      requirePinForRefunds: true,
+      requirePinForPriceOverride: true,
+      requirePinForStockAdjustments: true,
+      maxDiscountPercentWithoutAuth: 5
+    };
+
+    this.systemPreferences = {
+      currencySymbol: "KSh",
+      taxRate: 16,
+      dateFormat: "DD/MM/YYYY",
+      theme: "dark"
+    };
     
-    // Clean operational data: ZERO dummy sales/expenses/movements
+    // Clean operational data
     this.sales = [];
     this.stockMovements = this.products.map(p => ({
       timestamp: new Date().toISOString(),
@@ -83,6 +194,7 @@ export class CellarStore {
     this.purchases = [
       {
         id: "PO-2026-041",
+        branchId: "B1",
         supplierId: "SUP1",
         supplierName: "Kenya Breweries Limited (KBL)",
         dateIssued: new Date().toISOString().split('T')[0],
@@ -103,6 +215,7 @@ export class CellarStore {
     this.shifts = [];
     this.currentShift = {
       id: "SHIFT-101",
+      branchId: "B1",
       cashierId: "U3",
       cashierName: "John Omondi",
       startTime: new Date().toISOString(),
@@ -118,6 +231,14 @@ export class CellarStore {
       products: this.products,
       users: this.users,
       suppliers: this.suppliers,
+      branches: this.branches,
+      activeBranchId: this.activeBranchId,
+      businessProfile: this.businessProfile,
+      paymentSettings: this.paymentSettings,
+      receiptSettings: this.receiptSettings,
+      shiftSettings: this.shiftSettings,
+      securitySettings: this.securitySettings,
+      systemPreferences: this.systemPreferences,
       sales: this.sales,
       stockMovements: this.stockMovements,
       cashMovements: this.cashMovements,
@@ -137,6 +258,8 @@ export class CellarStore {
     this.auditLogs.unshift({
       timestamp: new Date().toISOString(),
       user: this.currentUser.name,
+      role: this.currentUser.role,
+      branchId: this.activeBranchId,
       action,
       item,
       oldVal: String(oldVal),
@@ -146,7 +269,56 @@ export class CellarStore {
     this.save();
   }
 
-  // --- DYNAMIC CALCULATORS ---
+  // --- BRANCH & SECURITY ACCESS CONTROL ---
+  setActiveBranch(branchId) {
+    this.activeBranchId = branchId;
+    this.save();
+  }
+
+  getActiveBranch() {
+    if (this.activeBranchId === 'ALL') {
+      return { id: 'ALL', name: 'All Branches (Enterprise)' };
+    }
+    return this.branches.find(b => b.id === this.activeBranchId) || this.branches[0] || { id: 'B1', name: 'Nairobi CBD Main' };
+  }
+
+  canUserAccessView(user, viewId) {
+    if (!user) return false;
+    if (user.role === 'owner') return true;
+
+    if (user.permissions && (user.permissions.includes('all') || user.permissions.includes(viewId))) {
+      return true;
+    }
+
+    const roleMap = {
+      manager: ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'settings'],
+      cashier: ['pos', 'sales', 'shift', 'customers'],
+      inventory_officer: ['products', 'inventory', 'suppliers', 'purchases']
+    };
+
+    const allowedViews = roleMap[user.role] || [];
+    return allowedViews.includes(viewId);
+  }
+
+  getSetupStatus() {
+    const steps = [
+      { key: "businessProfile", name: "Business Profile", status: (this.businessProfile && this.businessProfile.name && this.businessProfile.phone && this.businessProfile.kraPin) ? "COMPLETE" : "WARNING" },
+      { key: "ownerAccount", name: "Owner Account", status: this.users.some(u => u.role === 'owner') ? "COMPLETE" : "WARNING" },
+      { key: "firstBranch", name: "Branches Configured", status: this.branches.length > 0 ? "COMPLETE" : "WARNING" },
+      { key: "staffMembers", name: "Staff & Roles", status: this.users.length >= 3 ? "COMPLETE" : "WARNING" },
+      { key: "paymentMethods", name: "Payment Methods", status: (this.paymentSettings.cashEnabled || this.paymentSettings.mpesaEnabled) ? "COMPLETE" : "WARNING" },
+      { key: "receiptSettings", name: "Receipt Settings", status: (this.receiptSettings.headerText && this.receiptSettings.footerText) ? "COMPLETE" : "WARNING" },
+      { key: "shiftSettings", name: "Shift & Float Rules", status: this.shiftSettings.defaultFloat > 0 ? "COMPLETE" : "WARNING" },
+      { key: "taxEtims", name: "eTIMS Queue Status", status: "COMPLETE" }
+    ];
+
+    const completed = steps.filter(s => s.status === "COMPLETE").length;
+    const percentage = Math.round((completed / steps.length) * 100);
+
+    return { steps, percentage };
+  }
+
+  // --- DYNAMIC CALCULATORS WITH BRANCH SCOPING ---
   getTodaySales() {
     const now = new Date();
     const tYear = now.getFullYear();
@@ -155,7 +327,9 @@ export class CellarStore {
 
     return this.sales.filter(s => {
       const d = new Date(s.timestamp);
-      return d.getFullYear() === tYear && d.getMonth() === tMonth && d.getDate() === tDate;
+      const matchesDate = d.getFullYear() === tYear && d.getMonth() === tMonth && d.getDate() === tDate;
+      const matchesBranch = this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId;
+      return matchesDate && matchesBranch;
     });
   }
 

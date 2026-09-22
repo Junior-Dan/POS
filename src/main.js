@@ -34,6 +34,9 @@ import { renderSupplierModal } from './components/SupplierModal.js';
 import { renderPurchaseOrderModal } from './components/PurchaseOrderModal.js';
 import { renderExpenseModal } from './components/ExpenseModal.js';
 import { renderCustomerModal } from './components/CustomerModal.js';
+import { renderBranchModal } from './components/BranchModal.js';
+import { renderStaffModal } from './components/StaffModal.js';
+import { renderResetPinModal } from './components/ResetPinModal.js';
 
 let activeViewId = 'dashboard';
 
@@ -78,6 +81,9 @@ export function initApp() {
       ${renderPurchaseOrderModal()}
       ${renderExpenseModal()}
       ${renderCustomerModal()}
+      ${renderBranchModal()}
+      ${renderStaffModal()}
+      ${renderResetPinModal()}
     </div>
   `;
 
@@ -763,6 +769,334 @@ function bindEvents() {
     }
   };
 
+  // --- BRANCH & ENTERPRISE HANDLERS ---
+  window.switchActiveBranch = (branchId) => {
+    store.setActiveBranch(branchId);
+    store.logAudit("Switched Active Branch", branchId, "-", store.getActiveBranch().name, "User Branch Switch");
+    initApp();
+  };
+
+  // --- ADMINISTRATION CENTER HANDLERS ---
+  window.submitSaveBusinessProfile = () => {
+    const name = document.getElementById('setBizName').value.trim();
+    const phone = document.getElementById('setBizPhone').value.trim();
+    const email = document.getElementById('setBizEmail').value.trim();
+    const address = document.getElementById('setBizAddress').value.trim();
+    const kraPin = document.getElementById('setKraPin').value.trim();
+    const regNo = document.getElementById('setBizRegNo').value.trim();
+    const receiptName = document.getElementById('setReceiptName').value.trim() || name;
+    const receiptPhone = document.getElementById('setReceiptPhone').value.trim() || phone;
+    const receiptAddress = document.getElementById('setReceiptAddress').value.trim() || address;
+
+    if (!name || !phone || !kraPin) return alert("Please enter Business Name, Phone, and KRA PIN!");
+
+    store.businessProfile = {
+      name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress
+    };
+
+    store.logAudit("Saved Business Profile", name, "-", `PIN: ${kraPin}`, "Updated Business Identity");
+    store.save();
+    initApp();
+    alert("Business Profile saved successfully!");
+  };
+
+  window.openAddBranchModal = () => {
+    document.getElementById('branchModalTitle').textContent = "Add New Branch";
+    document.getElementById('branchEditId').value = "";
+    document.getElementById('branchNameInput').value = "";
+    document.getElementById('branchCodeInput').value = "";
+    document.getElementById('branchLocationInput').value = "";
+    document.getElementById('branchPhoneInput').value = "";
+    document.getElementById('branchHoursInput').value = "08:00 AM - 10:00 PM";
+
+    const mgrSelect = document.getElementById('branchManagerSelect');
+    if (mgrSelect) {
+      mgrSelect.innerHTML = `<option value="">None (Unassigned)</option>` + store.users.map(u => `<option value="${u.id}">${u.name} (${u.role.toUpperCase()})</option>`).join('');
+    }
+
+    window.openModal('branchModal');
+  };
+
+  window.openEditBranchModal = (id) => {
+    const b = store.branches.find(x => x.id === id);
+    if (!b) return;
+
+    document.getElementById('branchModalTitle').textContent = "Edit Branch Details";
+    document.getElementById('branchEditId').value = b.id;
+    document.getElementById('branchNameInput').value = b.name;
+    document.getElementById('branchCodeInput').value = b.code || "";
+    document.getElementById('branchLocationInput').value = b.location || "";
+    document.getElementById('branchPhoneInput').value = b.phone || "";
+    document.getElementById('branchHoursInput').value = b.hours || "08:00 AM - 10:00 PM";
+    document.getElementById('branchStatusSelect').value = b.status || "ACTIVE";
+
+    const mgrSelect = document.getElementById('branchManagerSelect');
+    if (mgrSelect) {
+      mgrSelect.innerHTML = `<option value="">None (Unassigned)</option>` + store.users.map(u => `<option value="${u.id}" ${u.id === b.managerId ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
+    }
+
+    window.openModal('branchModal');
+  };
+
+  window.submitSaveBranch = () => {
+    const name = document.getElementById('branchNameInput').value.trim();
+    const code = document.getElementById('branchCodeInput').value.trim() || `BR-${Date.now().toString().slice(-4)}`;
+    const location = document.getElementById('branchLocationInput').value.trim();
+    const phone = document.getElementById('branchPhoneInput').value.trim();
+    const managerId = document.getElementById('branchManagerSelect').value;
+    const hours = document.getElementById('branchHoursInput').value.trim();
+    const status = document.getElementById('branchStatusSelect').value;
+
+    if (!name || !location) return alert("Please enter Branch Name and Location!");
+
+    const editId = document.getElementById('branchEditId').value;
+    if (editId) {
+      const b = store.branches.find(x => x.id === editId);
+      if (b) {
+        b.name = name; b.code = code; b.location = location; b.phone = phone;
+        b.managerId = managerId; b.hours = hours; b.status = status;
+        store.logAudit("Updated Branch", name, "-", `Code: ${code}`, "Branch Configuration Saved");
+      }
+    } else {
+      const newBranch = {
+        id: `B${store.branches.length + 1}`,
+        name, code, location, phone, managerId, hours, status
+      };
+      store.branches.push(newBranch);
+      store.logAudit("Created New Branch", name, "-", `Code: ${code}`, "Added Branch to Enterprise");
+    }
+
+    store.save();
+    window.closeModal('branchModal');
+    initApp();
+    alert("Branch configuration saved!");
+  };
+
+  window.deleteBranch = (id) => {
+    const b = store.branches.find(x => x.id === id);
+    if (!b) return;
+    if (confirm(`Deactivate/Delete branch "${b.name}"?`)) {
+      store.branches = store.branches.filter(x => x.id !== id);
+      store.logAudit("Deleted Branch", b.name, "-", "-", "Deactivated Branch");
+      store.save();
+      initApp();
+    }
+  };
+
+  window.openAddStaffModal = () => {
+    document.getElementById('staffModalTitle').textContent = "Add Staff Account";
+    document.getElementById('staffEditId').value = "";
+    document.getElementById('staffNameInput').value = "";
+    document.getElementById('staffPhoneInput').value = "";
+    document.getElementById('staffEmailInput').value = "";
+    document.getElementById('staffPinInput').value = "";
+
+    const primSelect = document.getElementById('staffPrimaryBranchSelect');
+    if (primSelect) {
+      primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    }
+
+    const addSelect = document.getElementById('staffAdditionalBranchesSelect');
+    if (addSelect) {
+      addSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    }
+
+    window.openModal('staffModal');
+  };
+
+  window.openEditStaffModal = (id) => {
+    const u = store.users.find(x => x.id === id);
+    if (!u) return;
+
+    document.getElementById('staffModalTitle').textContent = "Edit Staff Account";
+    document.getElementById('staffEditId').value = u.id;
+    document.getElementById('staffNameInput').value = u.name;
+    document.getElementById('staffPhoneInput').value = u.phone || "";
+    document.getElementById('staffEmailInput').value = u.email || "";
+    document.getElementById('staffRoleSelect').value = u.role;
+    document.getElementById('staffStatusSelect').value = u.status || "ACTIVE";
+    document.getElementById('staffPinInput').value = ""; // Masked PIN!
+
+    const primSelect = document.getElementById('staffPrimaryBranchSelect');
+    if (primSelect) {
+      primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}" ${b.id === u.primaryBranchId ? 'selected' : ''}>${b.name}</option>`).join('');
+    }
+
+    const addSelect = document.getElementById('staffAdditionalBranchesSelect');
+    if (addSelect) {
+      addSelect.innerHTML = store.branches.map(b => `<option value="${b.id}" ${(u.additionalBranchIds || []).includes(b.id) ? 'selected' : ''}>${b.name}</option>`).join('');
+    }
+
+    window.openModal('staffModal');
+  };
+
+  window.submitSaveStaff = () => {
+    const name = document.getElementById('staffNameInput').value.trim();
+    const phone = document.getElementById('staffPhoneInput').value.trim();
+    const email = document.getElementById('staffEmailInput').value.trim();
+    const role = document.getElementById('staffRoleSelect').value;
+    const primaryBranchId = document.getElementById('staffPrimaryBranchSelect').value;
+    const status = document.getElementById('staffStatusSelect').value;
+    const pin = document.getElementById('staffPinInput').value.trim();
+
+    const addSelect = document.getElementById('staffAdditionalBranchesSelect');
+    const additionalBranchIds = Array.from(addSelect.selectedOptions).map(opt => opt.value);
+
+    if (!name || !phone) return alert("Please enter Staff Name and Phone Number!");
+
+    const editId = document.getElementById('staffEditId').value;
+    if (editId) {
+      const u = store.users.find(x => x.id === editId);
+      if (u) {
+        u.name = name; u.phone = phone; u.email = email; u.role = role;
+        u.primaryBranchId = primaryBranchId; u.additionalBranchIds = additionalBranchIds;
+        u.status = status;
+        if (pin && pin.length === 4) u.pin = pin;
+        store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
+      }
+    } else {
+      if (!pin || pin.length !== 4) return alert("Please enter a 4-digit Secret Security PIN!");
+      const newStaff = {
+        id: `U${store.users.length + 1}`,
+        name, phone, email, role, primaryBranchId, additionalBranchIds, status, pin,
+        permissions: []
+      };
+      store.users.push(newStaff);
+      store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
+    }
+
+    store.save();
+    window.closeModal('staffModal');
+    initApp();
+    alert("Staff member configuration saved successfully!");
+  };
+
+  window.deleteStaff = (id) => {
+    const u = store.users.find(x => x.id === id);
+    if (!u) return;
+    if (confirm(`Deactivate staff account "${u.name}"?`)) {
+      u.status = "INACTIVE";
+      store.logAudit("Deactivated Staff Account", u.name, "-", "-", "Account Deactivated");
+      store.save();
+      initApp();
+    }
+  };
+
+  window.openResetPinModal = (id) => {
+    const u = store.users.find(x => x.id === id);
+    if (!u) return;
+
+    document.getElementById('resetPinUserId').value = u.id;
+    document.getElementById('resetPinTargetUserText').textContent = `Staff: ${u.name} (${u.role.toUpperCase()})`;
+    document.getElementById('newPinInput').value = "";
+    document.getElementById('confirmNewPinInput').value = "";
+    window.openModal('resetPinModal');
+  };
+
+  window.submitResetPin = () => {
+    const userId = document.getElementById('resetPinUserId').value;
+    const newPin = document.getElementById('newPinInput').value.trim();
+    const confirmPin = document.getElementById('confirmNewPinInput').value.trim();
+
+    if (!newPin || newPin.length !== 4 || isNaN(newPin)) {
+      return alert("PIN must be exactly 4 digits!");
+    }
+
+    if (newPin !== confirmPin) {
+      return alert("PIN confirmation does not match!");
+    }
+
+    const u = store.users.find(x => x.id === userId);
+    if (u) {
+      u.pin = newPin;
+      store.logAudit("Reset Security PIN", u.name, "••••", "••••", "Staff Security PIN Reset (Masked)");
+      store.save();
+      window.closeModal('resetPinModal');
+      alert(`Security PIN updated successfully for ${u.name}!`);
+    }
+  };
+
+  window.submitSaveReceiptSettings = () => {
+    const headerText = document.getElementById('recHeaderInput').value.trim();
+    const footerText = document.getElementById('recFooterInput').value.trim();
+    const printCopies = parseInt(document.getElementById('recCopiesInput').value) || 1;
+    const showCashierName = document.getElementById('recShowCashierSelect').value === 'true';
+
+    store.receiptSettings = {
+      showLogo: true,
+      showCashierName,
+      showTaxBreakdown: true,
+      printCopies,
+      headerText: headerText || "CISCO WINES & SPIRITS",
+      footerText: footerText || "Thank you for shopping at Cisco Wines!"
+    };
+
+    store.logAudit("Updated Receipt Settings", "POS Receipt", "-", `Header: ${headerText}`, "Receipt Settings Saved");
+    store.save();
+    initApp();
+    alert("Receipt printing configuration saved!");
+  };
+
+  window.submitSavePaymentSettings = () => {
+    const cashEnabled = document.getElementById('payOptCash').checked;
+    const mpesaEnabled = document.getElementById('payOptMpesa').checked;
+    const cardEnabled = document.getElementById('payOptCard').checked;
+    const bankEnabled = document.getElementById('payOptBank').checked;
+
+    store.paymentSettings = { cashEnabled, mpesaEnabled, cardEnabled, bankEnabled, creditEnabled: false };
+    store.logAudit("Updated Payment Methods", "POS Checkout", "-", `Cash:${cashEnabled}, M-PESA:${mpesaEnabled}, Card:${cardEnabled}`, "Payment Options Configured");
+    store.save();
+    initApp();
+    alert("Payment settings saved successfully!");
+  };
+
+  window.submitSaveShiftSettings = () => {
+    const defaultFloat = parseFloat(document.getElementById('shiftFloatInput').value) || 5000;
+    const maxVarianceThreshold = parseFloat(document.getElementById('shiftVarianceInput').value) || 1000;
+
+    store.shiftSettings = {
+      defaultFloat,
+      requireCashDeclaration: true,
+      maxVarianceThreshold,
+      requireManagerVarianceApproval: true
+    };
+
+    store.logAudit("Updated Shift Rules", "Shift & Drawer", "-", `Float: KES ${defaultFloat}`, "Shift Rules Configured");
+    store.save();
+    initApp();
+    alert("Shift rules saved successfully!");
+  };
+
+  window.submitSaveSecuritySettings = () => {
+    const sessionTimeoutMinutes = parseInt(document.getElementById('secTimeoutInput').value) || 30;
+    const maxDiscountPercentWithoutAuth = parseInt(document.getElementById('secDiscountInput').value) || 5;
+
+    store.securitySettings = {
+      sessionTimeoutMinutes,
+      autoLogoutOnIdle: false,
+      requirePinForRefunds: true,
+      requirePinForPriceOverride: true,
+      requirePinForStockAdjustments: true,
+      maxDiscountPercentWithoutAuth
+    };
+
+    store.logAudit("Updated Security Policy", "System Security", "-", `Timeout: ${sessionTimeoutMinutes}m`, "Security Rules Saved");
+    store.save();
+    initApp();
+    alert("Security policies saved successfully!");
+  };
+
+  window.submitSaveSystemPreferences = () => {
+    const currencySymbol = document.getElementById('prefCurrencyInput').value.trim() || 'KSh';
+    const taxRate = parseFloat(document.getElementById('prefTaxRateInput').value) || 16;
+
+    store.systemPreferences = { currencySymbol, taxRate, dateFormat: "DD/MM/YYYY", theme: "dark" };
+    store.logAudit("Updated System Preferences", "System Config", "-", `Currency: ${currencySymbol}`, "Preferences Saved");
+    store.save();
+    initApp();
+    alert("System preferences saved!");
+  };
+
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.key === '/') {
@@ -778,6 +1112,11 @@ function bindEvents() {
 }
 
 export function switchTab(viewId) {
+  if (!store.canUserAccessView(store.currentUser, viewId)) {
+    alert(`Access Denied: Your assigned role (${store.currentUser.role.toUpperCase()}) does not have permission to access module "${viewId.toUpperCase()}".`);
+    return;
+  }
+
   activeViewId = viewId;
   document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));

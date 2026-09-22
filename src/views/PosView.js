@@ -48,6 +48,12 @@ export function renderPosView() {
         </div>
 
         <div class="cart-summary">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label" style="font-size:11px; color:var(--text-dim);">Customer (Loyalty Tracking)</label>
+            <select class="form-select" id="posCustomerSelect" style="padding:4px 8px; font-size:12px;">
+              ${(store.customers || []).map(c => `<option value="${c.id}">${c.name} (${c.phone || 'N/A'})</option>`).join('')}
+            </select>
+          </div>
           <div class="summary-row">
             <span>Subtotal</span>
             <span id="posSubtotal">KSh 0</span>
@@ -205,7 +211,6 @@ window.clearCart = function() {
 window.filterPosCat = function(cat) {
   activeCategoryFilter = cat;
   
-  // Highlight clicked category pill and remove active class from others
   const pills = document.querySelectorAll('#posCategoryPills .cat-pill');
   pills.forEach(pill => {
     if (pill.textContent.trim() === cat) {
@@ -242,16 +247,21 @@ window.completePosSale = function(paymentMethod = 'CASH') {
 
   const subtotal = currentCart.reduce((acc, i) => acc + (i.price * i.qty), 0);
   const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
+  const custId = document.getElementById('posCustomerSelect')?.value;
   
   const proceedWithCheckout = () => {
     const discountAmt = (subtotal * discPercent) / 100;
     const total = subtotal - discountAmt;
     const tax = total * 0.16;
 
+    const activeBranchId = store.activeBranchId === 'ALL' ? 'B1' : store.activeBranchId;
+
     const sale = {
       id: `SALE-${Date.now()}`,
       receiptNo: `REC-2026-${Math.floor(1000 + Math.random()*9000)}`,
       timestamp: new Date().toISOString(),
+      branchId: activeBranchId,
+      customerId: custId,
       cashierName: store.currentUser.name,
       shiftId: store.currentShift.id,
       items: currentCart.map(item => ({
@@ -292,6 +302,15 @@ window.completePosSale = function(paymentMethod = 'CASH') {
       }
     });
 
+    // Update customer spend & visits if attached
+    if (custId) {
+      const customer = store.customers.find(c => c.id === custId);
+      if (customer) {
+        customer.visits = (customer.visits || 0) + 1;
+        customer.totalSpend = (customer.totalSpend || 0) + total;
+      }
+    }
+
     store.sales.unshift(sale);
     store.logAudit(
       "Completed POS Sale",
@@ -310,8 +329,8 @@ window.completePosSale = function(paymentMethod = 'CASH') {
     if (window.renderAllApp) window.renderAllApp();
   };
 
-  if (discPercent > 5) {
-    requestManagerAuth(`Authorize Discount of ${discPercent}% (Over 5% Policy Limit)`, proceedWithCheckout);
+  if (discPercent > (store.securitySettings?.maxDiscountPercentWithoutAuth || 5)) {
+    requestManagerAuth(`Authorize Discount of ${discPercent}% (Over Policy Limit)`, proceedWithCheckout);
   } else {
     proceedWithCheckout();
   }
