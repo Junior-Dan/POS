@@ -75,16 +75,16 @@ export function renderPosView() {
           </div>
 
           <div class="payment-actions" style="display:flex; flex-direction:column; gap:8px;">
-            <button class="btn btn-primary btn-lg" id="payQuickBtn" style="background: linear-gradient(135deg, #d3a94e, #b8860b); color: #000; font-weight:700; width:100%; font-size:14px;">
+            <button class="btn btn-accent btn-lg" id="payQuickBtn" style="width:100%; font-weight:800; font-size:14px;">
               <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              <span>COMPLETE SALE (ASSUME PAID)</span>
+              <span>COMPLETE SALE</span>
             </button>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-              <button class="btn btn-secondary btn-lg" id="payCashBtn" style="background:var(--surface-light); border:1px solid var(--accent); color:var(--accent);">
+              <button class="btn btn-primary btn-lg" id="payCashBtn">
                 <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
-                <span>CASH (EXACT)</span>
+                <span>CASH</span>
               </button>
-              <button class="btn btn-secondary btn-lg" id="payMpesaBtn" style="background:#00a040; color:#fff;">
+              <button class="btn btn-secondary btn-lg" id="payMpesaBtn" style="border-color:var(--green); color:var(--green-text); background:var(--green-bg);">
                 <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>
                 <span>M-PESA STK</span>
               </button>

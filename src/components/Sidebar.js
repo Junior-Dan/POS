@@ -39,25 +39,19 @@ export function renderSidebar(currentUser) {
 
   return `
   <aside class="sidebar">
+    <!-- Collapse Toggle Button (Image 4) -->
+    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse / Expand Sidebar">
+      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+
     <div class="sidebar-header">
       <div class="brand-box">
         <div class="brand-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22h8M12 15v7M12 15a7 7 0 0 0 7-7c0-2-1-3.5-2-4.5V2H7v1.5C6 4.5 5 6 5 8a7 7 0 0 0 7 7z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22h8M12 15v7M12 15a7 7 0 0 0 7-7c0-2-1-3.5-2-4.5V2H7v1.5C6 4.5 5 6 5 8a7 7 0 0 0 7 7z"/></svg>
         </div>
-        <div>
-          <div class="brand-title">CELLAR</div>
-          <div class="brand-subtitle" style="color:var(--accent); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;">${bizName}</div>
-        </div>
-      </div>
-
-      <!-- Active Branch Selector Dropdown -->
-      <div class="branch-selector" style="margin-top:12px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:6px 10px;">
-        <div class="branch-info" style="width:100%;">
-          <span class="branch-label" style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase;">Active Branch</span>
-          <select id="sidebarBranchSelect" onchange="switchActiveBranch(this.value)" style="background:transparent; border:none; color:var(--accent); font-weight:700; font-size:12px; width:100%; cursor:pointer; outline:none;">
-            ${currentUser.role === 'owner' ? `<option value="ALL" ${store.activeBranchId === 'ALL' ? 'selected' : ''}>🏢 All Branches (Enterprise View)</option>` : ''}
-            ${availableBranches.map(b => `<option value="${b.id}" ${store.activeBranchId === b.id ? 'selected' : ''}>📍 ${b.name}</option>`).join('')}
-          </select>
+        <div class="brand-info-wrap">
+          <div class="brand-title">CELLAR POS</div>
+          <div class="brand-subtitle" style="color:#94a3b8; font-weight:700; font-size:10px; letter-spacing:0.8px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">WINES & SPIRITS SYSTEM</div>
         </div>
       </div>
     </div>

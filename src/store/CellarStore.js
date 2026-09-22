@@ -317,13 +317,27 @@ export class CellarStore {
 
     return { steps, percentage };
   }
+  setSelectedDate(dateStr) {
+    this.selectedDate = dateStr || null;
+    this.notify();
+  }
 
-  // --- DYNAMIC CALCULATORS WITH BRANCH SCOPING ---
+  getSelectedDateObj() {
+    if (this.selectedDate) {
+      const parts = this.selectedDate.split('-');
+      if (parts.length === 3) {
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      }
+    }
+    return new Date();
+  }
+
+  // --- DYNAMIC CALCULATORS WITH BRANCH & DATE SCOPING ---
   getTodaySales() {
-    const now = new Date();
-    const tYear = now.getFullYear();
-    const tMonth = now.getMonth();
-    const tDate = now.getDate();
+    const target = this.getSelectedDateObj();
+    const tYear = target.getFullYear();
+    const tMonth = target.getMonth();
+    const tDate = target.getDate();
 
     return this.sales.filter(s => {
       const d = new Date(s.timestamp);

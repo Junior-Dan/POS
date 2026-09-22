@@ -48,7 +48,7 @@ export function initApp() {
     <div class="app-container">
       ${renderSidebar(store.currentUser)}
       <main class="main-wrapper">
-        ${renderTopbar()}
+        ${renderTopbar(store.currentUser)}
         <div id="views-root">
           ${renderDashboardView()}
           ${renderPosView()}
@@ -98,6 +98,43 @@ function bindEvents() {
       switchTab(btn.dataset.view);
     });
   });
+
+  // Sidebar Collapse Toggle Button (Image 4 - Task 4)
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const container = document.querySelector('.app-container');
+      if (container) {
+        container.classList.toggle('collapsed');
+      }
+    });
+  }
+
+  // Topbar Date Filter Input (Image 2 - Task 2)
+  const dateInput = document.getElementById('topbarDateInput');
+  if (dateInput) {
+    dateInput.addEventListener('change', (e) => {
+      const val = e.target.value;
+      store.setSelectedDate(val);
+      initApp();
+    });
+  }
+
+  // Auto-Hiding Scrollbar Behavior (Shows scrollbar thumb only when actively scrolling)
+  if (!window._scrollListenerAttached) {
+    window._scrollListenerAttached = true;
+    document.addEventListener('scroll', (e) => {
+      const target = e.target;
+      if (target && target.classList) {
+        target.classList.add('is-scrolling');
+        clearTimeout(target._scrollHideTimer);
+        target._scrollHideTimer = setTimeout(() => {
+          target.classList.remove('is-scrolling');
+        }, 800);
+      }
+    }, true);
+  }
 
   // Global Modal Helpers
   window.openModal = (id) => document.getElementById(id)?.classList.add('active');
