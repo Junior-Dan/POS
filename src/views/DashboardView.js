@@ -55,7 +55,7 @@ export function renderDashboardView() {
           <span class="stat-title">Today's Revenue</span>
           <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
         </div>
-        <div class="stat-value">KSh ${totalRev.toLocaleString()}</div>
+        <div class="stat-value" id="dashStatTodayRevenue">KSh ${totalRev.toLocaleString()}</div>
         <div class="stat-subtext">Live revenue calculation</div>
       </div>
       <div class="stat-card green">
@@ -63,7 +63,7 @@ export function renderDashboardView() {
           <span class="stat-title">Gross Profit</span>
           <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
         </div>
-        <div class="stat-value">KSh ${grossProfit.toLocaleString()}</div>
+        <div class="stat-value" id="dashStatGrossProfit">KSh ${grossProfit.toLocaleString()}</div>
         <div class="stat-subtext">Snapshot cost margin calculation</div>
       </div>
       <div class="stat-card blue">
@@ -71,15 +71,15 @@ export function renderDashboardView() {
           <span class="stat-title">Transactions</span>
           <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v12"/></svg></span>
         </div>
-        <div class="stat-value">${todaySales.length}</div>
-        <div class="stat-subtext">Cash: KSh ${cashTotal.toLocaleString()} | M-PESA: KSh ${mpesaTotal.toLocaleString()}</div>
+        <div class="stat-value" id="dashStatTransactions">${todaySales.length}</div>
+        <div class="stat-subtext" id="dashStatTransactionsSub">Cash: KSh ${cashTotal.toLocaleString()} | M-PESA: KSh ${mpesaTotal.toLocaleString()}</div>
       </div>
       <div class="stat-card red">
         <div class="stat-header">
           <span class="stat-title">Items Sold</span>
           <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg></span>
         </div>
-        <div class="stat-value">${itemsSold} units</div>
+        <div class="stat-value" id="dashStatItemsSold">${itemsSold} units</div>
         <div class="stat-subtext">Across all bottle sizes</div>
       </div>
     </div>
@@ -89,11 +89,11 @@ export function renderDashboardView() {
       <div class="section-card">
         <div class="section-header">
           <div>
-            <div class="section-title">Today's Hourly Traffic</div>
-            <span class="section-subtitle">Sales revenue stream by operational hour</span>
+            <div class="section-title">Today's Hourly Money Against Real Time</div>
+            <span class="section-subtitle">Hourly revenue tracking against real-time operational window</span>
           </div>
         </div>
-        <div style="height: 240px; position:relative;">
+        <div style="height: 280px; position:relative; padding-top:10px;">
           <canvas id="chartHourlySales"></canvas>
         </div>
       </div>
@@ -105,7 +105,7 @@ export function renderDashboardView() {
           </div>
           <span class="section-subtitle">Category revenue breakdown</span>
         </div>
-        <div style="height: 240px;">
+        <div style="height: 280px; padding-top:10px;">
           <canvas id="chartCategorySales"></canvas>
         </div>
       </div>
@@ -128,7 +128,7 @@ export function renderDashboardView() {
                 <th>Revenue (KES)</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="dashTopProductsBody">
               ${topProds.map(([name, data]) => `
                 <tr>
                   <td><strong>${name}</strong></td>
@@ -176,6 +176,55 @@ export function renderDashboardView() {
 }
 
 export function initDashboardCharts() {
+  // Real-time update for key metrics cards
+  try {
+    const totalRev = store.getTodayRevenue();
+    const grossProfit = store.getTodayGrossProfit();
+    const todaySales = store.getTodaySales();
+    const itemsSold = store.getTodayItemsSold();
+    const cashTotal = store.getTodayCashTotal();
+    const mpesaTotal = store.getTodayMpesaTotal();
+
+    const elRev = document.getElementById('dashStatTodayRevenue');
+    if (elRev) elRev.textContent = `KSh ${totalRev.toLocaleString()}`;
+
+    const elProfit = document.getElementById('dashStatGrossProfit');
+    if (elProfit) elProfit.textContent = `KSh ${grossProfit.toLocaleString()}`;
+
+    const elTrans = document.getElementById('dashStatTransactions');
+    if (elTrans) elTrans.textContent = `${todaySales.length}`;
+
+    const elTransSub = document.getElementById('dashStatTransactionsSub');
+    if (elTransSub) elTransSub.textContent = `Cash: KSh ${cashTotal.toLocaleString()} | M-PESA: KSh ${mpesaTotal.toLocaleString()}`;
+
+    const elItems = document.getElementById('dashStatItemsSold');
+    if (elItems) elItems.textContent = `${itemsSold} units`;
+
+    // Real-time top products table update
+    const prodMap = {};
+    store.sales.forEach(s => {
+      s.items.forEach(i => {
+        if (!prodMap[i.name]) prodMap[i.name] = { qty: 0, rev: 0, size: i.size };
+        prodMap[i.name].qty += i.qty;
+        prodMap[i.name].rev += i.total;
+      });
+    });
+    const topProds = Object.entries(prodMap).sort((a,b) => b[1].qty - a[1].qty).slice(0, 5);
+    const topBody = document.getElementById('dashTopProductsBody');
+    if (topBody) {
+      topBody.innerHTML = topProds.map(([name, data]) => `
+        <tr>
+          <td><strong>${name}</strong></td>
+          <td><span class="size-badge">${data.size}</span></td>
+          <td>${data.qty}</td>
+          <td>KSh ${data.rev.toLocaleString()}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-faint);">No sales recorded yet today</td></tr>';
+    }
+  } catch (e) {
+    console.warn("Metrics update notice:", e);
+  }
+
   const ChartClass = typeof Chart !== 'undefined' ? Chart : window.Chart;
   if (!ChartClass) return;
 
@@ -188,6 +237,17 @@ export function initDashboardCharts() {
     const catMap = store.getCategorySalesBreakdown();
     const catLabels = Object.keys(catMap);
     const catData = Object.values(catMap);
+
+    // If previous chart instance is attached to a detached canvas (e.g. after re-render), clear reference
+    if (chartHourly && (!chartHourly.ctx || !document.body.contains(chartHourly.ctx.canvas))) {
+      try { chartHourly.destroy(); } catch (e) {}
+      chartHourly = null;
+    }
+
+    if (chartCategory && (!chartCategory.ctx || !document.body.contains(chartCategory.ctx.canvas))) {
+      try { chartCategory.destroy(); } catch (e) {}
+      chartCategory = null;
+    }
 
     // Create Gold Gradient Fill for Hourly Line Chart
     const ctx = ctxH.getContext('2d');
@@ -212,15 +272,15 @@ export function initDashboardCharts() {
         data: {
           labels: traffic.hours,
           datasets: [{
-            label: 'Revenue (KES)',
+            label: 'Money / Revenue (KSh)',
             data: traffic.data,
             borderColor: '#d3a94e',
-            borderWidth: 3,
+            borderWidth: 2.5,
             backgroundColor: gradient,
             fill: true,
-            tension: 0.4,
+            tension: 0, // Straight segments for exact rise & flow shape
             pointBackgroundColor: '#d3a94e',
-            pointBorderColor: '#0a0a0c',
+            pointBorderColor: '#131316',
             pointBorderWidth: 2,
             pointRadius: 5,
             pointHoverRadius: 7,
@@ -232,7 +292,7 @@ export function initDashboardCharts() {
           responsive: true,
           maintainAspectRatio: false,
           animation: {
-            duration: 750,
+            duration: 500,
             easing: 'easeOutQuart'
           },
           plugins: {
@@ -257,16 +317,34 @@ export function initDashboardCharts() {
           },
           scales: {
             x: {
-              grid: { color: 'rgba(255, 255, 255, 0.04)', drawBorder: false },
-              ticks: { color: '#a8a49c', font: { size: 11, weight: '600' } }
+              title: {
+                display: true,
+                text: 'Real Time',
+                color: '#a8a49c',
+                font: { size: 11, weight: '700' },
+                padding: { top: 6 }
+              },
+              grid: { color: 'rgba(255, 255, 255, 0.06)', drawBorder: true, borderColor: 'rgba(255, 255, 255, 0.2)' },
+              ticks: {
+                color: '#a8a49c',
+                font: { size: 10, weight: '600' },
+                maxRotation: 30,
+                minRotation: 30
+              }
             },
             y: {
-              grid: { color: 'rgba(255, 255, 255, 0.04)', drawBorder: false },
+              title: {
+                display: true,
+                text: 'Money / Revenue (KSh)',
+                color: '#a8a49c',
+                font: { size: 11, weight: '700' }
+              },
+              grid: { color: 'rgba(255, 255, 255, 0.06)', drawBorder: true, borderColor: 'rgba(255, 255, 255, 0.2)' },
               ticks: { 
                 color: '#a8a49c', 
-                font: { size: 11, weight: '600' },
+                font: { size: 10, weight: '600' },
                 callback: function(val) {
-                  if (val >= 1000) return 'KSh ' + (val/1000).toFixed(0) + 'k';
+                  if (val === 0) return 'KSh 0';
                   return 'KSh ' + val.toLocaleString();
                 }
               },

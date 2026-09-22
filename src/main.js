@@ -92,16 +92,16 @@ function bindEvents() {
   if (!window._liveTickerStarted) {
     window._liveTickerStarted = true;
     store.subscribe(() => {
-      if (activeViewId === 'dashboard' && window.triggerDashboardCharts) {
+      if (window.triggerDashboardCharts) {
         window.triggerDashboardCharts();
       }
     });
 
     setInterval(() => {
-      if (activeViewId === 'dashboard' && window.triggerDashboardCharts) {
+      if (window.triggerDashboardCharts) {
         window.triggerDashboardCharts();
       }
-    }, 4000);
+    }, 2000);
   }
 
   // User Switcher
