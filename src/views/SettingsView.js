@@ -1,6 +1,6 @@
 import { store } from '../store/CellarStore.js';
 
-let activeSettingsTab = "business";
+let activeSettingsTab = "branches";
 
 export function renderSettingsView() {
   const profile = store.businessProfile || {};
@@ -17,44 +17,43 @@ export function renderSettingsView() {
     bindSettingsTabEvents();
   }, 50);
 
+  const tabs = [
+    { id: "business", label: "Business Profile", icon: `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>` },
+    { id: "branches", label: "Branches", icon: `<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 13v2"/>` },
+    { id: "staff", label: "Staff Management", icon: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>` },
+    { id: "roles", label: "Roles & Permissions", icon: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>` },
+    { id: "receipt", label: "Receipt Settings", icon: `<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="8" x2="16" y1="8" y2="8"/><line x1="8" x2="16" y1="12" y2="12"/><line x1="8" x2="12" y1="16" y2="16"/>` },
+    { id: "payment", label: "Payment Settings", icon: `<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>` },
+    { id: "shift", label: "Shift & Float", icon: `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>` },
+    { id: "security", label: "Security & Auth", icon: `<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>` },
+    { id: "preferences", label: "System Preferences", icon: `<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>` },
+    { id: "setup", label: "Setup Status", icon: `<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>` }
+  ];
+
   return `
   <div class="view-container" id="view-settings">
-    <!-- Header Admin Banner -->
-    <div style="background:var(--bg-elevated); border:1px solid var(--border-soft); border-radius:var(--radius-lg); padding:16px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
+    <!-- Top Header Title Section (Matches Reference Image) -->
+    <div class="settings-title-header">
+      <div class="settings-title-icon-box">
+        <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
       <div>
-        <div style="font-size:18px; font-weight:800; color:var(--text); font-family:'Fraunces', serif;">
-          ${profile.name || 'Cisco Wines & Spirits'} — Administration Center
-        </div>
-        <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">
-          Software: <strong style="color:var(--accent);">CELLAR POS v2.4 Enterprise</strong> | Account ID: <span style="font-family:monospace;">BIZ-8849-NBO</span>
-        </div>
-      </div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div style="text-align:right;">
-          <div style="font-size:11px; color:var(--text-faint); text-transform:uppercase;">Setup Completion</div>
-          <div style="font-size:16px; font-weight:800; color:var(--green);">${setup.percentage}% Configured</div>
-        </div>
-        <div style="width:40px; height:40px; border-radius:50%; border:3px solid var(--green); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:var(--green);">
-          ${setup.percentage}%
-        </div>
+        <h1 class="settings-main-title">Staff & Settings</h1>
+        <p class="settings-main-subtitle">Manage your staff, branches and system settings</p>
       </div>
     </div>
 
-    <!-- Administration Tabs Bar -->
-    <div class="settings-nav-tabs" style="display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:16px; border-bottom:1px solid var(--border-soft);">
-      <button class="settings-tab-btn ${activeSettingsTab === 'business' ? 'active' : ''}" onclick="switchSettingsTab('business')">1. Business Profile</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'branches' ? 'active' : ''}" onclick="switchSettingsTab('branches')">2. Branches (${branches.length})</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'staff' ? 'active' : ''}" onclick="switchSettingsTab('staff')">3. Staff Management (${users.length})</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'roles' ? 'active' : ''}" onclick="switchSettingsTab('roles')">4. Roles & Permissions</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'receipt' ? 'active' : ''}" onclick="switchSettingsTab('receipt')">5. Receipt Settings</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'payment' ? 'active' : ''}" onclick="switchSettingsTab('payment')">6. Payment Settings</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'shift' ? 'active' : ''}" onclick="switchSettingsTab('shift')">7. Shift & Float</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'security' ? 'active' : ''}" onclick="switchSettingsTab('security')">8. Security & Auth</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'preferences' ? 'active' : ''}" onclick="switchSettingsTab('preferences')">9. System Preferences</button>
-      <button class="settings-tab-btn ${activeSettingsTab === 'setup' ? 'active' : ''}" onclick="switchSettingsTab('setup')">10. Setup Status (${setup.percentage}%)</button>
+    <!-- Elevated Settings Tabs Bar (Matches Reference Image Card) -->
+    <div class="settings-nav-tabs-card">
+      ${tabs.map(t => `
+        <button class="settings-tab-btn ${t.id === activeSettingsTab ? 'active' : ''}" onclick="switchSettingsTab('${t.id}')">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor">${t.icon}</svg>
+          <span>${t.label}</span>
+        </button>
+      `).join('')}
     </div>
 
-    <!-- Tab Contents Container -->
+    <!-- Main Content Container -->
     <div id="settingsTabContentRoot">
       ${renderSettingsTabContentHtml(activeSettingsTab, profile, branches, users, payment, receipt, shift, security, pref, setup)}
     </div>
@@ -123,40 +122,60 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
       return `
         <div class="section-card">
           <div class="section-header">
-            <div>
-              <div class="section-title">Multi-Branch Management</div>
-              <span class="section-subtitle">Configure enterprise branches, assigned managers, and location scoping</span>
+            <div class="section-title-box">
+              <div class="section-title-icon-yellow">
+                <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 13v2"/></svg>
+              </div>
+              <div>
+                <div class="section-title">Multi-Branch Management</div>
+                <span class="section-subtitle">Configure enterprise branches, assigned managers, and location scoping</span>
+              </div>
             </div>
-            <button class="btn btn-primary" onclick="openAddBranchModal()">+ Add New Branch</button>
+            <button class="btn btn-yellow-accent" onclick="openAddBranchModal()">+ Add New Branch</button>
           </div>
           <div class="table-container">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Branch Name</th>
-                  <th>Branch Code</th>
-                  <th>Location</th>
-                  <th>Phone</th>
-                  <th>Manager</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th>BRANCH NAME</th>
+                  <th>BRANCH CODE</th>
+                  <th>LOCATION</th>
+                  <th>PHONE</th>
+                  <th>MANAGER</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
-                ${branches.map(b => {
+                ${branches.map((b, idx) => {
                   const manager = users.find(u => u.id === b.managerId);
+                  const subLabel = idx === 0 ? 'Main' : 'Branch';
                   return `
                     <tr>
-                      <td><strong>${b.name}</strong></td>
+                      <td>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                          <div class="branch-icon-pin">
+                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                          </div>
+                          <div>
+                            <strong>${b.name}</strong><br>
+                            <span style="font-size:11px; color:var(--text-faint);">${subLabel}</span>
+                          </div>
+                        </div>
+                      </td>
                       <td><span class="size-badge">${b.code}</span></td>
                       <td>${b.location}</td>
                       <td>${b.phone || 'N/A'}</td>
                       <td>${manager ? manager.name : '<span style="color:var(--text-faint);">Unassigned</span>'}</td>
-                      <td><span class="badge ${b.status === 'ACTIVE' ? 'badge-success' : 'badge-danger'}">${b.status}</span></td>
+                      <td><span class="badge badge-success">• ACTIVE</span></td>
                       <td>
-                        <div style="display:flex; gap:6px;">
-                          <button class="btn btn-secondary btn-sm" onclick="openEditBranchModal('${b.id}')">Edit</button>
-                          <button class="btn btn-danger btn-sm" onclick="deleteBranch('${b.id}')">Delete</button>
+                        <div style="display:flex; gap:8px;">
+                          <button class="btn btn-secondary btn-sm" onclick="openEditBranchModal('${b.id}')">
+                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Edit
+                          </button>
+                          <button class="btn btn-danger-soft btn-sm" onclick="deleteBranch('${b.id}')">
+                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
+                          </button>
                         </div>
                       </td>
                     </tr>

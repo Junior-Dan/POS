@@ -111,12 +111,144 @@ function bindEvents() {
     });
   }
 
-  // Topbar Date Filter Input (Image 2 - Task 2)
-  const dateInput = document.getElementById('topbarDateInput');
-  if (dateInput) {
-    dateInput.addEventListener('change', (e) => {
-      const val = e.target.value;
-      store.setSelectedDate(val);
+  // Custom Calendar Popover Modal (Task 2)
+  const datePillBtn = document.getElementById('topbarDatePickerBtn');
+  const calPopover = document.getElementById('calendarPopover');
+  if (datePillBtn && calPopover) {
+    let calViewYear = store.getSelectedDateObj().getFullYear();
+    let calViewMonth = store.getSelectedDateObj().getMonth();
+
+    const renderCalGrid = () => {
+      const container = document.getElementById('calDaysGrid');
+      const title = document.getElementById('calMonthTitle');
+      if (!container || !title) return;
+
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      title.textContent = `${monthNames[calViewMonth]} ${calViewYear}`;
+
+      const firstDayIndex = new Date(calViewYear, calViewMonth, 1).getDay();
+      const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+      const prevMonthDays = new Date(calViewYear, calViewMonth, 0).getDate();
+
+      const selectedObj = store.getSelectedDateObj();
+      const selYear = selectedObj.getFullYear();
+      const selMonth = selectedObj.getMonth();
+      const selDate = selectedObj.getDate();
+
+      const todayObj = new Date();
+      const tYear = todayObj.getFullYear();
+      const tMonth = todayObj.getMonth();
+      const tDate = todayObj.getDate();
+
+      let html = '';
+
+      for (let i = firstDayIndex - 1; i >= 0; i--) {
+        html += `<div class="cal-day-cell other-month">${prevMonthDays - i}</div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = day === tDate && calViewMonth === tMonth && calViewYear === tYear;
+        const isSelected = day === selDate && calViewMonth === selMonth && calViewYear === selYear;
+
+        let classes = ['cal-day-cell'];
+        if (isToday) classes.push('today');
+        if (isSelected) classes.push('selected');
+
+        const formattedIso = `${calViewYear}-${String(calViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        html += `<div class="${classes.join(' ')}" data-date="${formattedIso}">${day}</div>`;
+      }
+
+      container.innerHTML = html;
+
+      container.querySelectorAll('.cal-day-cell:not(.other-month)').forEach(cell => {
+        cell.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const dVal = cell.dataset.date;
+          if (dVal) {
+            store.setSelectedDate(dVal);
+            calPopover.classList.remove('active');
+            initApp();
+          }
+        });
+      });
+    };
+
+    datePillBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isAct = calPopover.classList.contains('active');
+      if (!isAct) {
+        calPopover.classList.add('active');
+        renderCalGrid();
+      } else {
+        calPopover.classList.remove('active');
+      }
+    });
+
+    calPopover.addEventListener('click', (e) => e.stopPropagation());
+
+    document.addEventListener('click', (e) => {
+      if (calPopover && calPopover.classList.contains('active') && !datePillBtn.contains(e.target)) {
+        calPopover.classList.remove('active');
+      }
+    });
+
+    document.getElementById('calPrevMonthBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      calViewMonth--;
+      if (calViewMonth < 0) {
+        calViewMonth = 11;
+        calViewYear--;
+      }
+      renderCalGrid();
+    });
+
+    document.getElementById('calNextMonthBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      calViewMonth++;
+      if (calViewMonth > 11) {
+        calViewMonth = 0;
+        calViewYear++;
+      }
+      renderCalGrid();
+    });
+
+    document.getElementById('calPresetToday')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      store.setSelectedDate(null);
+      calPopover.classList.remove('active');
+      initApp();
+    });
+
+    document.getElementById('calPresetYesterday')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const iso = y.toISOString().split('T')[0];
+      store.setSelectedDate(iso);
+      calPopover.classList.remove('active');
+      initApp();
+    });
+
+    document.getElementById('calPresetLast7')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const y = new Date();
+      y.setDate(y.getDate() - 7);
+      const iso = y.toISOString().split('T')[0];
+      store.setSelectedDate(iso);
+      calPopover.classList.remove('active');
+      initApp();
+    });
+
+    document.getElementById('calCancelBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      calPopover.classList.remove('active');
+    });
+  }
+
+  const resetDateBtn = document.getElementById('resetDateTodayBtn');
+  if (resetDateBtn) {
+    resetDateBtn.addEventListener('click', () => {
+      store.setSelectedDate(null);
       initApp();
     });
   }

@@ -34,12 +34,41 @@ export function renderTopbar(currentUser = store.currentUser) {
         <input type="text" class="global-search-input" id="globalSearchInput" placeholder="Search a product...">
       </div>
 
-      <!-- Date Dropdown Pill with Native Picker (Task 2) -->
-      <div class="topbar-date-pill" id="topbarDatePicker" title="Click to choose a date to inspect historical sales data">
+      <!-- Custom Date Dropdown Pill with Popover Modal -->
+      <div class="topbar-date-pill" id="topbarDatePickerBtn" title="Click to choose a date to inspect historical sales data">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
         <span id="topbarDateText">${formattedDate}</span>
-        <input type="date" id="topbarDateInput" value="${isoDateVal}" style="position:absolute; opacity:0; width:100%; height:100%; top:0; left:0; cursor:pointer;">
         <svg class="icon-sm chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+
+        <!-- Custom Calendar Popover Dropdown Card -->
+        <div class="custom-calendar-popover" id="calendarPopover">
+          <div class="cal-header">
+            <button class="cal-nav-btn" id="calPrevMonthBtn" type="button" title="Previous Month">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span class="cal-month-title" id="calMonthTitle">September 2026</span>
+            <button class="cal-nav-btn" id="calNextMonthBtn" type="button" title="Next Month">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+
+          <div class="cal-presets-row">
+            <button class="cal-preset-btn" id="calPresetToday" type="button">Today</button>
+            <button class="cal-preset-btn" id="calPresetYesterday" type="button">Yesterday</button>
+            <button class="cal-preset-btn" id="calPresetLast7" type="button">Last 7 Days</button>
+          </div>
+
+          <div class="cal-day-names">
+            <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+          </div>
+
+          <div class="cal-days-grid" id="calDaysGrid"></div>
+
+          <div class="cal-footer">
+            <span class="cal-footer-text">Select date for sales history</span>
+            <button class="btn btn-secondary btn-sm" id="calCancelBtn" type="button" style="padding:3px 8px; font-size:11px;">Close</button>
+          </div>
+        </div>
       </div>
       ${store.selectedDate ? `<button class="btn btn-secondary btn-sm" id="resetDateTodayBtn" style="padding:4px 10px; font-size:11px;">Reset Today</button>` : ''}
     </div>
