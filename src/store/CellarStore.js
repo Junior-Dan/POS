@@ -87,6 +87,7 @@ export class CellarStore {
     };
 
     this.initStore();
+    this.setupRealtimeSync();
   }
 
   subscribe(listener) {
@@ -95,6 +96,62 @@ export class CellarStore {
 
   notify() {
     this.listeners.forEach(fn => fn());
+  }
+
+  setupRealtimeSync() {
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        this.syncChannel = new BroadcastChannel('cellar_live_sync');
+        this.syncChannel.onmessage = (e) => {
+          if (e.data && e.data.type === 'REFRESH_STATE') {
+            this.syncLiveState();
+          }
+        };
+      } catch (e) {
+        console.warn("BroadcastChannel notice:", e);
+      }
+    }
+
+    window.addEventListener('storage', (ev) => {
+      if (ev.key === 'cellar_sync_ping') {
+        this.syncLiveState();
+      }
+    });
+
+    if (!this.pollingInterval) {
+      this.pollingInterval = setInterval(() => {
+        this.syncLiveState();
+      }, 3000);
+    }
+  }
+
+  broadcastUpdate() {
+    try {
+      localStorage.setItem('cellar_sync_ping', Date.now().toString());
+      if (this.syncChannel) {
+        this.syncChannel.postMessage({ type: 'REFRESH_STATE', time: Date.now() });
+      }
+    } catch (e) {}
+  }
+
+  async syncLiveState() {
+    try {
+      const prevCount = (this.sales || []).length;
+      await Promise.all([
+        this.fetchSales(),
+        this.fetchProducts(),
+        this.fetchShift()
+      ]);
+      const newCount = (this.sales || []).length;
+      if (newCount !== prevCount) {
+        this.notify();
+        if (window.triggerDashboardCharts) {
+          window.triggerDashboardCharts();
+        }
+      }
+    } catch (e) {
+      console.warn("Sync error:", e);
+    }
   }
 
   async initStore() {
@@ -319,6 +376,7 @@ export class CellarStore {
     await this.fetchInventoryMovements();
     await this.fetchCustomers();
     await this.fetchAuditLogs();
+    this.broadcastUpdate();
     return data.sale;
   }
 

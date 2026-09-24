@@ -116,14 +116,108 @@ function bindPosToolbarEvents() {
   }
 
   const payQuickBtn = document.getElementById('payQuickBtn');
-  if (payQuickBtn) payQuickBtn.onclick = () => window.completePosSale('CASH');
+  if (payQuickBtn) payQuickBtn.onclick = () => window.openCashModal();
 
   const payCashBtn = document.getElementById('payCashBtn');
-  if (payCashBtn) payCashBtn.onclick = () => window.completePosSale('CASH');
+  if (payCashBtn) payCashBtn.onclick = () => window.openCashModal();
 
   const payMpesaBtn = document.getElementById('payMpesaBtn');
-  if (payMpesaBtn) payMpesaBtn.onclick = () => window.completePosSale('M-PESA');
+  if (payMpesaBtn) payMpesaBtn.onclick = () => window.openMpesaModal();
 }
+
+window.openCashModal = function() {
+  if (currentCart.length === 0) {
+    return alert("Cart is empty! Tap products from catalogue to add to cart.");
+  }
+  const subtotal = currentCart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
+  const discountAmt = (subtotal * discPercent) / 100;
+  const total = subtotal - discountAmt;
+
+  const totalEl = document.getElementById('cashModalTotalDue');
+  const inputEl = document.getElementById('cashTenderedInput');
+  const changeEl = document.getElementById('cashModalChange');
+  const confirmBtn = document.getElementById('confirmCashPayBtn');
+
+  if (totalEl) totalEl.textContent = `KSh ${total.toLocaleString()}`;
+  if (inputEl) {
+    inputEl.value = total;
+    inputEl.oninput = () => {
+      const val = parseFloat(inputEl.value) || 0;
+      const change = Math.max(0, val - total);
+      if (changeEl) changeEl.textContent = `KSh ${change.toLocaleString()}`;
+    };
+  }
+  if (changeEl) changeEl.textContent = `KSh 0`;
+
+  window.setQuickTender = (amt) => {
+    if (inputEl) {
+      inputEl.value = amt;
+      const change = Math.max(0, amt - total);
+      if (changeEl) changeEl.textContent = `KSh ${change.toLocaleString()}`;
+    }
+  };
+
+  if (confirmBtn) {
+    confirmBtn.onclick = () => {
+      window.closeModal('cashPaymentModal');
+      window.completePosSale('CASH');
+    };
+  }
+
+  window.openModal('cashPaymentModal');
+};
+
+window.openMpesaModal = function() {
+  if (currentCart.length === 0) {
+    return alert("Cart is empty! Tap products from catalogue to add to cart.");
+  }
+  const subtotal = currentCart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
+  const discountAmt = (subtotal * discPercent) / 100;
+  const total = subtotal - discountAmt;
+
+  const totalEl = document.getElementById('mpesaModalTotal');
+  const phoneEl = document.getElementById('mpesaPhoneInput');
+  const statusBox = document.getElementById('mpesaStatusBox');
+  const badgeEl = document.getElementById('mpesaBadgeState');
+  const textEl = document.getElementById('mpesaStatusText');
+  const pushBtn = document.getElementById('triggerMpesaPushBtn');
+  const simBtn = document.getElementById('simMpesaSuccessBtn');
+
+  if (totalEl) totalEl.textContent = `KSh ${total.toLocaleString()}`;
+  if (phoneEl && !phoneEl.value) phoneEl.value = "0712345678";
+  if (statusBox) statusBox.style.display = 'none';
+  if (pushBtn) pushBtn.disabled = false;
+
+  const triggerFlow = () => {
+    const phone = phoneEl?.value.trim() || "0712345678";
+    if (statusBox) statusBox.style.display = 'block';
+    if (badgeEl) {
+      badgeEl.className = 'badge badge-warning';
+      badgeEl.textContent = 'STK PUSH INITIATED';
+    }
+    if (textEl) textEl.textContent = `📱 STK Push prompt sent to ${phone}. Waiting for customer PIN...`;
+    if (pushBtn) pushBtn.disabled = true;
+
+    setTimeout(() => {
+      if (badgeEl) {
+        badgeEl.className = 'badge badge-success';
+        badgeEl.textContent = 'PAYMENT CONFIRMED';
+      }
+      if (textEl) textEl.textContent = `✅ KSh ${total.toLocaleString()} received from ${phone}! Completing transaction...`;
+      setTimeout(() => {
+        window.closeModal('mpesaPaymentModal');
+        window.completePosSale('M-PESA');
+      }, 700);
+    }, 1200);
+  };
+
+  if (pushBtn) pushBtn.onclick = triggerFlow;
+  if (simBtn) simBtn.onclick = triggerFlow;
+
+  window.openModal('mpesaPaymentModal');
+};
 
 function renderProductGridHtml() {
   const query = (document.getElementById('posSearchInput')?.value || '').toLowerCase().trim();
