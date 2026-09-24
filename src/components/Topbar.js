@@ -1,8 +1,9 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderTopbar(currentUser = store.currentUser) {
-  const bizName = store.businessProfile?.name || "Hypebeast Store";
-  const userInitials = (currentUser?.name || "Hypebeast Store").split(' ').map(n => n[0]).join('');
+  const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
+  const bizName = store.businessProfile?.name || "Cisco Wines & Spirits";
+  const userInitials = (user.name || "David Kamau").split(' ').map(n => n[0]).join('');
   
   const currentDateObj = store.getSelectedDateObj();
   const formattedDate = currentDateObj.toLocaleDateString('en-US', {
@@ -14,14 +15,15 @@ export function renderTopbar(currentUser = store.currentUser) {
   const isoDateVal = currentDateObj.toISOString().split('T')[0];
 
   // Branch selector options based on user role and assigned branches
-  let availableBranches = store.branches;
-  if (currentUser.role !== 'owner') {
-    const allowedBranchIds = [currentUser.primaryBranchId, ...(currentUser.additionalBranchIds || [])].filter(Boolean);
-    availableBranches = store.branches.filter(b => allowedBranchIds.includes(b.id));
+  let availableBranches = store.branches || [];
+  if (user.role !== 'owner') {
+    const allowedBranchIds = [user.primaryBranchId, ...(user.additionalBranchIds || [])].filter(Boolean);
+    availableBranches = (store.branches || []).filter(b => allowedBranchIds.includes(b.id));
     if (availableBranches.length === 0) availableBranches = [store.branches[0]];
   }
 
   const activeBranch = store.getActiveBranch();
+
 
   return `
   <header class="top-header">

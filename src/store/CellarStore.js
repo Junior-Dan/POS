@@ -6,113 +6,33 @@ import { INITIAL_BRANCHES } from '../data/initialBranches.js';
 export class CellarStore {
   constructor() {
     this.listeners = [];
-    this.loadStore();
-  }
-
-  subscribe(listener) {
-    this.listeners.push(listener);
-  }
-
-  notify() {
-    this.listeners.forEach(fn => fn());
-  }
-
-  loadStore() {
-    const raw = localStorage.getItem("cellar_v1_store");
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        this.products = parsed.products || INITIAL_PRODUCTS;
-        this.users = parsed.users || INITIAL_USERS;
-        this.suppliers = parsed.suppliers || INITIAL_SUPPLIERS;
-        this.branches = parsed.branches || INITIAL_BRANCHES;
-        this.activeBranchId = parsed.activeBranchId || "B1";
-        
-        this.businessProfile = parsed.businessProfile || {
-          name: "Cisco Wines & Spirits",
-          phone: "0722 000 111",
-          email: "info@ciscowines.co.ke",
-          address: "Kenyatta Avenue, Nairobi CBD",
-          kraPin: "P051234567S",
-          regNo: "CPR/2024/99182",
-          receiptName: "CISCO WINES & SPIRITS",
-          receiptPhone: "0722 000 111",
-          receiptAddress: "Kenyatta Avenue, Nairobi CBD"
-        };
-
-        this.paymentSettings = parsed.paymentSettings || {
-          cashEnabled: true,
-          mpesaEnabled: true,
-          cardEnabled: true,
-          bankEnabled: true,
-          creditEnabled: false
-        };
-
-        this.receiptSettings = parsed.receiptSettings || {
-          showLogo: true,
-          showCashierName: true,
-          showTaxBreakdown: true,
-          printCopies: 1,
-          headerText: "CISCO WINES & SPIRITS",
-          footerText: "Thank you for shopping at Cisco Wines! Quality Wines & Spirits."
-        };
-
-        this.shiftSettings = parsed.shiftSettings || {
-          defaultFloat: 5000,
-          requireCashDeclaration: true,
-          maxVarianceThreshold: 1000,
-          requireManagerVarianceApproval: true
-        };
-
-        this.securitySettings = parsed.securitySettings || {
-          sessionTimeoutMinutes: 30,
-          autoLogoutOnIdle: false,
-          requirePinForRefunds: true,
-          requirePinForPriceOverride: true,
-          requirePinForStockAdjustments: true,
-          maxDiscountPercentWithoutAuth: 5
-        };
-
-        this.systemPreferences = parsed.systemPreferences || {
-          currencySymbol: "KSh",
-          taxRate: 16,
-          dateFormat: "DD/MM/YYYY",
-          theme: "dark"
-        };
-
-        this.sales = parsed.sales || [];
-        this.stockMovements = parsed.stockMovements || [];
-        this.cashMovements = parsed.cashMovements || [];
-        this.expenses = parsed.expenses || [];
-        this.auditLogs = parsed.auditLogs || [];
-        this.purchases = parsed.purchases || [];
-        this.customers = parsed.customers || [];
-        this.etimsQueue = parsed.etimsQueue || [];
-        this.shifts = parsed.shifts || [];
-        this.currentShift = parsed.currentShift || {
-          id: "SHIFT-101",
-          branchId: "B1",
-          cashierId: "U3",
-          cashierName: "John Omondi",
-          startTime: new Date().toISOString(),
-          openingFloat: 5000,
-          status: "ACTIVE"
-        };
-        this.currentUser = this.users[0];
-        return;
-      } catch (e) {
-        console.error("Error parsing store, re-seeding clean state", e);
-      }
-    }
-    this.seedClean();
-  }
-
-  seedClean() {
-    this.products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
-    this.users = JSON.parse(JSON.stringify(INITIAL_USERS));
-    this.suppliers = JSON.parse(JSON.stringify(INITIAL_SUPPLIERS));
-    this.branches = JSON.parse(JSON.stringify(INITIAL_BRANCHES));
+    this.products = INITIAL_PRODUCTS;
+    this.users = INITIAL_USERS;
+    this.suppliers = INITIAL_SUPPLIERS;
+    this.branches = INITIAL_BRANCHES;
     this.activeBranchId = "B1";
+    this.sales = [];
+    this.stockMovements = [];
+    this.cashMovements = [];
+    this.expenses = [];
+    this.auditLogs = [];
+    this.purchases = [];
+    this.customers = [
+      { id: "C1", name: "Walk-in Customer", phone: "N/A", email: "-", visits: 0, totalSpend: 0 },
+      { id: "C2", name: "David Mwangi", phone: "0712345678", email: "david@example.com", visits: 3, totalSpend: 24500 }
+    ];
+    this.shifts = [];
+    this.currentShift = {
+      id: "SHIFT-101",
+      branchId: "B1",
+      cashierId: "U3",
+      cashierName: "John Omondi",
+      startTime: new Date().toISOString(),
+      openingFloat: 5000,
+      status: "ACTIVE"
+    };
+    this.currentUser = this.users[0];
+
 
     this.businessProfile = {
       name: "Cisco Wines & Spirits",
@@ -165,114 +85,403 @@ export class CellarStore {
       dateFormat: "DD/MM/YYYY",
       theme: "dark"
     };
-    
-    // Clean operational data
-    this.sales = [];
-    this.stockMovements = this.products.map(p => ({
-      timestamp: new Date().toISOString(),
-      productId: p.id,
-      productName: `${p.brand} ${p.name}`,
-      type: "OPENING_STOCK",
-      qty: p.stock,
-      ref: "INIT-CATALOG",
-      user: "System",
-      reason: "Initial Catalogue Opening Stock"
-    }));
-    this.cashMovements = [];
-    this.expenses = [];
-    this.auditLogs = [
-      {
-        timestamp: new Date().toISOString(),
-        user: "System",
-        action: "Store Initialized Clean",
-        item: "Main Operations",
-        oldVal: "-",
-        newVal: "Clean State Active",
-        reason: "Operational dataset reset"
-      }
-    ];
-    this.purchases = [
-      {
-        id: "PO-2026-041",
-        branchId: "B1",
-        supplierId: "SUP1",
-        supplierName: "Kenya Breweries Limited (KBL)",
-        dateIssued: new Date().toISOString().split('T')[0],
-        status: "ORDERED",
-        deliveryDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        items: [
-          { productId: "P101", name: "Johnnie Walker Black Label 750ml", qtyOrdered: 12, qtyReceived: 0, unitCost: 3200, totalCost: 38400 }
-        ],
-        totalValue: 38400,
-        notes: "Restock order for weekend inventory"
-      }
-    ];
-    this.customers = [
-      { id: "C1", name: "Walk-in Customer", phone: "N/A", email: "-", visits: 0, totalSpend: 0 },
-      { id: "C2", name: "David Mwangi", phone: "0712345678", email: "david@example.com", visits: 3, totalSpend: 24500 }
-    ];
-    this.etimsQueue = [];
-    this.shifts = [];
-    this.currentShift = {
-      id: "SHIFT-101",
-      branchId: "B1",
-      cashierId: "U3",
-      cashierName: "John Omondi",
-      startTime: new Date().toISOString(),
-      openingFloat: 5000,
-      status: "ACTIVE"
-    };
-    this.currentUser = this.users[0];
-    this.save();
+
+    this.initStore();
   }
 
-  save() {
-    const data = {
-      products: this.products,
-      users: this.users,
-      suppliers: this.suppliers,
-      branches: this.branches,
-      activeBranchId: this.activeBranchId,
-      businessProfile: this.businessProfile,
-      paymentSettings: this.paymentSettings,
-      receiptSettings: this.receiptSettings,
-      shiftSettings: this.shiftSettings,
-      securitySettings: this.securitySettings,
-      systemPreferences: this.systemPreferences,
-      sales: this.sales,
-      stockMovements: this.stockMovements,
-      cashMovements: this.cashMovements,
-      expenses: this.expenses,
-      auditLogs: this.auditLogs,
-      purchases: this.purchases,
-      customers: this.customers,
-      etimsQueue: this.etimsQueue,
-      shifts: this.shifts,
-      currentShift: this.currentShift
-    };
-    localStorage.setItem("cellar_v1_store", JSON.stringify(data));
+  subscribe(listener) {
+    this.listeners.push(listener);
+  }
+
+  notify() {
+    this.listeners.forEach(fn => fn());
+  }
+
+  async initStore() {
+    try {
+      await Promise.all([
+        this.fetchUsers(),
+        this.fetchProducts(),
+        this.fetchSuppliers(),
+        this.fetchCustomers(),
+        this.fetchSales(),
+        this.fetchShift(),
+        this.fetchInventoryMovements(),
+        this.fetchExpenses(),
+        this.fetchPurchases(),
+        this.fetchAuditLogs(),
+        this.fetchSettings()
+      ]);
+    } catch (err) {
+      console.error("Failed to load backend state, loading local initial fallback", err);
+      this.seedFallback();
+    }
+  }
+
+  seedFallback() {
+    this.products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
+    this.users = JSON.parse(JSON.stringify(INITIAL_USERS));
+    this.suppliers = JSON.parse(JSON.stringify(INITIAL_SUPPLIERS));
+    this.branches = JSON.parse(JSON.stringify(INITIAL_BRANCHES));
+    this.currentUser = this.users[0];
     this.notify();
   }
 
-  logAudit(action, item, oldVal, newVal, reason) {
-    this.auditLogs.unshift({
-      timestamp: new Date().toISOString(),
-      user: this.currentUser.name,
-      role: this.currentUser.role,
-      branchId: this.activeBranchId,
-      action,
-      item,
-      oldVal: String(oldVal),
-      newVal: String(newVal),
-      reason
-    });
-    this.save();
+  // --- API FETCHERS ---
+  async fetchUsers() {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (res.ok) {
+        this.users = await res.json();
+        if (!this.currentUser && this.users.length > 0) {
+          this.currentUser = this.users[0];
+        }
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching users", e); }
   }
 
-  // --- BRANCH & SECURITY ACCESS CONTROL ---
+  async fetchProducts() {
+    try {
+      const res = await fetch('/api/products?activeOnly=false');
+      if (res.ok) {
+        this.products = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching products", e); }
+  }
+
+  async fetchSuppliers() {
+    try {
+      const res = await fetch('/api/suppliers');
+      if (res.ok) {
+        this.suppliers = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching suppliers", e); }
+  }
+
+  async fetchCustomers() {
+    try {
+      const res = await fetch('/api/customers');
+      if (res.ok) {
+        this.customers = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching customers", e); }
+  }
+
+  async fetchSales() {
+    try {
+      const res = await fetch('/api/sales');
+      if (res.ok) {
+        this.sales = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching sales", e); }
+  }
+
+  async fetchShift() {
+    try {
+      const res = await fetch('/api/shift/current');
+      if (res.ok) {
+        const shiftData = await res.json();
+        if (shiftData) {
+          this.currentShift = shiftData;
+          this.cashMovements = shiftData.cashMovements || [];
+        } else {
+          this.currentShift = {
+            id: "SHIFT-101",
+            branchId: "B1",
+            cashierId: "U3",
+            cashierName: "John Omondi",
+            startTime: new Date().toISOString(),
+            openingFloat: 5000,
+            status: "ACTIVE"
+          };
+          this.cashMovements = [];
+        }
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching shift", e); }
+  }
+
+  async fetchInventoryMovements() {
+    try {
+      const res = await fetch('/api/inventory/movements');
+      if (res.ok) {
+        this.stockMovements = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching stock movements", e); }
+  }
+
+  async fetchExpenses() {
+    try {
+      const res = await fetch('/api/expenses');
+      if (res.ok) {
+        this.expenses = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching expenses", e); }
+  }
+
+  async fetchPurchases() {
+    try {
+      const res = await fetch('/api/purchases');
+      if (res.ok) {
+        this.purchases = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching purchases", e); }
+  }
+
+  async fetchAuditLogs() {
+    try {
+      const res = await fetch('/api/audit-logs');
+      if (res.ok) {
+        this.auditLogs = await res.json();
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching audit logs", e); }
+  }
+
+  async fetchSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const s = await res.json();
+        if (s.businessProfile) this.businessProfile = s.businessProfile;
+        if (s.paymentSettings) this.paymentSettings = s.paymentSettings;
+        if (s.receiptSettings) this.receiptSettings = s.receiptSettings;
+        if (s.shiftSettings) this.shiftSettings = s.shiftSettings;
+        if (s.securitySettings) this.securitySettings = s.securitySettings;
+        if (s.systemPreferences) this.systemPreferences = s.systemPreferences;
+        this.notify();
+      }
+    } catch (e) { console.error("Error fetching settings", e); }
+  }
+
+  // --- API MUTATION METHODS ---
+  async addProduct(productData) {
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create product");
+    await this.fetchProducts();
+    await this.fetchInventoryMovements();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async updateProduct(id, productData) {
+    const res = await fetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update product");
+    await this.fetchProducts();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async deactivateProduct(id) {
+    const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to deactivate product");
+    await this.fetchProducts();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async createSale(saleData) {
+    const res = await fetch('/api/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...saleData,
+        cashier: this.currentUser || { id: 'U3', name: 'John Omondi' },
+        branchId: this.activeBranchId,
+        shiftId: this.currentShift?.id
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to process sale transaction");
+    
+    // Refresh state from DB
+    await this.fetchSales();
+    await this.fetchProducts();
+    await this.fetchInventoryMovements();
+    await this.fetchCustomers();
+    await this.fetchAuditLogs();
+    return data.sale;
+  }
+
+  async processRefund(saleId, refundData) {
+    const res = await fetch(`/api/sales/${saleId}/refund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(refundData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to process refund");
+    await this.fetchSales();
+    await this.fetchProducts();
+    await this.fetchInventoryMovements();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async logCashMovement(movementData) {
+    const res = await fetch('/api/shift/cash-movement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...movementData,
+        shiftId: this.currentShift?.id,
+        userName: this.currentUser?.name || 'John Omondi'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to log cash movement");
+    await this.fetchShift();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async closeShift(closeData) {
+    const res = await fetch('/api/shift/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...closeData,
+        shiftId: this.currentShift?.id
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to close shift");
+    await this.fetchShift();
+    await this.fetchAuditLogs();
+    return data.shift;
+  }
+
+  async recordStockDamage(damageData) {
+    const res = await fetch('/api/inventory/damage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...damageData,
+        userName: this.currentUser?.name || 'Manager'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to log damage");
+    await this.fetchProducts();
+    await this.fetchInventoryMovements();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async addExpense(expenseData) {
+    const res = await fetch('/api/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...expenseData,
+        user: this.currentUser?.name || 'Manager'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to log expense");
+    await this.fetchExpenses();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async addSupplier(supplierData) {
+    const res = await fetch('/api/suppliers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(supplierData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add supplier");
+    await this.fetchSuppliers();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async addCustomer(customerData) {
+    const res = await fetch('/api/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customerData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add customer");
+    await this.fetchCustomers();
+    return data;
+  }
+
+  async createPurchaseOrder(poData) {
+    const res = await fetch('/api/purchases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...poData,
+        branchId: this.activeBranchId
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create purchase order");
+    await this.fetchPurchases();
+    await this.fetchAuditLogs();
+    return data.purchaseOrder;
+  }
+
+  async receivePurchaseOrder(poId, receiveData) {
+    const res = await fetch(`/api/purchases/${poId}/receive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...receiveData,
+        userName: this.currentUser?.name || 'Inventory Officer'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to receive purchase order");
+    await this.fetchPurchases();
+    await this.fetchProducts();
+    await this.fetchInventoryMovements();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  async updateSettings(sectionKey, settingsData) {
+    const res = await fetch(`/api/settings/${sectionKey}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settingsData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save settings");
+    await this.fetchSettings();
+    await this.fetchAuditLogs();
+    return data;
+  }
+
+  logAudit(action, item, oldVal, newVal, reason) {
+    fetch('/api/audit-logs').then(() => this.fetchAuditLogs()).catch(() => {});
+  }
+
   setActiveBranch(branchId) {
     this.activeBranchId = branchId;
-    this.save();
+    this.notify();
   }
 
   getActiveBranch() {
@@ -317,6 +526,7 @@ export class CellarStore {
 
     return { steps, percentage };
   }
+
   setSelectedDate(dateStr) {
     this.selectedDate = dateStr || null;
     this.notify();
@@ -340,7 +550,7 @@ export class CellarStore {
     const tDate = target.getDate();
 
     return this.sales.filter(s => {
-      const d = new Date(s.timestamp);
+      const d = new Date(s.timestamp || s.created_at);
       const matchesDate = d.getFullYear() === tYear && d.getMonth() === tMonth && d.getDate() === tDate;
       const matchesBranch = this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId;
       return matchesDate && matchesBranch;
@@ -426,7 +636,7 @@ export class CellarStore {
     return this.getTodaySales()
       .filter(s => !s.refunded)
       .reduce((acc, s) => {
-        return acc + s.items.reduce((iAcc, item) => iAcc + (item.costSnapshot * item.qty), 0);
+        return acc + s.items.reduce((iAcc, item) => iAcc + ((item.costSnapshot || 0) * item.qty), 0);
       }, 0);
   }
 
@@ -438,7 +648,7 @@ export class CellarStore {
     const map = {};
     this.getTodaySales().filter(s => !s.refunded).forEach(s => {
       s.items.forEach(i => {
-        const prod = this.products.find(p => p.id === i.productId);
+        const prod = this.products.find(p => p.id === (i.productId || i.id));
         const cat = prod ? prod.category : "Other";
         if (!map[cat]) map[cat] = 0;
         map[cat] += i.total;
@@ -458,7 +668,7 @@ export class CellarStore {
     const todaySales = this.getTodaySales().filter(s => !s.refunded);
 
     todaySales.forEach(s => {
-      const h = new Date(s.timestamp).getHours();
+      const h = new Date(s.timestamp || s.created_at).getHours();
       const idx = Math.floor(h / 2);
       if (idx >= 0 && idx < 12) {
         data[idx] += s.total;
@@ -473,14 +683,14 @@ export class CellarStore {
     const brandMap = {};
     this.sales.forEach(s => {
       s.items.forEach(i => {
-        const prod = this.products.find(p => p.id === i.productId);
+        const prod = this.products.find(p => p.id === (i.productId || i.id));
         const brand = prod ? prod.brand : "Unknown";
         if (!brandMap[brand]) {
           brandMap[brand] = { units: 0, revenue: 0, cogs: 0 };
         }
         brandMap[brand].units += i.qty;
         brandMap[brand].revenue += i.total;
-        brandMap[brand].cogs += (i.costSnapshot * i.qty);
+        brandMap[brand].cogs += ((i.costSnapshot || 0) * i.qty);
       });
     });
     return Object.entries(brandMap).map(([brand, val]) => {

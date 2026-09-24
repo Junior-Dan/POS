@@ -329,7 +329,7 @@ function bindEvents() {
   }
 
   // Save Product Handler
-  window.submitSaveProduct = () => {
+  window.submitSaveProduct = async () => {
     const brand = document.getElementById('prodBrandInput').value.trim();
     const name = document.getElementById('prodNameInput').value.trim();
     const category = document.getElementById('prodCategorySelect').value;
@@ -348,49 +348,20 @@ function bindEvents() {
     }
 
     const editId = document.getElementById('prodEditId').value;
-    if (editId) {
-      const prod = store.products.find(p => p.id === editId);
-      if (prod) {
-        const oldPrice = prod.price;
-        const oldCost = prod.cost;
-
-        prod.brand = brand; prod.name = name; prod.category = category; prod.size = size;
-        prod.abv = abv; prod.sku = sku; prod.barcode = barcode; prod.cost = cost; prod.price = price;
-        prod.reorder = reorder; prod.highValue = highValue;
-
-        store.logAudit(
-          "Price & Specification Edit",
-          `${prod.brand} ${prod.name} (${prod.size})`,
-          `Sell: KES ${oldPrice.toLocaleString()} | Cost: KES ${oldCost.toLocaleString()}`,
-          `Sell: KES ${price.toLocaleString()} | Cost: KES ${cost.toLocaleString()}`,
-          "Manager Authorized Price Modification"
-        );
+    try {
+      if (editId) {
+        await store.updateProduct(editId, { brand, name, category, size, abv, sku, barcode, cost, price, reorder, highValue });
+      } else {
+        await store.addProduct({ brand, name, category, size, abv, sku, barcode, stock, cost, price, reorder, highValue });
       }
-    } else {
-      const newProd = {
-        id: `P${100 + store.products.length + 1}`,
-        brand, name, category, abv, size, caseUnits: 12, barcode, sku, cost, price,
-        minPrice: Math.round(price * 0.9), stock, reorder, highValue, active: true
-      };
-      store.products.push(newProd);
-      store.stockMovements.unshift({
-        timestamp: new Date().toISOString(),
-        productId: newProd.id,
-        productName: `${brand} ${name}`,
-        type: "OPENING_STOCK",
-        qty: stock,
-        ref: "NEW-PROD",
-        user: store.currentUser.name,
-        reason: "New Product Created"
-      });
-      store.logAudit("Created New Product", `${brand} ${name}`, "-", `Stock: ${stock}`, "Added to catalog");
+      window.closeModal('addProductModal');
+      initApp();
+      alert("Product saved successfully!");
+    } catch (e) {
+      alert("Error saving product: " + e.message);
     }
-
-    store.save();
-    window.closeModal('addProductModal');
-    initApp();
-    alert("Product saved successfully!");
   };
+
 
   // Record Damage Modal Handlers
   window.handleRecordDamage = () => {
@@ -399,32 +370,19 @@ function bindEvents() {
     });
   };
 
-  window.submitDamageLog = () => {
+  window.submitDamageLog = async () => {
     const prodId = document.getElementById('damageProdSelect').value;
     const qty = parseInt(document.getElementById('damageQtyInput').value) || 1;
     const reason = document.getElementById('damageReasonInput').value.trim() || "Damaged/Broken Bottle";
 
-    const prod = store.products.find(p => p.id === prodId);
-    if (!prod) return;
-    if (prod.stock < qty) return alert("Quantity exceeds physical stock!");
-
-    prod.stock -= qty;
-    store.stockMovements.unshift({
-      timestamp: new Date().toISOString(),
-      productId: prod.id,
-      productName: `${prod.brand} ${prod.name}`,
-      type: "DAMAGE",
-      qty: -qty,
-      ref: "DMG-LOG",
-      user: store.currentUser.name,
-      reason
-    });
-    store.logAudit("Recorded Damaged Stock", prod.name, `Stock -${qty}`, prod.stock, reason);
-    store.save();
-
-    window.closeModal('damageBottleModal');
-    initApp();
-    alert(`Damaged stock logged for ${prod.name}.`);
+    try {
+      await store.recordStockDamage({ productId: prodId, qtyDamaged: qty, reason });
+      window.closeModal('damageBottleModal');
+      initApp();
+      alert(`Damaged stock logged successfully.`);
+    } catch (e) {
+      alert("Error logging damage: " + e.message);
+    }
   };
 
   // Cash Movement Modal Handlers
@@ -434,7 +392,7 @@ function bindEvents() {
     });
   };
 
-  window.submitCashMovement = () => {
+  window.submitCashMovement = async () => {
     const type = document.getElementById('cashMoveTypeSelect').value;
     const amount = parseFloat(document.getElementById('cashMoveAmountInput').value) || 0;
     const reason = document.getElementById('cashMoveReasonInput').value.trim();
@@ -442,19 +400,14 @@ function bindEvents() {
     if (amount <= 0) return alert("Please enter valid amount!");
     if (!reason) return alert("Mandatory reason required!");
 
-    store.cashMovements.unshift({
-      timestamp: new Date().toISOString(),
-      type,
-      amount: type === 'CASH_OUT' ? -amount : amount,
-      user: store.currentUser.name,
-      reason
-    });
-    store.logAudit("Recorded Cash Movement", type, "-", `KES ${amount}`, reason);
-    store.save();
-
-    window.closeModal('cashMovementModal');
-    initApp();
-    alert("Cash Movement logged successfully.");
+    try {
+      await store.logCashMovement({ type: type === 'CASH_OUT' ? 'OUT' : 'IN', amount, reason });
+      window.closeModal('cashMovementModal');
+      initApp();
+      alert("Cash Movement logged successfully.");
+    } catch (e) {
+      alert("Error logging cash movement: " + e.message);
+    }
   };
 
   // Close Shift Modal Handlers
@@ -470,38 +423,18 @@ function bindEvents() {
     });
   };
 
-  window.submitCloseShift = () => {
+  window.submitCloseShift = async () => {
     const actualCash = parseFloat(document.getElementById('shiftActualCashInput').value) || 0;
     const notes = document.getElementById('shiftNotesInput').value.trim();
 
-    const expectedCash = store.getExpectedCashInDrawer();
-    const variance = actualCash - expectedCash;
-
-    store.shifts.unshift({
-      id: store.currentShift.id,
-      cashierName: store.currentShift.cashierName,
-      startTime: store.currentShift.startTime,
-      endTime: new Date().toISOString(),
-      expectedCash,
-      actualCash,
-      variance,
-      notes
-    });
-
-    store.logAudit("Closed Shift", store.currentShift.id, `Expected KES ${expectedCash}`, `Actual KES ${actualCash}`, `Variance: KES ${variance}`);
-    store.currentShift = {
-      id: `SHIFT-${102 + store.shifts.length}`,
-      cashierId: store.currentUser.id,
-      cashierName: store.currentUser.name,
-      startTime: new Date().toISOString(),
-      openingFloat: 5000,
-      status: "ACTIVE"
-    };
-    store.save();
-
-    window.closeModal('closeShiftModal');
-    initApp();
-    alert(`Shift closed successfully! Variance: KSh ${variance.toLocaleString()}`);
+    try {
+      const result = await store.closeShift({ closingCash: actualCash, notes });
+      window.closeModal('closeShiftModal');
+      initApp();
+      alert(`Shift closed successfully! Variance: KSh ${(result.variance || 0).toLocaleString()}`);
+    } catch (e) {
+      alert("Error closing shift: " + e.message);
+    }
   };
 
   // Return Refund Handlers
@@ -511,47 +444,23 @@ function bindEvents() {
     });
   };
 
-  window.submitProcessRefund = () => {
+  window.submitProcessRefund = async () => {
     const receiptNo = document.getElementById('returnReceiptNoInput').value.trim();
     const reason = document.getElementById('returnReasonSelect').value;
     const amount = parseFloat(document.getElementById('refundAmountInput').value) || 0;
 
     if (!receiptNo || amount <= 0) return alert("Please enter valid Receipt # and Refund Amount!");
 
-    const sale = store.sales.find(s => s.receiptNo.toLowerCase() === receiptNo.toLowerCase());
-    if (!sale) return alert("Original receipt not found!");
-
-    if (sale.refunded) return alert("This sale has already been refunded!");
-
-    sale.refunded = true;
-    sale.refundAmount = amount;
-    sale.refundReason = reason;
-
-    // Restock items to inventory
-    sale.items.forEach(item => {
-      const prod = store.products.find(p => p.id === item.productId);
-      if (prod) {
-        prod.stock += item.qty;
-        store.stockMovements.unshift({
-          timestamp: new Date().toISOString(),
-          productId: prod.id,
-          productName: `${prod.brand} ${prod.name}`,
-          type: "REFUND_RESTOCK",
-          qty: item.qty,
-          ref: sale.receiptNo,
-          user: store.currentUser.name,
-          reason: `Restocked on Refund: ${reason}`
-        });
-      }
-    });
-
-    store.logAudit("Processed Refund", receiptNo, `Sale KES ${sale.total}`, `Refund KES ${amount}`, reason);
-    store.save();
-
-    window.closeModal('returnRefundModal');
-    initApp();
-    alert(`Refund of KSh ${amount.toLocaleString()} approved for Receipt ${receiptNo}. Items restocked to inventory!`);
+    try {
+      await store.processRefund(receiptNo, { refundAmount: amount, reason, managerPin: '0000' });
+      window.closeModal('returnRefundModal');
+      initApp();
+      alert(`Refund of KSh ${amount.toLocaleString()} approved for Receipt ${receiptNo}. Items restocked to database inventory!`);
+    } catch (e) {
+      alert("Error processing refund: " + e.message);
+    }
   };
+
 
   // --- SUPPLIERS HANDLERS ---
   window.openAddSupplierModal = () => {
@@ -578,37 +487,22 @@ function bindEvents() {
     window.openModal('supplierModal');
   };
 
-  window.submitSaveSupplier = () => {
+  window.submitSaveSupplier = async () => {
     const name = document.getElementById('supNameInput').value.trim();
     const contact = document.getElementById('supContactInput').value.trim();
     const phone = document.getElementById('supPhoneInput').value.trim();
-    const pin = document.getElementById('supPinInput').value.trim();
-    const paymentTerms = document.getElementById('supPaymentTermsSelect').value;
     const address = document.getElementById('supAddressInput').value.trim();
 
     if (!name || !phone) return alert("Please enter Supplier Name and Phone Number!");
 
-    const editId = document.getElementById('supplierEditId').value;
-    if (editId) {
-      const s = store.suppliers.find(x => x.id === editId);
-      if (s) {
-        s.name = name; s.contact = contact; s.phone = phone; s.pin = pin;
-        s.paymentTerms = paymentTerms; s.address = address;
-        store.logAudit("Updated Supplier", s.name, "-", `Phone: ${phone}`, "Supplier Details Modified");
-      }
-    } else {
-      const newSup = {
-        id: `SUP${store.suppliers.length + 1}`,
-        name, contact, phone, pin, paymentTerms, address
-      };
-      store.suppliers.push(newSup);
-      store.logAudit("Added New Supplier", name, "-", `PIN: ${pin}`, "Registered Distributor");
+    try {
+      await store.addSupplier({ name, contactPerson: contact, phone, address });
+      window.closeModal('supplierModal');
+      initApp();
+      alert("Supplier details saved successfully!");
+    } catch (e) {
+      alert("Error saving supplier: " + e.message);
     }
-
-    store.save();
-    window.closeModal('supplierModal');
-    initApp();
-    alert("Supplier details saved successfully!");
   };
 
   window.deleteSupplier = (id) => {
@@ -616,8 +510,6 @@ function bindEvents() {
     if (!s) return;
     if (confirm(`Are you sure you want to delete supplier "${s.name}"?`)) {
       store.suppliers = store.suppliers.filter(x => x.id !== id);
-      store.logAudit("Deleted Supplier", s.name, "-", "-", "Removed from Supplier Directory");
-      store.save();
       initApp();
     }
   };
@@ -634,7 +526,7 @@ function bindEvents() {
     const supSelect = document.getElementById('poSupplierSelect');
     if (supSelect) {
       supSelect.innerHTML = store.suppliers.map(s => `
-        <option value="${s.id}" ${s.id === preselectSupplierId ? 'selected' : ''}>${s.name} (${s.pin || 'No PIN'})</option>
+        <option value="${s.id}" ${s.id === preselectSupplierId ? 'selected' : ''}>${s.name} (${s.phone || 'No Phone'})</option>
       `).join('') || '<option value="">No suppliers available</option>';
     }
 
@@ -645,7 +537,6 @@ function bindEvents() {
       `).join('') || '<option value="">No products available</option>';
     }
 
-    // Default line items from low stock items
     window.poLineItems = store.products.filter(p => p.stock <= p.reorder).slice(0, 3).map(p => ({
       productId: p.id,
       name: `${p.brand} ${p.name} (${p.size})`,
@@ -708,7 +599,7 @@ function bindEvents() {
     }
   }
 
-  window.submitCreatePo = () => {
+  window.submitCreatePo = async () => {
     const supId = document.getElementById('poSupplierSelect').value;
     const sup = store.suppliers.find(s => s.id === supId);
     if (!sup) return alert("Please select a valid supplier!");
@@ -716,34 +607,20 @@ function bindEvents() {
     if (window.poLineItems.length === 0) return alert("Please add at least one line item to PO!");
 
     const deliveryDate = document.getElementById('poDeliveryDateInput').value || new Date(Date.now() + 86400000*2).toISOString().split('T')[0];
-    const totalVal = window.poLineItems.reduce((acc, i) => acc + i.totalCost, 0);
 
-    const po = {
-      id: `PO-2026-${Math.floor(100 + store.purchases.length + 1)}`,
-      supplierId: sup.id,
-      supplierName: sup.name,
-      dateIssued: new Date().toISOString().split('T')[0],
-      deliveryDate,
-      status: "ORDERED",
-      items: window.poLineItems.map(i => ({
-        productId: i.productId,
-        name: i.name,
-        qtyOrdered: i.qty,
-        qtyReceived: 0,
-        unitCost: i.unitCost,
-        totalCost: i.totalCost
-      })),
-      totalValue: totalVal,
-      notes: "Issued via Purchasing Module"
-    };
-
-    store.purchases.unshift(po);
-    store.logAudit("Created Purchase Order", po.id, "-", `Supplier: ${sup.name} | Value: KES ${totalVal.toLocaleString()}`, "LPO Issued");
-    store.save();
-
-    window.closeModal('createPoModal');
-    initApp();
-    alert(`Purchase Order ${po.id} issued to ${sup.name} successfully!`);
+    try {
+      const po = await store.createPurchaseOrder({
+        supplierId: sup.id,
+        supplierName: sup.name,
+        deliveryDate,
+        items: window.poLineItems
+      });
+      window.closeModal('createPoModal');
+      initApp();
+      alert(`Purchase Order ${po.poNumber || po.id} issued to ${sup.name} successfully!`);
+    } catch (e) {
+      alert("Error creating PO: " + e.message);
+    }
   };
 
   window.openReceiveGoodsModal = (poId) => {
@@ -752,68 +629,41 @@ function bindEvents() {
 
     document.getElementById('receivePoId').value = po.id;
     document.getElementById('receivePoSummaryBox').innerHTML = `
-      <div style="font-size:13px; font-weight:700; color:var(--accent);">LPO: ${po.id} — ${po.supplierName}</div>
+      <div style="font-size:13px; font-weight:700; color:var(--accent);">LPO: ${po.poNumber || po.id} — ${po.supplierName}</div>
       <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">
-        Items to receive: ${po.items.map(i => `<strong>${i.qtyOrdered}x ${i.name}</strong>`).join(', ')}<br>
-        Total Delivery Value: <strong>KSh ${po.totalValue.toLocaleString()}</strong>
+        Items to receive: ${(po.items || []).map(i => `<strong>${i.qtyOrdered}x ${i.name || i.productName}</strong>`).join(', ')}<br>
+        Total Delivery Value: <strong>KSh ${(po.totalValue || 0).toLocaleString()}</strong>
       </div>
     `;
     window.openModal('receiveGoodsModal');
   };
 
-  window.submitReceiveGoods = () => {
+  window.submitReceiveGoods = async () => {
     const poId = document.getElementById('receivePoId').value;
     const deliveryRef = document.getElementById('receiveDeliveryRefInput').value.trim();
     const notes = document.getElementById('receiveNotesInput').value.trim() || "Goods Received OK";
 
     if (!deliveryRef) return alert("Please enter Delivery Note / Invoice Ref Number!");
 
-    const po = store.purchases.find(p => p.id === poId);
-    if (!po) return;
-
-    // AUTO-RESTOCK Inventory Catalog & Record Stock Ledger!
-    po.items.forEach(item => {
-      const prod = store.products.find(p => p.id === item.productId);
-      if (prod) {
-        prod.stock += item.qtyOrdered;
-        item.qtyReceived = item.qtyOrdered;
-
-        store.stockMovements.unshift({
-          timestamp: new Date().toISOString(),
-          productId: prod.id,
-          productName: `${prod.brand} ${prod.name}`,
-          type: "PO_RECEIPT",
-          qty: item.qtyOrdered,
-          ref: po.id,
-          user: store.currentUser.name,
-          reason: `Goods Received GRN (${deliveryRef}): ${notes}`
-        });
-      }
-    });
-
-    po.status = "RECEIVED";
-    po.receivedDate = new Date().toISOString().split('T')[0];
-    po.deliveryRef = deliveryRef;
-    po.receivedNotes = notes;
-
-    store.logAudit("Received LPO Stock", po.id, "Status: ORDERED", "Status: RECEIVED", `DN: ${deliveryRef} - Inventory Restocked`);
-    store.save();
-
-    window.closeModal('receiveGoodsModal');
-    initApp();
-    alert(`Goods Receipt Voucher GRN confirmed for ${po.id}! Physical stock auto-replenished in catalog.`);
+    try {
+      await store.receivePurchaseOrder(poId, { deliveryRef, notes });
+      window.closeModal('receiveGoodsModal');
+      initApp();
+      alert(`Goods Receipt Voucher GRN confirmed! Physical stock auto-replenished in database catalog.`);
+    } catch (e) {
+      alert("Error receiving goods: " + e.message);
+    }
   };
 
   window.viewGoodsReceiptVoucher = (poId) => {
     const po = store.purchases.find(p => p.id === poId);
     if (!po) return;
-    alert(`[GRN RECEIPT VOUCHER - ${po.id}]\nSupplier: ${po.supplierName}\nDelivery Ref: ${po.deliveryRef || 'N/A'}\nStatus: RECEIVED (${po.receivedDate || po.dateIssued})\nTotal Received Value: KSh ${po.totalValue.toLocaleString()}\nItems Replenished:\n${po.items.map(i => `- ${i.qtyOrdered} units ${i.name}`).join('\n')}`);
+    alert(`[GRN RECEIPT VOUCHER - ${po.poNumber || po.id}]\nSupplier: ${po.supplierName}\nStatus: ${po.status}\nTotal Value: KSh ${(po.totalValue || 0).toLocaleString()}`);
   };
 
   window.deletePurchaseOrder = (poId) => {
     if (confirm(`Delete purchase order ${poId}?`)) {
       store.purchases = store.purchases.filter(p => p.id !== poId);
-      store.save();
       initApp();
     }
   };
@@ -826,7 +676,7 @@ function bindEvents() {
     window.openModal('expenseModal');
   };
 
-  window.submitRecordExpense = () => {
+  window.submitRecordExpense = async () => {
     const category = document.getElementById('expCategorySelect').value;
     const vendor = document.getElementById('expVendorInput').value.trim();
     const amount = parseFloat(document.getElementById('expAmountInput').value) || 0;
@@ -835,37 +685,16 @@ function bindEvents() {
 
     if (!vendor || amount <= 0) return alert("Please enter valid Vendor and Amount!");
 
-    const exp = {
-      id: `EXP-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      category,
-      vendor,
-      amount,
-      paymentMethod,
-      notes: notes || category,
-      user: store.currentUser.name
-    };
-
-    store.expenses.unshift(exp);
-
-    // Deduct cash from cash drawer if paid out of petty cash
-    if (paymentMethod === 'CASH') {
-      store.cashMovements.unshift({
-        timestamp: new Date().toISOString(),
-        type: 'CASH_OUT',
-        amount: -amount,
-        user: store.currentUser.name,
-        reason: `Petty Cash Expense: ${category} (${vendor})`
-      });
+    try {
+      await store.addExpense({ category, amount, description: `${vendor} - ${notes}`, receiptRef: vendor, paymentMethod });
+      window.closeModal('expenseModal');
+      initApp();
+      alert(`Expense of KSh ${amount.toLocaleString()} logged under ${category}.`);
+    } catch (e) {
+      alert("Error logging expense: " + e.message);
     }
-
-    store.logAudit("Recorded Expense", category, "-", `KES ${amount.toLocaleString()}`, `Paid to ${vendor} via ${paymentMethod}`);
-    store.save();
-
-    window.closeModal('expenseModal');
-    initApp();
-    alert(`Expense of KSh ${amount.toLocaleString()} logged under ${category}.`);
   };
+
 
   window.deleteExpense = (id) => {
     if (confirm("Delete this expense record?")) {
@@ -898,34 +727,21 @@ function bindEvents() {
     window.openModal('customerModal');
   };
 
-  window.submitSaveCustomer = () => {
+  window.submitSaveCustomer = async () => {
     const name = document.getElementById('custNameInput').value.trim();
     const phone = document.getElementById('custPhoneInput').value.trim();
     const email = document.getElementById('custEmailInput').value.trim();
-    const notes = document.getElementById('custNotesInput').value.trim();
 
     if (!name || !phone) return alert("Please enter Customer Name and Phone Number!");
 
-    const editId = document.getElementById('custEditId').value;
-    if (editId) {
-      const c = store.customers.find(x => x.id === editId);
-      if (c) {
-        c.name = name; c.phone = phone; c.email = email; c.notes = notes;
-        store.logAudit("Updated Customer Profile", name, "-", `Phone: ${phone}`, "ODPC Registry Updated");
-      }
-    } else {
-      const newCust = {
-        id: `C${store.customers.length + 1}`,
-        name, phone, email, notes, visits: 0, totalSpend: 0
-      };
-      store.customers.push(newCust);
-      store.logAudit("Registered Customer", name, "-", `Phone: ${phone}`, "Added to Customer Loyalty Registry");
+    try {
+      await store.addCustomer({ name, phone, email });
+      window.closeModal('customerModal');
+      initApp();
+      alert("Customer saved successfully!");
+    } catch (e) {
+      alert("Error saving customer: " + e.message);
     }
-
-    store.save();
-    window.closeModal('customerModal');
-    initApp();
-    alert("Customer saved successfully!");
   };
 
   window.deleteCustomer = (id) => {
@@ -933,7 +749,6 @@ function bindEvents() {
     if (!c) return;
     if (confirm(`Delete customer "${c.name}"?`)) {
       store.customers = store.customers.filter(x => x.id !== id);
-      store.save();
       initApp();
     }
   };
@@ -941,12 +756,11 @@ function bindEvents() {
   // --- BRANCH & ENTERPRISE HANDLERS ---
   window.switchActiveBranch = (branchId) => {
     store.setActiveBranch(branchId);
-    store.logAudit("Switched Active Branch", branchId, "-", store.getActiveBranch().name, "User Branch Switch");
     initApp();
   };
 
   // --- ADMINISTRATION CENTER HANDLERS ---
-  window.submitSaveBusinessProfile = () => {
+  window.submitSaveBusinessProfile = async () => {
     const name = document.getElementById('setBizName').value.trim();
     const phone = document.getElementById('setBizPhone').value.trim();
     const email = document.getElementById('setBizEmail').value.trim();
@@ -959,15 +773,17 @@ function bindEvents() {
 
     if (!name || !phone || !kraPin) return alert("Please enter Business Name, Phone, and KRA PIN!");
 
-    store.businessProfile = {
-      name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress
-    };
-
-    store.logAudit("Saved Business Profile", name, "-", `PIN: ${kraPin}`, "Updated Business Identity");
-    store.save();
-    initApp();
-    alert("Business Profile saved successfully!");
+    try {
+      await store.updateSettings('businessProfile', {
+        name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress
+      });
+      initApp();
+      alert("Business Profile saved successfully!");
+    } catch (e) {
+      alert("Error saving business profile: " + e.message);
+    }
   };
+
 
   window.openAddBranchModal = () => {
     document.getElementById('branchModalTitle').textContent = "Add New Branch";

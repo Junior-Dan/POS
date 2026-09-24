@@ -1,0 +1,801 @@
+{
+  "users": [
+    {
+      "id": {
+        "id": "U1",
+        "name": "David Kamau",
+        "role": "owner",
+        "pin": "0000",
+        "email": "owner@cellar.co.ke"
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.291Z"
+    },
+    {
+      "id": {
+        "id": "U2",
+        "name": "Mary Wanjiku",
+        "role": "manager",
+        "pin": "1234",
+        "email": "manager@cellar.co.ke"
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.296Z"
+    },
+    {
+      "id": {
+        "id": "U3",
+        "name": "John Omondi",
+        "role": "cashier",
+        "pin": "5555",
+        "email": "john@cellar.co.ke"
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.296Z"
+    },
+    {
+      "id": {
+        "id": "U4",
+        "name": "Peter Otieno",
+        "role": "inventory_officer",
+        "pin": "8888",
+        "email": "peter@cellar.co.ke"
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.297Z"
+    }
+  ],
+  "categories": [
+    {
+      "id": {
+        "id": "CAT1",
+        "name": "Whisky",
+        "description": "Blended & Single Malt Whiskies"
+      },
+      "active": 1
+    }
+  ],
+  "suppliers": [
+    {
+      "id": {
+        "id": "SUP1",
+        "name": "Kenya Breweries Limited (KBL)",
+        "contact_person": "Main Orders Desk",
+        "phone": "+254 722 000 000",
+        "email": "orders@kbl.co.ke",
+        "address": "Ruaraka Industrial Area, Nairobi"
+      },
+      "active": 1
+    },
+    {
+      "id": {
+        "id": "SUP2",
+        "name": "UDV Kenya",
+        "contact_person": "Accounts Dept",
+        "phone": "+254 733 111 222",
+        "email": "sales@udv.co.ke",
+        "address": "Commercial Street, Nairobi"
+      },
+      "active": 1
+    },
+    {
+      "id": {
+        "id": "SUP3",
+        "name": "Wine & Spirits Distributors Ltd",
+        "contact_person": "James Kariuki",
+        "phone": "+254 711 999 888",
+        "email": "info@wsd.co.ke",
+        "address": "Mombasa Road, Nairobi"
+      },
+      "active": 1
+    },
+    {
+      "id": {
+        "id": "SUP4",
+        "name": "East African Soft Drinks Ltd",
+        "contact_person": "Sarah Chen",
+        "phone": "+254 700 444 333",
+        "email": "orders@easd.co.ke",
+        "address": "Industrial Area, Nairobi"
+      },
+      "active": 1
+    }
+  ],
+  "products": [
+    {
+      "id": {
+        "id": "P101",
+        "brand": "Johnnie Walker",
+        "name": "Black Label 12YO",
+        "category": "Whisky",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "5000267014005",
+        "sku": "JWB-750",
+        "cost_price": 3400,
+        "selling_price": 4500,
+        "wholesale_price": 4300,
+        "min_price": 4200,
+        "tax_rate": 16,
+        "current_stock": 24,
+        "min_stock": 5,
+        "reorder_level": 6,
+        "supplier_id": "SUP2",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P102",
+        "brand": "Johnnie Walker",
+        "name": "Red Label",
+        "category": "Whisky",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "5000267013008",
+        "sku": "JWR-750",
+        "cost_price": 1800,
+        "selling_price": 2400,
+        "wholesale_price": 2300,
+        "min_price": 2200,
+        "tax_rate": 16,
+        "current_stock": 18,
+        "min_stock": 5,
+        "reorder_level": 8,
+        "supplier_id": "SUP2",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P103",
+        "brand": "Jameson",
+        "name": "Irish Whiskey",
+        "category": "Whisky",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "5000281008400",
+        "sku": "JMS-750",
+        "cost_price": 2200,
+        "selling_price": 3000,
+        "wholesale_price": 2900,
+        "min_price": 2800,
+        "tax_rate": 16,
+        "current_stock": 30,
+        "min_stock": 5,
+        "reorder_level": 10,
+        "supplier_id": "SUP3",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P104",
+        "brand": "Smirnoff",
+        "name": "Red Label Vodka",
+        "category": "Vodka",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "5000267020006",
+        "sku": "SMR-750",
+        "cost_price": 1000,
+        "selling_price": 1450,
+        "wholesale_price": 1400,
+        "min_price": 1350,
+        "tax_rate": 16,
+        "current_stock": 40,
+        "min_stock": 5,
+        "reorder_level": 12,
+        "supplier_id": "SUP2",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P105",
+        "brand": "Smirnoff",
+        "name": "Red Label Vodka",
+        "category": "Vodka",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "350 ml",
+        "case_units": 24,
+        "barcode": "5000267020013",
+        "sku": "SMR-350",
+        "cost_price": 500,
+        "selling_price": 750,
+        "wholesale_price": 720,
+        "min_price": 700,
+        "tax_rate": 16,
+        "current_stock": 50,
+        "min_stock": 10,
+        "reorder_level": 15,
+        "supplier_id": "SUP2",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P106",
+        "brand": "Gilbey's",
+        "name": "Special Dry Gin",
+        "category": "Gin",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 37.5,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "5000267031002",
+        "sku": "GLB-750",
+        "cost_price": 950,
+        "selling_price": 1350,
+        "wholesale_price": 1300,
+        "min_price": 1250,
+        "tax_rate": 16,
+        "current_stock": 35,
+        "min_stock": 5,
+        "reorder_level": 10,
+        "supplier_id": "SUP2",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P107",
+        "brand": "Hennessy",
+        "name": "Hennessy VS Cognac",
+        "category": "Cognac",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "3245980001211",
+        "sku": "HEN-VS",
+        "cost_price": 4200,
+        "selling_price": 5500,
+        "wholesale_price": 5350,
+        "min_price": 5200,
+        "tax_rate": 16,
+        "current_stock": 12,
+        "min_stock": 3,
+        "reorder_level": 4,
+        "supplier_id": "SUP3",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P108",
+        "brand": "Hennessy",
+        "name": "Hennessy XO Prestige",
+        "category": "Cognac",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 40,
+        "size": "750 ml",
+        "case_units": 6,
+        "barcode": "3245980009999",
+        "sku": "HEN-XO",
+        "cost_price": 21000,
+        "selling_price": 27000,
+        "wholesale_price": 26500,
+        "min_price": 26000,
+        "tax_rate": 16,
+        "current_stock": 3,
+        "min_stock": 1,
+        "reorder_level": 2,
+        "supplier_id": "SUP3",
+        "high_value": 1
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P109",
+        "brand": "Tusker",
+        "name": "Tusker Lager",
+        "category": "Beer",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 4.2,
+        "size": "500 ml",
+        "case_units": 25,
+        "barcode": "6001234567890",
+        "sku": "TSK-500",
+        "cost_price": 180,
+        "selling_price": 250,
+        "wholesale_price": 240,
+        "min_price": 240,
+        "tax_rate": 16,
+        "current_stock": 120,
+        "min_stock": 20,
+        "reorder_level": 40,
+        "supplier_id": "SUP1",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.298Z"
+    },
+    {
+      "id": {
+        "id": "P110",
+        "brand": "Tusker",
+        "name": "Tusker Malt Lager",
+        "category": "Beer",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 5,
+        "size": "500 ml",
+        "case_units": 25,
+        "barcode": "6001234567891",
+        "sku": "TSKM-500",
+        "cost_price": 200,
+        "selling_price": 270,
+        "wholesale_price": 260,
+        "min_price": 260,
+        "tax_rate": 16,
+        "current_stock": 85,
+        "min_stock": 15,
+        "reorder_level": 30,
+        "supplier_id": "SUP1",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.299Z"
+    },
+    {
+      "id": {
+        "id": "P111",
+        "brand": "Baileys",
+        "name": "Original Irish Cream",
+        "category": "Liqueur",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 17,
+        "size": "750 ml",
+        "case_units": 12,
+        "barcode": "5000267040004",
+        "sku": "BLY-750",
+        "cost_price": 2100,
+        "selling_price": 2850,
+        "wholesale_price": 2750,
+        "min_price": 2700,
+        "tax_rate": 16,
+        "current_stock": 15,
+        "min_stock": 3,
+        "reorder_level": 5,
+        "supplier_id": "SUP2",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.299Z"
+    },
+    {
+      "id": {
+        "id": "P112",
+        "brand": "Nederburg",
+        "name": "Pinotage Sweet Red",
+        "category": "Wine",
+        "product_type": "retail",
+        "unit": "bottle",
+        "abv": 14,
+        "size": "750 ml",
+        "case_units": 6,
+        "barcode": "6001452001122",
+        "sku": "NED-RED",
+        "cost_price": 1100,
+        "selling_price": 1600,
+        "wholesale_price": 1550,
+        "min_price": 1500,
+        "tax_rate": 16,
+        "current_stock": 20,
+        "min_stock": 4,
+        "reorder_level": 6,
+        "supplier_id": "SUP3",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.299Z"
+    },
+    {
+      "id": {
+        "id": "P113",
+        "brand": "Coca Cola",
+        "name": "Coca Cola Classic 500ml",
+        "category": "Non-Alcoholic",
+        "product_type": "retail",
+        "unit": "can/bottle",
+        "abv": 0,
+        "size": "500 ml",
+        "case_units": 24,
+        "barcode": "5449000000996",
+        "sku": "COKE-500",
+        "cost_price": 60,
+        "selling_price": 90,
+        "wholesale_price": 80,
+        "min_price": 80,
+        "tax_rate": 16,
+        "current_stock": 100,
+        "min_stock": 20,
+        "reorder_level": 30,
+        "supplier_id": "SUP4",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.299Z"
+    },
+    {
+      "id": {
+        "id": "P114",
+        "brand": "Red Bull",
+        "name": "Energy Drink 250ml",
+        "category": "Non-Alcoholic",
+        "product_type": "retail",
+        "unit": "can",
+        "abv": 0,
+        "size": "250 ml",
+        "case_units": 24,
+        "barcode": "9002490100070",
+        "sku": "RDB-250",
+        "cost_price": 180,
+        "selling_price": 250,
+        "wholesale_price": 230,
+        "min_price": 230,
+        "tax_rate": 16,
+        "current_stock": 60,
+        "min_stock": 10,
+        "reorder_level": 20,
+        "supplier_id": "SUP4",
+        "high_value": 0
+      },
+      "active": 1,
+      "created_at": "2026-09-24T21:09:35.299Z"
+    }
+  ],
+  "customers": [
+    {
+      "id": {
+        "id": "C1",
+        "name": "Walk-in Customer",
+        "phone": "N/A",
+        "email": "-",
+        "visits": 0,
+        "total_spend": 0
+      },
+      "visits": 0,
+      "total_spend": 0,
+      "created_at": "2026-09-24T21:09:35.302Z"
+    },
+    {
+      "id": {
+        "id": "C2",
+        "name": "David Mwangi",
+        "phone": "0712345678",
+        "email": "david@example.com",
+        "visits": 3,
+        "total_spend": 24500
+      },
+      "visits": 0,
+      "total_spend": 0,
+      "created_at": "2026-09-24T21:09:35.302Z"
+    }
+  ],
+  "shifts": [
+    {
+      "id": {
+        "id": "SHIFT-101",
+        "branch_id": "B1",
+        "cashier_id": "U3",
+        "cashier_name": "John Omondi",
+        "start_time": "2026-09-24T21:09:35.302Z",
+        "opening_float": 5000,
+        "status": "ACTIVE"
+      },
+      "start_time": "2026-09-24T21:09:35.302Z",
+      "status": "ACTIVE"
+    }
+  ],
+  "sales": [],
+  "sale_items": [],
+  "payments": [],
+  "stock_movements": [
+    {
+      "id": {
+        "id": "MOV-INIT-P114",
+        "product_id": "P114",
+        "product_name": "Red Bull Energy Drink 250ml",
+        "type": "OPENING_STOCK",
+        "qty": 60,
+        "previous_stock": 0,
+        "new_stock": 60,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.302Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P113",
+        "product_id": "P113",
+        "product_name": "Coca Cola Coca Cola Classic 500ml",
+        "type": "OPENING_STOCK",
+        "qty": 100,
+        "previous_stock": 0,
+        "new_stock": 100,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.302Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P112",
+        "product_id": "P112",
+        "product_name": "Nederburg Pinotage Sweet Red",
+        "type": "OPENING_STOCK",
+        "qty": 20,
+        "previous_stock": 0,
+        "new_stock": 20,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.302Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P111",
+        "product_id": "P111",
+        "product_name": "Baileys Original Irish Cream",
+        "type": "OPENING_STOCK",
+        "qty": 15,
+        "previous_stock": 0,
+        "new_stock": 15,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.302Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P110",
+        "product_id": "P110",
+        "product_name": "Tusker Tusker Malt Lager",
+        "type": "OPENING_STOCK",
+        "qty": 85,
+        "previous_stock": 0,
+        "new_stock": 85,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.302Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P109",
+        "product_id": "P109",
+        "product_name": "Tusker Tusker Lager",
+        "type": "OPENING_STOCK",
+        "qty": 120,
+        "previous_stock": 0,
+        "new_stock": 120,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.301Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P108",
+        "product_id": "P108",
+        "product_name": "Hennessy Hennessy XO Prestige",
+        "type": "OPENING_STOCK",
+        "qty": 3,
+        "previous_stock": 0,
+        "new_stock": 3,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.301Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P107",
+        "product_id": "P107",
+        "product_name": "Hennessy Hennessy VS Cognac",
+        "type": "OPENING_STOCK",
+        "qty": 12,
+        "previous_stock": 0,
+        "new_stock": 12,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.301Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P106",
+        "product_id": "P106",
+        "product_name": "Gilbey's Special Dry Gin",
+        "type": "OPENING_STOCK",
+        "qty": 35,
+        "previous_stock": 0,
+        "new_stock": 35,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.300Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P105",
+        "product_id": "P105",
+        "product_name": "Smirnoff Red Label Vodka",
+        "type": "OPENING_STOCK",
+        "qty": 50,
+        "previous_stock": 0,
+        "new_stock": 50,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.300Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P104",
+        "product_id": "P104",
+        "product_name": "Smirnoff Red Label Vodka",
+        "type": "OPENING_STOCK",
+        "qty": 40,
+        "previous_stock": 0,
+        "new_stock": 40,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.300Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P103",
+        "product_id": "P103",
+        "product_name": "Jameson Irish Whiskey",
+        "type": "OPENING_STOCK",
+        "qty": 30,
+        "previous_stock": 0,
+        "new_stock": 30,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.299Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P102",
+        "product_id": "P102",
+        "product_name": "Johnnie Walker Red Label",
+        "type": "OPENING_STOCK",
+        "qty": 18,
+        "previous_stock": 0,
+        "new_stock": 18,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.299Z"
+    },
+    {
+      "id": {
+        "id": "MOV-INIT-P101",
+        "product_id": "P101",
+        "product_name": "Johnnie Walker Black Label 12YO",
+        "type": "OPENING_STOCK",
+        "qty": 24,
+        "previous_stock": 0,
+        "new_stock": 24,
+        "ref": "INIT-CATALOG",
+        "user_name": "System",
+        "reason": "Initial Catalogue Opening Stock"
+      },
+      "timestamp": "2026-09-24T21:09:35.299Z"
+    }
+  ],
+  "cash_movements": [],
+  "purchases": [],
+  "purchase_items": [],
+  "expenses": [],
+  "audit_logs": [
+    {
+      "id": {
+        "id": "AUD-INIT",
+        "timestamp": "2026-09-24T21:09:35.304Z",
+        "user_name": "System",
+        "role": "owner",
+        "branch_id": "B1",
+        "action": "Database Initialized Clean",
+        "item": "Database Engine",
+        "old_val": "-",
+        "new_val": "SQLite DB Active",
+        "reason": "Production end-to-end database initialization"
+      },
+      "timestamp": "2026-09-24T21:09:35.304Z"
+    }
+  ],
+  "settings": [
+    {
+      "key": {
+        "key": "businessProfile",
+        "value": "{\"name\":\"Cisco Wines & Spirits\",\"phone\":\"0722 000 111\",\"email\":\"info@ciscowines.co.ke\",\"address\":\"Kenyatta Avenue, Nairobi CBD\",\"kraPin\":\"P051234567S\",\"regNo\":\"CPR/2024/99182\",\"receiptName\":\"CISCO WINES & SPIRITS\",\"receiptPhone\":\"0722 000 111\",\"receiptAddress\":\"Kenyatta Avenue, Nairobi CBD\"}"
+      }
+    },
+    {
+      "key": {
+        "key": "paymentSettings",
+        "value": "{\"cashEnabled\":true,\"mpesaEnabled\":true,\"cardEnabled\":true,\"bankEnabled\":true,\"creditEnabled\":false}"
+      }
+    },
+    {
+      "key": {
+        "key": "receiptSettings",
+        "value": "{\"showLogo\":true,\"showCashierName\":true,\"showTaxBreakdown\":true,\"printCopies\":1,\"headerText\":\"CISCO WINES & SPIRITS\",\"footerText\":\"Thank you for shopping at Cisco Wines! Quality Wines & Spirits.\"}"
+      }
+    },
+    {
+      "key": {
+        "key": "shiftSettings",
+        "value": "{\"defaultFloat\":5000,\"requireCashDeclaration\":true,\"maxVarianceThreshold\":1000,\"requireManagerVarianceApproval\":true}"
+      }
+    },
+    {
+      "key": {
+        "key": "securitySettings",
+        "value": "{\"sessionTimeoutMinutes\":30,\"autoLogoutOnIdle\":false,\"requirePinForRefunds\":true,\"requirePinForPriceOverride\":true,\"requirePinForStockAdjustments\":true,\"maxDiscountPercentWithoutAuth\":5}"
+      }
+    },
+    {
+      "key": {
+        "key": "systemPreferences",
+        "value": "{\"currencySymbol\":\"KSh\",\"taxRate\":16,\"dateFormat\":\"DD/MM/YYYY\",\"theme\":\"dark\"}"
+      }
+    }
+  ]
+}

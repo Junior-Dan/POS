@@ -1,17 +1,19 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderSidebar(currentUser) {
-  const avatarText = currentUser.name.split(' ').map(n => n[0]).join('');
+  const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
+  const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
   const bizName = store.businessProfile?.name || "Cisco Wines & Spirits";
   const activeBranch = store.getActiveBranch();
 
   // Branch selector options based on user role and assigned branches
-  let availableBranches = store.branches;
-  if (currentUser.role !== 'owner') {
-    const allowedBranchIds = [currentUser.primaryBranchId, ...(currentUser.additionalBranchIds || [])].filter(Boolean);
-    availableBranches = store.branches.filter(b => allowedBranchIds.includes(b.id));
+  let availableBranches = store.branches || [];
+  if (user.role !== 'owner') {
+    const allowedBranchIds = [user.primaryBranchId, ...(user.additionalBranchIds || [])].filter(Boolean);
+    availableBranches = (store.branches || []).filter(b => allowedBranchIds.includes(b.id));
     if (availableBranches.length === 0) availableBranches = [store.branches[0]];
   }
+
 
   // Navigation tabs with role permission validation
   const allNavItems = [

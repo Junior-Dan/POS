@@ -249,84 +249,32 @@ window.completePosSale = function(paymentMethod = 'CASH') {
   const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
   const custId = document.getElementById('posCustomerSelect')?.value;
   
-  const proceedWithCheckout = () => {
+  const proceedWithCheckout = async () => {
     const discountAmt = (subtotal * discPercent) / 100;
     const total = subtotal - discountAmt;
     const tax = total * 0.16;
 
-    const activeBranchId = store.activeBranchId === 'ALL' ? 'B1' : store.activeBranchId;
+    try {
+      const selectedCustomer = (store.customers || []).find(c => c.id === custId);
+      const saleResult = await store.createSale({
+        items: currentCart,
+        subtotal,
+        discount: discountAmt,
+        tax,
+        total,
+        paymentMethod,
+        customer: selectedCustomer
+      });
 
-    const sale = {
-      id: `SALE-${Date.now()}`,
-      receiptNo: `REC-2026-${Math.floor(1000 + Math.random()*9000)}`,
-      timestamp: new Date().toISOString(),
-      branchId: activeBranchId,
-      customerId: custId,
-      cashierName: store.currentUser.name,
-      shiftId: store.currentShift.id,
-      items: currentCart.map(item => ({
-        productId: item.productId,
-        name: item.name,
-        size: item.size,
-        price: item.price,
-        costSnapshot: item.costSnapshot,
-        qty: item.qty,
-        total: item.price * item.qty
-      })),
-      subtotal,
-      discount: discountAmt,
-      tax,
-      total,
-      paymentMethod,
-      etimsStatus: "TRANSMITTED",
-      etimsCuNum: `KRA202609210${Math.floor(1000 + Math.random()*9000)}`,
-      etimsControlCode: `${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-      refunded: false
-    };
+      currentCart = [];
+      
+      if (window.renderReceiptHtml) window.renderReceiptHtml(saleResult);
+      window.openModal('receiptModal');
 
-    // Deduct physical stock & record stock movement ledger
-    currentCart.forEach(item => {
-      const prod = store.products.find(p => p.id === item.productId);
-      if (prod) {
-        prod.stock -= item.qty;
-        store.stockMovements.unshift({
-          timestamp: new Date().toISOString(),
-          productId: prod.id,
-          productName: `${prod.brand} ${prod.name}`,
-          type: "SALE",
-          qty: -item.qty,
-          ref: sale.receiptNo,
-          user: store.currentUser.name,
-          reason: `POS Checkout (${paymentMethod})`
-        });
-      }
-    });
-
-    // Update customer spend & visits if attached
-    if (custId) {
-      const customer = store.customers.find(c => c.id === custId);
-      if (customer) {
-        customer.visits = (customer.visits || 0) + 1;
-        customer.totalSpend = (customer.totalSpend || 0) + total;
-      }
+      if (window.renderAllApp) window.renderAllApp();
+    } catch (err) {
+      alert("Checkout Transaction Error: " + err.message);
     }
-
-    store.sales.unshift(sale);
-    store.logAudit(
-      "Completed POS Sale",
-      sale.receiptNo,
-      "-",
-      `KES ${sale.total.toLocaleString()}`,
-      `Payment Method: ${paymentMethod} (Assumed Paid)`
-    );
-    store.save();
-
-    currentCart = [];
-    
-    if (window.renderReceiptHtml) window.renderReceiptHtml(sale);
-    window.openModal('receiptModal');
-
-    if (window.renderAllApp) window.renderAllApp();
   };
 
   if (discPercent > (store.securitySettings?.maxDiscountPercentWithoutAuth || 5)) {
@@ -335,3 +283,4 @@ window.completePosSale = function(paymentMethod = 'CASH') {
     proceedWithCheckout();
   }
 };
+
