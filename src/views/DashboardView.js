@@ -57,7 +57,6 @@ export function renderDashboardView() {
             <div class="stat-title">Revenue & Hourly Performance</div>
             <div class="hero-revenue-amount" id="dashHeroRevenue">
               KSh ${totalRev.toLocaleString()}
-              <span class="trend-badge-pill">+8.26%</span>
             </div>
           </div>
           <span class="section-subtitle">Real-time hourly sales stream</span>
@@ -76,7 +75,7 @@ export function renderDashboardView() {
             <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
           </div>
           <div class="stat-value" id="dashStatTodayRevenue">KSh ${totalRev.toLocaleString()}</div>
-          <div class="stat-subtext">*Updated every order success</div>
+          <div class="stat-subtext">Updated on every checkout</div>
         </div>
 
         <!-- Card 2: Gross Profit -->
@@ -86,7 +85,7 @@ export function renderDashboardView() {
             <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
           </div>
           <div class="stat-value" id="dashStatGrossProfit">KSh ${grossProfit.toLocaleString()}</div>
-          <div class="stat-subtext"><span class="stat-trend up">+8.26%</span> More earning than usual</div>
+          <div class="stat-subtext">Net margin calculated from cost</div>
         </div>
 
         <!-- Card 3: Total Orders -->
@@ -96,7 +95,7 @@ export function renderDashboardView() {
             <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v12"/></svg></span>
           </div>
           <div class="stat-value" id="dashStatTransactions">${todaySales.length}</div>
-          <div class="stat-subtext" id="dashStatTransactionsSub"><span class="stat-trend up">+2.18%</span> More orders than usual</div>
+          <div class="stat-subtext" id="dashStatTransactionsSub">Completed transactions today</div>
         </div>
 
         <!-- Card 4: Items Sold -->
@@ -106,9 +105,10 @@ export function renderDashboardView() {
             <span class="stat-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg></span>
           </div>
           <div class="stat-value" id="dashStatItemsSold">${itemsSold}</div>
-          <div class="stat-subtext"><span class="stat-trend up">+3.06%</span> Units sold today</div>
+          <div class="stat-subtext">Physical units sold today</div>
         </div>
       </div>
+
     </div>
 
     <!-- Products & Inventory Table (Reflects Dribbble Reference Table Layout) -->
@@ -212,7 +212,7 @@ export function initDashboardCharts() {
     if (elRev) elRev.textContent = `KSh ${totalRev.toLocaleString()}`;
 
     const elHeroRev = document.getElementById('dashHeroRevenue');
-    if (elHeroRev) elHeroRev.innerHTML = `KSh ${totalRev.toLocaleString()} <span class="trend-badge-pill">+8.26%</span>`;
+    if (elHeroRev) elHeroRev.textContent = `KSh ${totalRev.toLocaleString()}`;
 
     const elProfit = document.getElementById('dashStatGrossProfit');
     if (elProfit) elProfit.textContent = `KSh ${grossProfit.toLocaleString()}`;
@@ -221,7 +221,8 @@ export function initDashboardCharts() {
     if (elTrans) elTrans.textContent = `${todaySales.length}`;
 
     const elTransSub = document.getElementById('dashStatTransactionsSub');
-    if (elTransSub) elTransSub.innerHTML = `<span class="stat-trend up">+2.18%</span> More orders than usual`;
+    if (elTransSub) elTransSub.textContent = "Completed transactions today";
+
 
     const elItems = document.getElementById('dashStatItemsSold');
     if (elItems) elItems.textContent = `${itemsSold}`;

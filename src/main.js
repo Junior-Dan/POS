@@ -44,9 +44,15 @@ export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
 
+  if (!store.canUserAccessView(store.currentUser, activeViewId)) {
+    const allowedModules = ['pos', 'sales', 'shift', 'customers', 'dashboard', 'products', 'inventory', 'suppliers', 'purchases', 'expenses', 'compliance', 'reports', 'audit', 'settings'];
+    const fallback = allowedModules.find(id => store.canUserAccessView(store.currentUser, id));
+    activeViewId = fallback || 'pos';
+  }
+
   root.innerHTML = `
     <div class="app-container">
-      ${renderSidebar(store.currentUser)}
+      ${renderSidebar(store.currentUser, activeViewId)}
       <main class="main-wrapper">
         ${renderTopbar(store.currentUser)}
         <div id="views-root">

@@ -1,6 +1,6 @@
 import { store } from '../store/CellarStore.js';
 
-export function renderSidebar(currentUser) {
+export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
   const bizName = store.businessProfile?.name || "Cisco Wines & Spirits";
@@ -60,13 +60,13 @@ export function renderSidebar(currentUser) {
 
     <nav class="sidebar-nav">
       ${allNavItems.map(sec => {
-        const visibleItems = sec.items.filter(item => store.canUserAccessView(currentUser, item.id));
+        const visibleItems = sec.items.filter(item => store.canUserAccessView(user, item.id));
         if (visibleItems.length === 0) return '';
         return `
           <div class="nav-section">
             <div class="nav-section-title">${sec.section}</div>
             ${visibleItems.map(item => `
-              <button class="nav-btn ${item.id === 'dashboard' ? 'active' : ''}" data-view="${item.id}">
+              <button class="nav-btn ${item.id === activeViewId ? 'active' : ''}" data-view="${item.id}">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">${item.icon}</svg>
                 <span>${item.label}</span>
               </button>
@@ -80,8 +80,8 @@ export function renderSidebar(currentUser) {
       <div class="user-card">
         <div class="user-avatar" id="userAvatar">${avatarText}</div>
         <div class="user-details">
-          <span class="user-name-text" id="userNameText">${currentUser.name}</span>
-          <span class="user-role-badge" id="userRoleBadge" style="text-transform:uppercase;">${currentUser.role}</span>
+          <span class="user-name-text" id="userNameText">${user.name}</span>
+          <span class="user-role-badge" id="userRoleBadge" style="text-transform:uppercase;">${user.role}</span>
         </div>
         <button class="btn btn-secondary btn-sm" id="switchUserBtn" title="Switch User Role">
           <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3"/></svg>

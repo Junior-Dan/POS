@@ -659,13 +659,11 @@ export class CellarStore {
 
   getHourlySalesTraffic() {
     const hours = ['12 AM', '2 AM', '4 AM', '6 AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
-    const baseData = [3500, 2200, 1800, 6500, 18500, 32000, 48000, 28000, 41000, 62000, 44000, 26000];
-    const baseOrders = [1, 1, 1, 2, 4, 7, 10, 6, 9, 14, 9, 5];
-
-    const data = [...baseData];
-    const orders = [...baseOrders];
+    const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     const todaySales = this.getTodaySales().filter(s => !s.refunded);
+
 
     todaySales.forEach(s => {
       const h = new Date(s.timestamp || s.created_at).getHours();

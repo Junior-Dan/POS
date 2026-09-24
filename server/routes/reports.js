@@ -93,17 +93,15 @@ router.get('/category-breakdown', (req, res) => {
 router.get('/hourly', (req, res) => {
   try {
     const hours = ['12 AM', '2 AM', '4 AM', '6 AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
-    const baseData = [3500, 2200, 1800, 6500, 18500, 32000, 48000, 28000, 41000, 62000, 44000, 26000];
-    const baseOrders = [1, 1, 1, 2, 4, 7, 10, 6, 9, 14, 9, 5];
-
-    const data = [...baseData];
-    const orders = [...baseOrders];
+    const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     const todaySales = db.prepare(`
       SELECT strftime('%H', created_at) as hourStr, total
       FROM sales
       WHERE date(created_at) = date('now', 'localtime') AND refunded = 0
     `).all();
+
 
     todaySales.forEach(s => {
       const h = parseInt(s.hourStr, 10);
