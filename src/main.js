@@ -337,18 +337,35 @@ function bindEvents() {
   }
 
   window.submitLoginPin = () => {
-    const userId = document.getElementById('loginUserSelect')?.value;
-    const targetUser = store.users.find(u => u.id === userId);
-    if (!targetUser) return;
+    const pin = window.loginEnteredPin;
+    const selectedUserId = document.getElementById('loginUserSelect')?.value;
 
-    if (targetUser.pin === window.loginEnteredPin) {
+    let targetUser = null;
+
+    // 1. Direct PIN Matching: If entered PIN matches a user PIN, log them in directly
+    if (pin) {
+      targetUser = store.users.find(u => u.pin === pin);
+    }
+
+    // 2. Dropdown Fallback Matching
+    if (!targetUser && selectedUserId) {
+      const u = store.users.find(x => x.id === selectedUserId);
+      if (u && u.pin === pin) {
+        targetUser = u;
+      }
+    }
+
+    if (targetUser) {
       store.currentUser = targetUser;
+      if (targetUser.primaryBranchId) {
+        store.setActiveBranch(targetUser.primaryBranchId);
+      }
       window.closeModal('userLoginModal');
       initApp();
       store.logAudit("Staff Login Successful", targetUser.name, "-", targetUser.role, "Authenticated via PIN");
     } else {
       const err = document.getElementById('loginPinErrorMsg');
-      if (err) err.textContent = "Invalid Security PIN! Please try again.";
+      if (err) err.textContent = "Invalid PIN! Access Denied.";
       window.loginEnteredPin = "";
       updateLoginPinDots();
     }
