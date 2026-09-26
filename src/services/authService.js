@@ -37,11 +37,18 @@ export function clearPin() {
 }
 
 function updatePinDots() {
-  const dots = document.querySelectorAll('.pin-dot');
-  dots.forEach((dot, idx) => {
-    if (idx < currentPinInput.length) dot.classList.add('filled');
-    else dot.classList.remove('filled');
-  });
+  for (let i = 0; i < 4; i++) {
+    const box = document.getElementById(`authPinBox${i}`);
+    if (box) {
+      if (i < currentPinInput.length) {
+        box.classList.add('active');
+        box.textContent = currentPinInput[i];
+      } else {
+        box.classList.remove('active');
+        box.textContent = '-';
+      }
+    }
+  }
 }
 
 export function submitPin() {

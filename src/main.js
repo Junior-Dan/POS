@@ -344,15 +344,27 @@ function bindEvents() {
     if (err) err.textContent = "";
   };
 
+  window.showPinDigits = true; // Show typed PIN digits clearly
+
+  window.togglePinVisibility = () => {
+    window.showPinDigits = !window.showPinDigits;
+    updateLoginPinDots();
+  };
+
   function updateLoginPinDots() {
-    const dots = document.querySelectorAll('#loginPinDots .pin-dot');
-    dots.forEach((dot, idx) => {
-      if (idx < window.loginEnteredPin.length) {
-        dot.classList.add('filled');
-      } else {
-        dot.classList.remove('filled');
+    const val = window.loginEnteredPin || "";
+    for (let i = 0; i < 4; i++) {
+      const box = document.getElementById(`loginPinBox${i}`);
+      if (box) {
+        if (i < val.length) {
+          box.classList.add('active');
+          box.textContent = window.showPinDigits ? val[i] : '•';
+        } else {
+          box.classList.remove('active');
+          box.textContent = '-';
+        }
       }
-    });
+    }
   }
 
   window.submitLoginPin = () => {
