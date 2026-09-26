@@ -48,7 +48,6 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
         </div>
         <div class="brand-info-wrap">
           <div class="brand-title">CELLAR POS</div>
-          <div class="brand-subtitle" style="color:#94a3b8; font-weight:700; font-size:9.5px; letter-spacing:0.6px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">WINES & SPIRITS SYSTEM</div>
         </div>
       </div>
       <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">
