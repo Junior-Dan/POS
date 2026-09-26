@@ -28,11 +28,6 @@ export function renderTopbar(currentUser = store.currentUser) {
   return `
   <header class="top-header">
     <div class="top-header-left">
-      <!-- Square Sidebar Toggle Button -->
-      <button class="topbar-toggle-btn sidebar-toggle-trigger" title="Toggle Sidebar">
-        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="3"/><path d="M9 3v18"/><path d="m14 9-3 3 3 3"/></svg>
-      </button>
-
       <!-- Search Input Pill -->
       <div class="global-search-container">
         <span class="global-search-icon">

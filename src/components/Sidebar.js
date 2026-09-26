@@ -43,9 +43,6 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="brand-box">
-        <div class="brand-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22h8M12 15v7M12 15a7 7 0 0 0 7-7c0-2-1-3.5-2-4.5V2H7v1.5C6 4.5 5 6 5 8a7 7 0 0 0 7 7z"/></svg>
-        </div>
         <div class="brand-info-wrap">
           <div class="brand-title">CELLAR POS</div>
         </div>
