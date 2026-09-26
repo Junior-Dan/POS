@@ -293,15 +293,80 @@ function bindEvents() {
     }, 2000);
   }
 
-  // User Switcher
+  // Interactive Staff Login & Role Switcher
+  window.loginEnteredPin = "";
+
+  window.openStaffLoginModal = () => {
+    const sel = document.getElementById('loginUserSelect');
+    if (sel) {
+      sel.innerHTML = store.users.map(u => `<option value="${u.id}" ${u.id === store.currentUser.id ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
+    }
+    window.loginEnteredPin = "";
+    updateLoginPinDots();
+    const err = document.getElementById('loginPinErrorMsg');
+    if (err) err.textContent = "";
+    window.openModal('userLoginModal');
+  };
+
+  window.pressLoginPin = (num) => {
+    if (window.loginEnteredPin.length < 4) {
+      window.loginEnteredPin += num;
+      updateLoginPinDots();
+    }
+    if (window.loginEnteredPin.length === 4) {
+      window.submitLoginPin();
+    }
+  };
+
+  window.clearLoginPin = () => {
+    window.loginEnteredPin = "";
+    updateLoginPinDots();
+    const err = document.getElementById('loginPinErrorMsg');
+    if (err) err.textContent = "";
+  };
+
+  function updateLoginPinDots() {
+    const dots = document.querySelectorAll('#loginPinDots .pin-dot');
+    dots.forEach((dot, idx) => {
+      if (idx < window.loginEnteredPin.length) {
+        dot.classList.add('filled');
+      } else {
+        dot.classList.remove('filled');
+      }
+    });
+  }
+
+  window.submitLoginPin = () => {
+    const userId = document.getElementById('loginUserSelect')?.value;
+    const targetUser = store.users.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    if (targetUser.pin === window.loginEnteredPin) {
+      store.currentUser = targetUser;
+      window.closeModal('userLoginModal');
+      initApp();
+      store.logAudit("Staff Login Successful", targetUser.name, "-", targetUser.role, "Authenticated via PIN");
+    } else {
+      const err = document.getElementById('loginPinErrorMsg');
+      if (err) err.textContent = "Invalid Security PIN! Please try again.";
+      window.loginEnteredPin = "";
+      updateLoginPinDots();
+    }
+  };
+
   const switchBtn = document.getElementById('switchUserBtn');
   if (switchBtn) {
-    switchBtn.addEventListener('click', () => {
-      const currIdx = store.users.findIndex(u => u.id === store.currentUser.id);
-      const nextIdx = (currIdx + 1) % store.users.length;
-      store.currentUser = store.users[nextIdx];
-      initApp();
-      alert(`Switched active user to: ${store.currentUser.name} (${store.currentUser.role.toUpperCase()})`);
+    switchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.openStaffLoginModal();
+    });
+  }
+
+  const topUserBadge = document.querySelector('.topbar-user-badge');
+  if (topUserBadge) {
+    topUserBadge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.openStaffLoginModal();
     });
   }
 
