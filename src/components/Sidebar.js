@@ -41,11 +41,6 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
 
   return `
   <aside class="sidebar">
-    <!-- Collapse Toggle Button (Image 4) -->
-    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse / Expand Sidebar">
-      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
-    </button>
-
     <div class="sidebar-header">
       <div class="brand-box">
         <div class="brand-mark">
@@ -53,9 +48,16 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
         </div>
         <div class="brand-info-wrap">
           <div class="brand-title">CELLAR POS</div>
-          <div class="brand-subtitle" style="color:#94a3b8; font-weight:700; font-size:10px; letter-spacing:0.8px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">WINES & SPIRITS SYSTEM</div>
+          <div class="brand-subtitle" style="color:#94a3b8; font-weight:700; font-size:9.5px; letter-spacing:0.6px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">WINES & SPIRITS SYSTEM</div>
         </div>
       </div>
+      <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="3"/>
+          <path d="M9 3v18"/>
+          <path d="m14 9-3 3 3 3"/>
+        </svg>
+      </button>
     </div>
 
     <nav class="sidebar-nav">

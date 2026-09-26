@@ -105,17 +105,16 @@ function bindEvents() {
     });
   });
 
-  // Sidebar Collapse Toggle Button (Image 4 - Task 4)
-  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
-  if (sidebarToggleBtn) {
-    sidebarToggleBtn.addEventListener('click', (e) => {
+  // Sidebar Collapse Toggle Triggers (Square buttons inside header / topbar)
+  document.querySelectorAll('.sidebar-toggle-trigger').forEach(btn => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const container = document.querySelector('.app-container');
       if (container) {
         container.classList.toggle('collapsed');
       }
     });
-  }
+  });
 
   // Custom Calendar Popover Modal (Task 2)
   const datePillBtn = document.getElementById('topbarDatePickerBtn');

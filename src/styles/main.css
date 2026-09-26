@@ -146,36 +146,51 @@ svg.icon-lg { width: 24px; height: 24px; }
   overflow-x: hidden;
 }
 
-/* Sidebar Toggle Arrow Button */
-.sidebar-toggle-btn {
-  position: absolute;
-  right: -11px;
-  top: 18px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #0f172a;
+/* Sidebar Square Toggle Button (Inside Header) */
+.sidebar-toggle-btn-sq {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-  z-index: 50;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.18s ease;
+  flex-shrink: 0;
 }
 
-.sidebar-toggle-btn:hover {
-  background: var(--accent);
+.sidebar-toggle-btn-sq:hover {
+  background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  border-color: var(--accent);
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(255, 86, 48, 0.4);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
-.app-container.collapsed .sidebar-toggle-btn svg {
-  transform: rotate(180deg);
+.sidebar-toggle-btn-sq svg {
+  width: 15px;
+  height: 15px;
+}
+
+.topbar-toggle-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #f4f5f8;
+  border: 1px solid var(--border-soft);
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.topbar-toggle-btn:hover {
+  background: #e2e8f0;
+  color: var(--text);
 }
 
 .app-container.collapsed .brand-title,
@@ -190,7 +205,8 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .app-container.collapsed .sidebar-header {
-  padding: 14px 8px;
+  padding: 12px 6px;
+  justify-content: center;
 }
 
 .app-container.collapsed .brand-box {
@@ -207,11 +223,11 @@ svg.icon-lg { width: 24px; height: 24px; }
   justify-content: center;
 }
 
-.sidebar-header { padding: 16px 14px 14px; border-bottom: 1px solid var(--sidebar-border); }
-.brand-box { display: flex; align-items: center; gap: 10px; }
+.sidebar-header { padding: 14px 12px; border-bottom: 1px solid var(--sidebar-border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brand-box { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   background: #ffffff;
   border-radius: 8px;
   display: flex;
@@ -221,8 +237,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   flex-shrink: 0;
   box-shadow: 0 3px 8px rgba(0,0,0,0.25);
 }
-.brand-mark svg { width: 18px; height: 18px; color: #0f0f12; }
-.brand-title { font-size: 16px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px; line-height: 1.1; }
+.brand-mark svg { width: 17px; height: 17px; color: #0f0f12; }
+.brand-title { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px; line-height: 1.1; }
 .brand-subtitle { font-size: 9.5px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
 
 .branch-selector {
