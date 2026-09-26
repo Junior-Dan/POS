@@ -95,6 +95,16 @@ export function initApp() {
 
   bindEvents();
   switchTab(activeViewId);
+
+  // Auto-Lock Terminal on Launch: Require PIN Login if unauthenticated session
+  const isSessionAuth = sessionStorage.getItem('cellar_session_auth') === 'true';
+  if (!isSessionAuth) {
+    setTimeout(() => {
+      if (window.openStaffLoginModal) {
+        window.openStaffLoginModal(true);
+      }
+    }, 150);
+  }
 }
 
 function bindEvents() {
@@ -296,7 +306,7 @@ function bindEvents() {
   // Interactive Staff Login & Role Switcher
   window.loginEnteredPin = "";
 
-  window.openStaffLoginModal = () => {
+  window.openStaffLoginModal = (isMandatory = false) => {
     const sel = document.getElementById('loginUserSelect');
     if (sel) {
       sel.innerHTML = store.users.map(u => `<option value="${u.id}" ${u.id === store.currentUser.id ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
@@ -305,7 +315,16 @@ function bindEvents() {
     updateLoginPinDots();
     const err = document.getElementById('loginPinErrorMsg');
     if (err) err.textContent = "";
-    window.openModal('userLoginModal');
+
+    const closeBtn = document.querySelector('#userLoginModal .modal-close');
+    if (closeBtn) {
+      closeBtn.style.display = isMandatory ? 'none' : 'block';
+    }
+
+    const modal = document.getElementById('userLoginModal');
+    if (modal) {
+      modal.classList.add('active');
+    }
   };
 
   window.pressLoginPin = (num) => {
@@ -342,7 +361,7 @@ function bindEvents() {
 
     let targetUser = null;
 
-    // 1. Direct PIN Matching: If entered PIN matches a user PIN, log them in directly
+    // 1. Direct PIN Matching
     if (pin) {
       targetUser = store.users.find(u => u.pin === pin);
     }
@@ -357,6 +376,9 @@ function bindEvents() {
 
     if (targetUser) {
       store.currentUser = targetUser;
+      sessionStorage.setItem('cellar_session_auth', 'true');
+      sessionStorage.setItem('cellar_authenticated_user', targetUser.id);
+
       if (targetUser.primaryBranchId) {
         store.setActiveBranch(targetUser.primaryBranchId);
       }
@@ -369,6 +391,11 @@ function bindEvents() {
       window.loginEnteredPin = "";
       updateLoginPinDots();
     }
+  };
+
+  window.lockTerminal = () => {
+    sessionStorage.removeItem('cellar_session_auth');
+    window.openStaffLoginModal(true);
   };
 
   const switchBtn = document.getElementById('switchUserBtn');
