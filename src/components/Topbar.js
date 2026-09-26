@@ -76,6 +76,11 @@ export function renderTopbar(currentUser = store.currentUser) {
     </div>
 
     <div class="top-header-right">
+      <!-- Lock Terminal Button -->
+      <button class="topbar-icon-btn" id="lockTerminalBtn" title="Lock Terminal (Require PIN)">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+
       <!-- Alert Notification Bell with Badge Dot -->
       <button class="topbar-icon-btn" title="Notifications">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>

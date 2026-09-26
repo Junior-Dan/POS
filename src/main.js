@@ -362,6 +362,14 @@ function bindEvents() {
     });
   }
 
+  const lockBtn = document.getElementById('lockTerminalBtn');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.openStaffLoginModal();
+    });
+  }
+
   const topUserBadge = document.querySelector('.topbar-user-badge');
   if (topUserBadge) {
     topUserBadge.addEventListener('click', (e) => {
