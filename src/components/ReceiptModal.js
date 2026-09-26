@@ -30,11 +30,23 @@ export function renderReceiptModal() {
 
 window.renderReceiptHtml = function(sale) {
   const container = document.getElementById('receiptContent');
-  if (!container) return;
+  if (!container || !sale) return;
 
   const profile = store.businessProfile || {};
   const receipt = store.receiptSettings || {};
   const branch = store.branches.find(b => b.id === (sale.branchId || store.activeBranchId)) || store.branches[0] || { name: 'Nairobi CBD Main' };
+
+  const receiptNo = sale.receiptNo || `REC-${Date.now().toString().slice(-6)}`;
+  const timestamp = sale.timestamp ? new Date(sale.timestamp).toLocaleString() : new Date().toLocaleString();
+  const cashierName = sale.cashierName || store.currentUser?.name || 'Cashier';
+  const paymentMethod = sale.paymentMethod || 'CASH';
+  const items = Array.isArray(sale.items) ? sale.items : [];
+  const subtotal = sale.subtotal !== undefined ? Number(sale.subtotal) : (sale.total || 0);
+  const discount = sale.discount !== undefined ? Number(sale.discount) : 0;
+  const tax = sale.tax !== undefined ? Number(sale.tax) : (subtotal * 0.16);
+  const total = sale.total !== undefined ? Number(sale.total) : subtotal;
+  const etimsCuNum = sale.etimsCuNum || `CU-${Math.floor(10000000 + Math.random() * 90000000)}`;
+  const etimsControlCode = sale.etimsControlCode || `${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}`;
 
   container.innerHTML = `
     <div style="text-align:center; font-family:'Courier New', monospace; font-size:12px; color:#111; line-height:1.4;">
@@ -47,21 +59,21 @@ window.renderReceiptHtml = function(sale) {
       
       <div style="display:flex; justify-content:space-between; font-weight:700;">
         <span>RECEIPT #:</span>
-        <span>${sale.receiptNo}</span>
+        <span>${receiptNo}</span>
       </div>
       <div style="display:flex; justify-content:space-between; font-size:11px;">
         <span>DATE:</span>
-        <span>${new Date(sale.timestamp).toLocaleString()}</span>
+        <span>${timestamp}</span>
       </div>
-      ${receipt.showCashierName ? `
+      ${receipt.showCashierName !== false ? `
       <div style="display:flex; justify-content:space-between; font-size:11px;">
         <span>CASHIER:</span>
-        <span>${sale.cashierName}</span>
+        <span>${cashierName}</span>
       </div>
       ` : ''}
       <div style="display:flex; justify-content:space-between; font-size:11px;">
         <span>PAYMENT METHOD:</span>
-        <span>${sale.paymentMethod}</span>
+        <span>${paymentMethod}</span>
       </div>
       
       <div style="border-bottom:1px dashed #444; margin:8px 0;"></div>
@@ -75,13 +87,20 @@ window.renderReceiptHtml = function(sale) {
           </tr>
         </thead>
         <tbody>
-          ${sale.items.map(i => `
-            <tr>
-              <td style="padding:3px 0;">${i.name} <span style="font-size:9.5px; color:#666;">(${i.size})</span></td>
-              <td style="text-align:center; padding:3px 0;">${i.qty}</td>
-              <td style="text-align:right; padding:3px 0; font-weight:700;">KES ${i.total.toLocaleString()}</td>
-            </tr>
-          `).join('')}
+          ${items.map(i => {
+            const itemName = i.name || i.product_name || 'Product Item';
+            const itemSize = i.size ? `(${i.size})` : '';
+            const itemQty = i.qty || 1;
+            const itemPrice = i.price !== undefined ? Number(i.price) : (i.unitPrice !== undefined ? Number(i.unitPrice) : 0);
+            const itemTotal = i.total !== undefined ? Number(i.total) : (itemPrice * itemQty);
+            return `
+              <tr>
+                <td style="padding:3px 0;">${itemName} ${itemSize ? `<span style="font-size:9.5px; color:#666;">${itemSize}</span>` : ''}</td>
+                <td style="text-align:center; padding:3px 0;">${itemQty}</td>
+                <td style="text-align:right; padding:3px 0; font-weight:700;">KES ${itemTotal.toLocaleString()}</td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
       
@@ -89,27 +108,27 @@ window.renderReceiptHtml = function(sale) {
       
       <div style="display:flex; justify-content:space-between; font-size:11px;">
         <span>Subtotal:</span>
-        <span>KES ${sale.subtotal.toLocaleString()}</span>
+        <span>KES ${subtotal.toLocaleString()}</span>
       </div>
-      ${sale.discount > 0 ? `
+      ${discount > 0 ? `
       <div style="display:flex; justify-content:space-between; font-size:11px; color:#c00;">
-        <span>Discount (${sale.discount}%):</span>
-        <span>- KES ${sale.discount.toLocaleString()}</span>
+        <span>Discount:</span>
+        <span>- KES ${discount.toLocaleString()}</span>
       </div>
       ` : ''}
       <div style="display:flex; justify-content:space-between; font-size:11px;">
         <span>VAT (16% Included):</span>
-        <span>KES ${sale.tax.toFixed(2)}</span>
+        <span>KES ${tax.toFixed(2)}</span>
       </div>
       <div style="display:flex; justify-content:space-between; font-weight:900; font-size:15px; margin-top:6px; padding-top:4px; border-top:1px solid #111;">
         <span>TOTAL PAID:</span>
-        <span>KES ${sale.total.toLocaleString()}</span>
+        <span>KES ${total.toLocaleString()}</span>
       </div>
       
       <div style="border-bottom:1px dashed #444; margin:10px 0 6px 0;"></div>
       <div style="font-weight:700; font-size:11px; letter-spacing:0.5px;">KRA eTIMS FISCAL PROOF</div>
-      <div style="font-size:10px; color:#333;">CU Serial: ${sale.etimsCuNum}</div>
-      <div style="font-size:10px; color:#333;">Control Code: ${sale.etimsControlCode}</div>
+      <div style="font-size:10px; color:#333;">CU Serial: ${etimsCuNum}</div>
+      <div style="font-size:10px; color:#333;">Control Code: ${etimsControlCode}</div>
       <div style="margin-top:8px; font-weight:700; font-size:11px;">*** ${receipt.footerText || 'THANK YOU FOR YOUR BUSINESS'} ***</div>
       <div style="font-size:9.5px; color:#666; margin-top:2px;">DRINK RESPONSIBLY. NOT FOR SALE TO PERSONS UNDER 18.</div>
     </div>

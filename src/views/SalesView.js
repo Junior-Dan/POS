@@ -33,33 +33,46 @@ export function renderSalesView() {
             </tr>
           </thead>
           <tbody id="salesHistoryTableBody">
-            ${hasSales ? store.sales.map(s => `
-              <tr style="${s.refunded ? 'opacity:0.75; background:rgba(220,53,69,0.05);' : ''}">
-                <td><strong style="font-family:monospace; font-size:13px;">${s.receiptNo}</strong></td>
-                <td>${new Date(s.timestamp).toLocaleString()}</td>
-                <td>${s.cashierName}</td>
+            ${hasSales ? store.sales.map(s => {
+              const receiptNo = s.receiptNo || s.receipt_no || 'REC-000';
+              const timestamp = s.timestamp || s.created_at ? new Date(s.timestamp || s.created_at).toLocaleString() : new Date().toLocaleString();
+              const cashierName = s.cashierName || s.cashier_name || 'Cashier';
+              const items = Array.isArray(s.items) ? s.items : [];
+              const itemsStr = items.map(i => `${i.name || i.product_name || 'Item'} (x${i.qty || 1})`).join(', ') || 'Item';
+              const method = s.paymentMethod || s.payment_method || 'CASH';
+              const totalVal = s.total !== undefined ? Number(s.total) : 0;
+              const isRefunded = Boolean(s.refunded);
+              const refundReason = s.refundReason || s.refund_reason || 'Returned';
+              const etimsStatus = s.etimsStatus || 'TRANSMITTED';
+
+              return `
+              <tr style="${isRefunded ? 'opacity:0.75; background:rgba(220,53,69,0.05);' : ''}">
+                <td><strong style="font-family:monospace; font-size:13px;">${receiptNo}</strong></td>
+                <td>${timestamp}</td>
+                <td>${cashierName}</td>
                 <td>
-                  <div style="font-size:11.5px; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    ${s.items.map(i => `${i.name} (x${i.qty})`).join(', ')}
+                  <div style="font-size:11.5px; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${itemsStr}">
+                    ${itemsStr}
                   </div>
                 </td>
-                <td><span class="badge ${s.paymentMethod === 'M-PESA' ? 'badge-success' : 'badge-info'}">${s.paymentMethod}</span></td>
-                <td><strong style="color:var(--accent);">KSh ${s.total.toLocaleString()}</strong></td>
+                <td><span class="badge ${method === 'M-PESA' ? 'badge-success' : 'badge-info'}">${method}</span></td>
+                <td><strong style="color:var(--accent);">KSh ${totalVal.toLocaleString()}</strong></td>
                 <td>
-                  ${s.refunded 
-                    ? `<span class="badge badge-danger">REFUNDED (${s.refundReason || 'Returned'})</span>` 
-                    : `<span class="badge badge-success">${s.etimsStatus || 'TRANSMITTED'}</span>`}
+                  ${isRefunded 
+                    ? `<span class="badge badge-danger">REFUNDED (${refundReason})</span>` 
+                    : `<span class="badge badge-success">${etimsStatus}</span>`}
                 </td>
                 <td>
                   <div style="display:flex; gap:6px;">
                     <button class="btn btn-secondary btn-sm" onclick="viewPastReceipt('${s.id}')">Receipt</button>
-                    ${!s.refunded ? `
-                      <button class="btn btn-danger btn-sm" onclick="quickInitiateRefund('${s.receiptNo}', ${s.total})">Refund</button>
+                    ${!isRefunded ? `
+                      <button class="btn btn-danger btn-sm" onclick="quickInitiateRefund('${receiptNo}', ${totalVal})">Refund</button>
                     ` : ''}
                   </div>
                 </td>
               </tr>
-            `).join('') : `
+            `;
+            }).join('') : `
               <tr>
                 <td colspan="8" style="text-align:center; padding:40px; color:var(--text-faint);">
                   No sales recorded yet.<br>

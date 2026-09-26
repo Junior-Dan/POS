@@ -50,17 +50,27 @@ export function renderInventoryView() {
             </tr>
           </thead>
           <tbody id="stockMovementsTableBody">
-            ${store.stockMovements.map(m => `
+            ${store.stockMovements.map(m => {
+              const dateStr = m.timestamp || m.created_at ? new Date(m.timestamp || m.created_at).toLocaleString() : new Date().toLocaleString();
+              const prodName = m.productName || m.product_name || 'Item';
+              const typeStr = m.type || 'ADJUSTMENT';
+              const qtyVal = m.qty !== undefined ? Number(m.qty) : 0;
+              const refStr = m.ref || 'LOG';
+              const userStr = m.user || m.user_name || 'System';
+              const reasonStr = m.reason || 'Inventory Log';
+
+              return `
               <tr>
-                <td>${new Date(m.timestamp).toLocaleString()}</td>
-                <td><strong>${m.productName}</strong></td>
-                <td><span class="badge ${m.qty < 0 ? 'badge-danger' : 'badge-success'}">${m.type}</span></td>
-                <td><strong style="color:${m.qty < 0 ? 'var(--red)' : 'var(--green)'}">${m.qty > 0 ? '+' : ''}${m.qty}</strong></td>
-                <td>${m.ref}</td>
-                <td>${m.user}</td>
-                <td>${m.reason}</td>
+                <td>${dateStr}</td>
+                <td><strong>${prodName}</strong></td>
+                <td><span class="badge ${qtyVal < 0 ? 'badge-danger' : 'badge-success'}">${typeStr}</span></td>
+                <td><strong style="color:${qtyVal < 0 ? 'var(--red)' : 'var(--green)'}">${qtyVal > 0 ? '+' : ''}${qtyVal}</strong></td>
+                <td>${refStr}</td>
+                <td>${userStr}</td>
+                <td>${reasonStr}</td>
               </tr>
-            `).join('')}
+            `;
+            }).join('')}
           </tbody>
         </table>
       </div>

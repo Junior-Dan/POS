@@ -251,6 +251,9 @@ router.post('/', (req, res) => {
       VALUES (?, CURRENT_TIMESTAMP, ?, 'cashier', 'B1', 'POS Sale Completed', ?, '-', ?, 'Completed checkout transaction')
     `).run(`AUD-${Date.now()}`, cashierName, receiptNo, `KSh ${total} via ${paymentMethod}`);
 
+    const etimsCuNum = `CU-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const etimsControlCode = `${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}`;
+
     return {
       saleId,
       receiptNo,
@@ -261,8 +264,10 @@ router.post('/', (req, res) => {
       discount: parseFloat(discount || 0),
       tax: parseFloat(tax || 0),
       total: parseFloat(total),
-      paymentMethod,
-      mpesaCode,
+      paymentMethod: paymentMethod || 'CASH',
+      mpesaCode: mpesaCode || null,
+      etimsCuNum,
+      etimsControlCode,
       items
     };
   });

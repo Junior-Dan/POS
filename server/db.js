@@ -284,8 +284,15 @@ class PureJsDatabase {
     const table = this._extractTable(lower);
     if (!this.data[table]) this.data[table] = [];
 
+    const first = params[0];
+    const isObj = first && typeof first === 'object' && !Array.isArray(first);
+
     if (table === 'users') {
-      this.data.users.push({ id: params[0], name: params[1], role: params[2], pin: params[3], email: params[4], active: 1, created_at: new Date().toISOString() });
+      const u = isObj ? first : { id: params[0], name: params[1], role: params[2], pin: params[3], email: params[4] };
+      const idx = this.data.users.findIndex(x => x.id === u.id);
+      const userObj = { id: u.id, name: u.name, role: u.role, pin: String(u.pin || "0000"), email: u.email || null, active: 1, created_at: new Date().toISOString() };
+      if (idx >= 0) this.data.users[idx] = userObj;
+      else this.data.users.push(userObj);
     } else if (table === 'categories') {
       if (!this.data.categories.some(c => c.id === params[0] || c.name === params[1])) {
         this.data.categories.push({ id: params[0], name: params[1], description: params[2], active: 1 });
@@ -293,13 +300,41 @@ class PureJsDatabase {
     } else if (table === 'suppliers') {
       this.data.suppliers.push({ id: params[0], name: params[1], contact_person: params[2], phone: params[3], email: params[4], address: params[5], active: 1 });
     } else if (table === 'products') {
-      this.data.products.push({
+      const p = isObj ? first : {
         id: params[0], brand: params[1], name: params[2], category: params[3], product_type: params[4], unit: params[5],
         abv: params[6], size: params[7], case_units: params[8], barcode: params[9], sku: params[10],
         cost_price: params[11], selling_price: params[12], wholesale_price: params[13], min_price: params[14],
         tax_rate: params[15], current_stock: params[16], min_stock: params[17], reorder_level: params[18],
-        supplier_id: params[19], high_value: params[20], active: 1, created_at: new Date().toISOString()
-      });
+        supplier_id: params[19], high_value: params[20]
+      };
+      const pObj = {
+        id: String(p.id || `P-${Date.now()}`),
+        brand: p.brand || 'Premium',
+        name: p.name || 'Spirits Item',
+        category: p.category || 'Whisky',
+        product_type: p.product_type || p.productType || 'retail',
+        unit: p.unit || 'bottle',
+        abv: p.abv || 40,
+        size: p.size || '750 ml',
+        case_units: p.case_units || p.caseUnits || 12,
+        barcode: p.barcode || 'N/A',
+        sku: p.sku || 'N/A',
+        cost_price: p.cost_price !== undefined ? p.cost_price : (p.cost || 0),
+        selling_price: p.selling_price !== undefined ? p.selling_price : (p.price || 0),
+        wholesale_price: p.wholesale_price !== undefined ? p.wholesale_price : (p.wholesalePrice || p.selling_price || 0),
+        min_price: p.min_price !== undefined ? p.min_price : (p.minPrice || p.cost_price || 0),
+        tax_rate: p.tax_rate !== undefined ? p.tax_rate : (p.taxRate || 16),
+        current_stock: p.current_stock !== undefined ? p.current_stock : (p.stock !== undefined ? p.stock : 10),
+        min_stock: p.min_stock !== undefined ? p.min_stock : (p.minStock || 5),
+        reorder_level: p.reorder_level !== undefined ? p.reorder_level : (p.reorder || 5),
+        supplier_id: p.supplier_id || p.supplierId || null,
+        high_value: p.high_value ? 1 : (p.highValue ? 1 : 0),
+        active: 1,
+        created_at: new Date().toISOString()
+      };
+      const existingIdx = this.data.products.findIndex(x => x.id === pObj.id);
+      if (existingIdx >= 0) this.data.products[existingIdx] = pObj;
+      else this.data.products.push(pObj);
     } else if (table === 'customers') {
       this.data.customers.push({ id: params[0], name: params[1], phone: params[2], email: params[3], visits: params[4] || 0, total_spend: params[5] || 0, created_at: new Date().toISOString() });
     } else if (table === 'shifts') {

@@ -1,48 +1,58 @@
 {
   "users": [
     {
-      "id": {
-        "id": "U1",
-        "name": "David Kamau",
-        "role": "owner",
-        "pin": "0000",
-        "email": "owner@cellar.co.ke"
-      },
+      "id": "U1",
+      "name": "David Kamau",
+      "role": "owner",
+      "pin": "0000",
+      "email": "owner@cellar.co.ke",
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.291Z"
+      "created_at": "2026-09-26T20:53:13.635Z"
     },
     {
-      "id": {
-        "id": "U2",
-        "name": "Mary Wanjiku",
-        "role": "manager",
-        "pin": "1234",
-        "email": "manager@cellar.co.ke"
-      },
+      "id": "U2",
+      "name": "Mary Wanjiku",
+      "role": "manager",
+      "pin": "1234",
+      "email": "manager@cellar.co.ke",
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.296Z"
+      "created_at": "2026-09-26T20:53:13.639Z"
     },
     {
-      "id": {
-        "id": "U3",
-        "name": "John Omondi",
-        "role": "cashier",
-        "pin": "5555",
-        "email": "john@cellar.co.ke"
-      },
+      "id": "U3",
+      "name": "John Omondi",
+      "role": "cashier",
+      "pin": "5555",
+      "email": "john@cellar.co.ke",
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.296Z"
+      "created_at": "2026-09-26T20:53:13.639Z"
     },
     {
-      "id": {
-        "id": "U4",
-        "name": "Peter Otieno",
-        "role": "inventory_officer",
-        "pin": "8888",
-        "email": "peter@cellar.co.ke"
-      },
+      "id": "U4",
+      "name": "Peter Otieno",
+      "role": "inventory_officer",
+      "pin": "8888",
+      "email": "peter@cellar.co.ke",
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.297Z"
+      "created_at": "2026-09-26T20:53:13.639Z"
+    },
+    {
+      "id": "U5",
+      "name": "Faith Njeri",
+      "role": "cashier",
+      "pin": "2222",
+      "email": "faith@cellar.co.ke",
+      "active": 1,
+      "created_at": "2026-09-26T20:53:13.639Z"
+    },
+    {
+      "id": "U6",
+      "name": "Alex Kiprop",
+      "role": "inventory_officer",
+      "pin": "3333",
+      "email": "alex@cellar.co.ke",
+      "active": 1,
+      "created_at": "2026-09-26T20:53:13.639Z"
     }
   ],
   "categories": [
@@ -103,382 +113,354 @@
   ],
   "products": [
     {
-      "id": {
-        "id": "P101",
-        "brand": "Johnnie Walker",
-        "name": "Black Label 12YO",
-        "category": "Whisky",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "5000267014005",
-        "sku": "JWB-750",
-        "cost_price": 3400,
-        "selling_price": 4500,
-        "wholesale_price": 4300,
-        "min_price": 4200,
-        "tax_rate": 16,
-        "current_stock": 24,
-        "min_stock": 5,
-        "reorder_level": 6,
-        "supplier_id": "SUP2",
-        "high_value": 0
-      },
+      "id": "P101",
+      "brand": "Johnnie Walker",
+      "name": "Black Label 12YO",
+      "category": "Whisky",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "5000267014005",
+      "sku": "JWB-750",
+      "cost_price": 3400,
+      "selling_price": 4500,
+      "wholesale_price": 4300,
+      "min_price": 4200,
+      "tax_rate": 16,
+      "current_stock": 23,
+      "min_stock": 5,
+      "reorder_level": 6,
+      "supplier_id": "SUP2",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.640Z"
     },
     {
-      "id": {
-        "id": "P102",
-        "brand": "Johnnie Walker",
-        "name": "Red Label",
-        "category": "Whisky",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "5000267013008",
-        "sku": "JWR-750",
-        "cost_price": 1800,
-        "selling_price": 2400,
-        "wholesale_price": 2300,
-        "min_price": 2200,
-        "tax_rate": 16,
-        "current_stock": 18,
-        "min_stock": 5,
-        "reorder_level": 8,
-        "supplier_id": "SUP2",
-        "high_value": 0
-      },
+      "id": "P102",
+      "brand": "Johnnie Walker",
+      "name": "Red Label",
+      "category": "Whisky",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "5000267013008",
+      "sku": "JWR-750",
+      "cost_price": 1800,
+      "selling_price": 2400,
+      "wholesale_price": 2300,
+      "min_price": 2200,
+      "tax_rate": 16,
+      "current_stock": 17,
+      "min_stock": 5,
+      "reorder_level": 8,
+      "supplier_id": "SUP2",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.640Z"
     },
     {
-      "id": {
-        "id": "P103",
-        "brand": "Jameson",
-        "name": "Irish Whiskey",
-        "category": "Whisky",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "5000281008400",
-        "sku": "JMS-750",
-        "cost_price": 2200,
-        "selling_price": 3000,
-        "wholesale_price": 2900,
-        "min_price": 2800,
-        "tax_rate": 16,
-        "current_stock": 30,
-        "min_stock": 5,
-        "reorder_level": 10,
-        "supplier_id": "SUP3",
-        "high_value": 0
-      },
+      "id": "P103",
+      "brand": "Jameson",
+      "name": "Irish Whiskey",
+      "category": "Whisky",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "5000281008400",
+      "sku": "JMS-750",
+      "cost_price": 2200,
+      "selling_price": 3000,
+      "wholesale_price": 2900,
+      "min_price": 2800,
+      "tax_rate": 16,
+      "current_stock": 30,
+      "min_stock": 5,
+      "reorder_level": 10,
+      "supplier_id": "SUP3",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.641Z"
     },
     {
-      "id": {
-        "id": "P104",
-        "brand": "Smirnoff",
-        "name": "Red Label Vodka",
-        "category": "Vodka",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "5000267020006",
-        "sku": "SMR-750",
-        "cost_price": 1000,
-        "selling_price": 1450,
-        "wholesale_price": 1400,
-        "min_price": 1350,
-        "tax_rate": 16,
-        "current_stock": 40,
-        "min_stock": 5,
-        "reorder_level": 12,
-        "supplier_id": "SUP2",
-        "high_value": 0
-      },
+      "id": "P104",
+      "brand": "Smirnoff",
+      "name": "Red Label Vodka",
+      "category": "Vodka",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "5000267020006",
+      "sku": "SMR-750",
+      "cost_price": 1000,
+      "selling_price": 1450,
+      "wholesale_price": 1400,
+      "min_price": 1350,
+      "tax_rate": 16,
+      "current_stock": 37,
+      "min_stock": 5,
+      "reorder_level": 12,
+      "supplier_id": "SUP2",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.641Z"
     },
     {
-      "id": {
-        "id": "P105",
-        "brand": "Smirnoff",
-        "name": "Red Label Vodka",
-        "category": "Vodka",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "350 ml",
-        "case_units": 24,
-        "barcode": "5000267020013",
-        "sku": "SMR-350",
-        "cost_price": 500,
-        "selling_price": 750,
-        "wholesale_price": 720,
-        "min_price": 700,
-        "tax_rate": 16,
-        "current_stock": 50,
-        "min_stock": 10,
-        "reorder_level": 15,
-        "supplier_id": "SUP2",
-        "high_value": 0
-      },
+      "id": "P105",
+      "brand": "Smirnoff",
+      "name": "Red Label Vodka",
+      "category": "Vodka",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "350 ml",
+      "case_units": 24,
+      "barcode": "5000267020013",
+      "sku": "SMR-350",
+      "cost_price": 500,
+      "selling_price": 750,
+      "wholesale_price": 720,
+      "min_price": 700,
+      "tax_rate": 16,
+      "current_stock": "Smirnoff",
+      "min_stock": 10,
+      "reorder_level": 15,
+      "supplier_id": "SUP2",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.641Z"
     },
     {
-      "id": {
-        "id": "P106",
-        "brand": "Gilbey's",
-        "name": "Special Dry Gin",
-        "category": "Gin",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 37.5,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "5000267031002",
-        "sku": "GLB-750",
-        "cost_price": 950,
-        "selling_price": 1350,
-        "wholesale_price": 1300,
-        "min_price": 1250,
-        "tax_rate": 16,
-        "current_stock": 35,
-        "min_stock": 5,
-        "reorder_level": 10,
-        "supplier_id": "SUP2",
-        "high_value": 0
-      },
+      "id": "P106",
+      "brand": "Gilbey's",
+      "name": "Special Dry Gin",
+      "category": "Gin",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 37.5,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "5000267031002",
+      "sku": "GLB-750",
+      "cost_price": 950,
+      "selling_price": 1350,
+      "wholesale_price": 1300,
+      "min_price": 1250,
+      "tax_rate": 16,
+      "current_stock": 35,
+      "min_stock": 5,
+      "reorder_level": 10,
+      "supplier_id": "SUP2",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.641Z"
     },
     {
-      "id": {
-        "id": "P107",
-        "brand": "Hennessy",
-        "name": "Hennessy VS Cognac",
-        "category": "Cognac",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "3245980001211",
-        "sku": "HEN-VS",
-        "cost_price": 4200,
-        "selling_price": 5500,
-        "wholesale_price": 5350,
-        "min_price": 5200,
-        "tax_rate": 16,
-        "current_stock": 12,
-        "min_stock": 3,
-        "reorder_level": 4,
-        "supplier_id": "SUP3",
-        "high_value": 0
-      },
+      "id": "P107",
+      "brand": "Hennessy",
+      "name": "Hennessy VS Cognac",
+      "category": "Cognac",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "3245980001211",
+      "sku": "HEN-VS",
+      "cost_price": 4200,
+      "selling_price": 5500,
+      "wholesale_price": 5350,
+      "min_price": 5200,
+      "tax_rate": 16,
+      "current_stock": 12,
+      "min_stock": 3,
+      "reorder_level": 4,
+      "supplier_id": "SUP3",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.642Z"
     },
     {
-      "id": {
-        "id": "P108",
-        "brand": "Hennessy",
-        "name": "Hennessy XO Prestige",
-        "category": "Cognac",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 40,
-        "size": "750 ml",
-        "case_units": 6,
-        "barcode": "3245980009999",
-        "sku": "HEN-XO",
-        "cost_price": 21000,
-        "selling_price": 27000,
-        "wholesale_price": 26500,
-        "min_price": 26000,
-        "tax_rate": 16,
-        "current_stock": 3,
-        "min_stock": 1,
-        "reorder_level": 2,
-        "supplier_id": "SUP3",
-        "high_value": 1
-      },
+      "id": "P108",
+      "brand": "Hennessy",
+      "name": "Hennessy XO Prestige",
+      "category": "Cognac",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 40,
+      "size": "750 ml",
+      "case_units": 6,
+      "barcode": "3245980009999",
+      "sku": "HEN-XO",
+      "cost_price": 21000,
+      "selling_price": 27000,
+      "wholesale_price": 26500,
+      "min_price": 26000,
+      "tax_rate": 16,
+      "current_stock": 3,
+      "min_stock": 1,
+      "reorder_level": 2,
+      "supplier_id": "SUP3",
+      "high_value": 1,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.642Z"
     },
     {
-      "id": {
-        "id": "P109",
-        "brand": "Tusker",
-        "name": "Tusker Lager",
-        "category": "Beer",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 4.2,
-        "size": "500 ml",
-        "case_units": 25,
-        "barcode": "6001234567890",
-        "sku": "TSK-500",
-        "cost_price": 180,
-        "selling_price": 250,
-        "wholesale_price": 240,
-        "min_price": 240,
-        "tax_rate": 16,
-        "current_stock": 120,
-        "min_stock": 20,
-        "reorder_level": 40,
-        "supplier_id": "SUP1",
-        "high_value": 0
-      },
+      "id": "P109",
+      "brand": "Tusker",
+      "name": "Tusker Lager",
+      "category": "Beer",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 4.2,
+      "size": "500 ml",
+      "case_units": 25,
+      "barcode": "6001234567890",
+      "sku": "TSK-500",
+      "cost_price": 180,
+      "selling_price": 250,
+      "wholesale_price": 240,
+      "min_price": 240,
+      "tax_rate": 16,
+      "current_stock": 120,
+      "min_stock": 20,
+      "reorder_level": 40,
+      "supplier_id": "SUP1",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.298Z"
+      "created_at": "2026-09-26T20:53:13.642Z"
     },
     {
-      "id": {
-        "id": "P110",
-        "brand": "Tusker",
-        "name": "Tusker Malt Lager",
-        "category": "Beer",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 5,
-        "size": "500 ml",
-        "case_units": 25,
-        "barcode": "6001234567891",
-        "sku": "TSKM-500",
-        "cost_price": 200,
-        "selling_price": 270,
-        "wholesale_price": 260,
-        "min_price": 260,
-        "tax_rate": 16,
-        "current_stock": 85,
-        "min_stock": 15,
-        "reorder_level": 30,
-        "supplier_id": "SUP1",
-        "high_value": 0
-      },
+      "id": "P110",
+      "brand": "Tusker",
+      "name": "Tusker Malt Lager",
+      "category": "Beer",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 5,
+      "size": "500 ml",
+      "case_units": 25,
+      "barcode": "6001234567891",
+      "sku": "TSKM-500",
+      "cost_price": 200,
+      "selling_price": 270,
+      "wholesale_price": 260,
+      "min_price": 260,
+      "tax_rate": 16,
+      "current_stock": 85,
+      "min_stock": 15,
+      "reorder_level": 30,
+      "supplier_id": "SUP1",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.299Z"
+      "created_at": "2026-09-26T20:53:13.642Z"
     },
     {
-      "id": {
-        "id": "P111",
-        "brand": "Baileys",
-        "name": "Original Irish Cream",
-        "category": "Liqueur",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 17,
-        "size": "750 ml",
-        "case_units": 12,
-        "barcode": "5000267040004",
-        "sku": "BLY-750",
-        "cost_price": 2100,
-        "selling_price": 2850,
-        "wholesale_price": 2750,
-        "min_price": 2700,
-        "tax_rate": 16,
-        "current_stock": 15,
-        "min_stock": 3,
-        "reorder_level": 5,
-        "supplier_id": "SUP2",
-        "high_value": 0
-      },
+      "id": "P111",
+      "brand": "Baileys",
+      "name": "Original Irish Cream",
+      "category": "Liqueur",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 17,
+      "size": "750 ml",
+      "case_units": 12,
+      "barcode": "5000267040004",
+      "sku": "BLY-750",
+      "cost_price": 2100,
+      "selling_price": 2850,
+      "wholesale_price": 2750,
+      "min_price": 2700,
+      "tax_rate": 16,
+      "current_stock": 15,
+      "min_stock": 3,
+      "reorder_level": 5,
+      "supplier_id": "SUP2",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.299Z"
+      "created_at": "2026-09-26T20:53:13.642Z"
     },
     {
-      "id": {
-        "id": "P112",
-        "brand": "Nederburg",
-        "name": "Pinotage Sweet Red",
-        "category": "Wine",
-        "product_type": "retail",
-        "unit": "bottle",
-        "abv": 14,
-        "size": "750 ml",
-        "case_units": 6,
-        "barcode": "6001452001122",
-        "sku": "NED-RED",
-        "cost_price": 1100,
-        "selling_price": 1600,
-        "wholesale_price": 1550,
-        "min_price": 1500,
-        "tax_rate": 16,
-        "current_stock": 20,
-        "min_stock": 4,
-        "reorder_level": 6,
-        "supplier_id": "SUP3",
-        "high_value": 0
-      },
+      "id": "P112",
+      "brand": "Nederburg",
+      "name": "Pinotage Sweet Red",
+      "category": "Wine",
+      "product_type": "retail",
+      "unit": "bottle",
+      "abv": 14,
+      "size": "750 ml",
+      "case_units": 6,
+      "barcode": "6001452001122",
+      "sku": "NED-RED",
+      "cost_price": 1100,
+      "selling_price": 1600,
+      "wholesale_price": 1550,
+      "min_price": 1500,
+      "tax_rate": 16,
+      "current_stock": 20,
+      "min_stock": 4,
+      "reorder_level": 6,
+      "supplier_id": "SUP3",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.299Z"
+      "created_at": "2026-09-26T20:53:13.642Z"
     },
     {
-      "id": {
-        "id": "P113",
-        "brand": "Coca Cola",
-        "name": "Coca Cola Classic 500ml",
-        "category": "Non-Alcoholic",
-        "product_type": "retail",
-        "unit": "can/bottle",
-        "abv": 0,
-        "size": "500 ml",
-        "case_units": 24,
-        "barcode": "5449000000996",
-        "sku": "COKE-500",
-        "cost_price": 60,
-        "selling_price": 90,
-        "wholesale_price": 80,
-        "min_price": 80,
-        "tax_rate": 16,
-        "current_stock": 100,
-        "min_stock": 20,
-        "reorder_level": 30,
-        "supplier_id": "SUP4",
-        "high_value": 0
-      },
+      "id": "P113",
+      "brand": "Coca Cola",
+      "name": "Coca Cola Classic 500ml",
+      "category": "Non-Alcoholic",
+      "product_type": "retail",
+      "unit": "can/bottle",
+      "abv": 40,
+      "size": "500 ml",
+      "case_units": 24,
+      "barcode": "5449000000996",
+      "sku": "COKE-500",
+      "cost_price": 60,
+      "selling_price": 90,
+      "wholesale_price": 80,
+      "min_price": 80,
+      "tax_rate": 16,
+      "current_stock": 100,
+      "min_stock": 20,
+      "reorder_level": 30,
+      "supplier_id": "SUP4",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.299Z"
+      "created_at": "2026-09-26T20:53:13.643Z"
     },
     {
-      "id": {
-        "id": "P114",
-        "brand": "Red Bull",
-        "name": "Energy Drink 250ml",
-        "category": "Non-Alcoholic",
-        "product_type": "retail",
-        "unit": "can",
-        "abv": 0,
-        "size": "250 ml",
-        "case_units": 24,
-        "barcode": "9002490100070",
-        "sku": "RDB-250",
-        "cost_price": 180,
-        "selling_price": 250,
-        "wholesale_price": 230,
-        "min_price": 230,
-        "tax_rate": 16,
-        "current_stock": 60,
-        "min_stock": 10,
-        "reorder_level": 20,
-        "supplier_id": "SUP4",
-        "high_value": 0
-      },
+      "id": "P114",
+      "brand": "Red Bull",
+      "name": "Energy Drink 250ml",
+      "category": "Non-Alcoholic",
+      "product_type": "retail",
+      "unit": "can",
+      "abv": 40,
+      "size": "250 ml",
+      "case_units": 24,
+      "barcode": "9002490100070",
+      "sku": "RDB-250",
+      "cost_price": 180,
+      "selling_price": 250,
+      "wholesale_price": 230,
+      "min_price": 230,
+      "tax_rate": 16,
+      "current_stock": 60,
+      "min_stock": 10,
+      "reorder_level": 20,
+      "supplier_id": "SUP4",
+      "high_value": 0,
       "active": 1,
-      "created_at": "2026-09-24T21:09:35.299Z"
+      "created_at": "2026-09-26T20:53:13.643Z"
     }
   ],
   "customers": [
@@ -493,7 +475,7 @@
       },
       "visits": 0,
       "total_spend": 0,
-      "created_at": "2026-09-24T21:09:35.302Z"
+      "created_at": "2026-09-26T20:53:13.648Z"
     },
     {
       "id": {
@@ -506,7 +488,7 @@
       },
       "visits": 0,
       "total_spend": 0,
-      "created_at": "2026-09-24T21:09:35.302Z"
+      "created_at": "2026-09-26T20:53:13.648Z"
     }
   ],
   "shifts": [
@@ -516,18 +498,158 @@
         "branch_id": "B1",
         "cashier_id": "U3",
         "cashier_name": "John Omondi",
-        "start_time": "2026-09-24T21:09:35.302Z",
+        "start_time": "2026-09-26T20:53:13.648Z",
         "opening_float": 5000,
         "status": "ACTIVE"
       },
-      "start_time": "2026-09-24T21:09:35.302Z",
+      "start_time": "2026-09-26T20:53:13.648Z",
       "status": "ACTIVE"
     }
   ],
-  "sales": [],
-  "sale_items": [],
-  "payments": [],
+  "sales": [
+    {
+      "id": "SALE-1790456094139",
+      "receipt_no": "REC-094139-499",
+      "branch_id": "B1",
+      "cashier_id": "U1",
+      "cashier_name": "David Kamau",
+      "customer_id": "C1",
+      "customer_name": "Walk-in Customer",
+      "subtotal": 6750,
+      "discount": 0,
+      "tax": 1080,
+      "total": 6750,
+      "payment_method": "CASH",
+      "mpesa_code": null,
+      "status": "COMPLETED",
+      "shift_id": {
+        "id": "SHIFT-101",
+        "branch_id": "B1",
+        "cashier_id": "U3",
+        "cashier_name": "John Omondi",
+        "start_time": "2026-09-26T20:53:13.648Z",
+        "opening_float": 5000,
+        "status": "ACTIVE"
+      },
+      "refunded": 0,
+      "refund_amount": 0,
+      "created_at": "2026-09-26T20:54:54.139Z"
+    },
+    {
+      "id": "SALE-1790456069474",
+      "receipt_no": "REC-069473-337",
+      "branch_id": "B1",
+      "cashier_id": "U1",
+      "cashier_name": "David Kamau",
+      "customer_id": "C1",
+      "customer_name": "Walk-in Customer",
+      "subtotal": 4500,
+      "discount": 0,
+      "tax": 720,
+      "total": 4500,
+      "payment_method": "CASH",
+      "mpesa_code": null,
+      "status": "COMPLETED",
+      "shift_id": {
+        "id": "SHIFT-101",
+        "branch_id": "B1",
+        "cashier_id": "U3",
+        "cashier_name": "John Omondi",
+        "start_time": "2026-09-26T20:53:13.648Z",
+        "opening_float": 5000,
+        "status": "ACTIVE"
+      },
+      "refunded": 0,
+      "refund_amount": 0,
+      "created_at": "2026-09-26T20:54:29.474Z"
+    }
+  ],
+  "sale_items": [
+    {
+      "id": "SI-1790456094143-357",
+      "sale_id": "SALE-1790456094139",
+      "product_id": "P104",
+      "product_name": "Red Label Vodka",
+      "qty": 3,
+      "unit_price": 1450,
+      "cost_snapshot": 1000,
+      "total": 4350
+    },
+    {
+      "id": "SI-1790456094140-535",
+      "sale_id": "SALE-1790456094139",
+      "product_id": "P102",
+      "product_name": "Red Label",
+      "qty": 1,
+      "unit_price": 2400,
+      "cost_snapshot": 1800,
+      "total": 2400
+    },
+    {
+      "id": "SI-1790456069538-585",
+      "sale_id": "SALE-1790456069474",
+      "product_id": "P101",
+      "product_name": "Black Label 12YO",
+      "qty": 1,
+      "unit_price": 4500,
+      "cost_snapshot": 3400,
+      "total": 4500
+    }
+  ],
+  "payments": [
+    {
+      "id": "PAY-1790456094145",
+      "sale_id": "SALE-1790456094139",
+      "method": "CASH",
+      "amount": 6750,
+      "reference_code": null,
+      "status": "SUCCESS",
+      "created_at": "2026-09-26T20:54:54.145Z"
+    },
+    {
+      "id": "PAY-1790456069543",
+      "sale_id": "SALE-1790456069474",
+      "method": "CASH",
+      "amount": 4500,
+      "reference_code": null,
+      "status": "SUCCESS",
+      "created_at": "2026-09-26T20:54:29.544Z"
+    }
+  ],
   "stock_movements": [
+    {
+      "id": "MOV-1790456094144-558",
+      "product_id": "P104",
+      "product_name": "Red Label Vodka",
+      "type": 3,
+      "qty": 37,
+      "previous_stock": 37,
+      "new_stock": "REC-094139-499",
+      "ref": "David Kamau",
+      "timestamp": "2026-09-26T20:54:54.144Z"
+    },
+    {
+      "id": "MOV-1790456094142-992",
+      "product_id": "P102",
+      "product_name": "Red Label",
+      "type": 1,
+      "qty": 17,
+      "previous_stock": 17,
+      "new_stock": "REC-094139-499",
+      "ref": "David Kamau",
+      "timestamp": "2026-09-26T20:54:54.142Z"
+    },
+    {
+      "id": "MOV-1790456069542-846",
+      "product_id": "P101",
+      "product_name": "Black Label 12YO",
+      "type": 1,
+      "qty": 23,
+      "previous_stock": 23,
+      "new_stock": "REC-069473-337",
+      "ref": "David Kamau",
+      "timestamp": "2026-09-26T20:54:29.542Z"
+    },
     {
       "id": {
         "id": "MOV-INIT-P114",
@@ -541,7 +663,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.302Z"
+      "timestamp": "2026-09-26T20:53:13.648Z"
     },
     {
       "id": {
@@ -556,7 +678,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.302Z"
+      "timestamp": "2026-09-26T20:53:13.647Z"
     },
     {
       "id": {
@@ -571,7 +693,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.302Z"
+      "timestamp": "2026-09-26T20:53:13.647Z"
     },
     {
       "id": {
@@ -586,7 +708,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.302Z"
+      "timestamp": "2026-09-26T20:53:13.647Z"
     },
     {
       "id": {
@@ -601,7 +723,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.302Z"
+      "timestamp": "2026-09-26T20:53:13.647Z"
     },
     {
       "id": {
@@ -616,7 +738,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.301Z"
+      "timestamp": "2026-09-26T20:53:13.646Z"
     },
     {
       "id": {
@@ -631,7 +753,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.301Z"
+      "timestamp": "2026-09-26T20:53:13.646Z"
     },
     {
       "id": {
@@ -646,7 +768,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.301Z"
+      "timestamp": "2026-09-26T20:53:13.646Z"
     },
     {
       "id": {
@@ -661,7 +783,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.300Z"
+      "timestamp": "2026-09-26T20:53:13.645Z"
     },
     {
       "id": {
@@ -676,7 +798,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.300Z"
+      "timestamp": "2026-09-26T20:53:13.645Z"
     },
     {
       "id": {
@@ -691,7 +813,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.300Z"
+      "timestamp": "2026-09-26T20:53:13.644Z"
     },
     {
       "id": {
@@ -706,7 +828,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.299Z"
+      "timestamp": "2026-09-26T20:53:13.643Z"
     },
     {
       "id": {
@@ -721,7 +843,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.299Z"
+      "timestamp": "2026-09-26T20:53:13.643Z"
     },
     {
       "id": {
@@ -736,7 +858,7 @@
         "user_name": "System",
         "reason": "Initial Catalogue Opening Stock"
       },
-      "timestamp": "2026-09-24T21:09:35.299Z"
+      "timestamp": "2026-09-26T20:53:13.643Z"
     }
   ],
   "cash_movements": [],
@@ -745,9 +867,32 @@
   "expenses": [],
   "audit_logs": [
     {
+      "id": "AUD-1790456372617",
+      "timestamp": "2026-09-26T20:59:32.618Z",
+      "user_name": "2026-09-26T20:59:32.617Z",
+      "role": "David Kamau",
+      "branch_id": "Red Label Vodka",
+      "action": "Price: 750, Stock: Smirnoff",
+      "item": "Price: 750, Stock: 50"
+    },
+    {
+      "id": "AUD-1790456094145",
+      "timestamp": "2026-09-26T20:54:54.145Z",
+      "user_name": "David Kamau",
+      "role": "REC-094139-499",
+      "branch_id": "KSh 6750 via CASH"
+    },
+    {
+      "id": "AUD-1790456069545",
+      "timestamp": "2026-09-26T20:54:29.546Z",
+      "user_name": "David Kamau",
+      "role": "REC-069473-337",
+      "branch_id": "KSh 4500 via CASH"
+    },
+    {
       "id": {
         "id": "AUD-INIT",
-        "timestamp": "2026-09-24T21:09:35.304Z",
+        "timestamp": "2026-09-26T20:53:13.649Z",
         "user_name": "System",
         "role": "owner",
         "branch_id": "B1",
@@ -757,7 +902,7 @@
         "new_val": "SQLite DB Active",
         "reason": "Production end-to-end database initialization"
       },
-      "timestamp": "2026-09-24T21:09:35.304Z"
+      "timestamp": "2026-09-26T20:53:13.649Z"
     }
   ],
   "settings": [

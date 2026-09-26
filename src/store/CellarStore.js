@@ -22,6 +22,28 @@ export class CellarStore {
       { id: "C2", name: "David Mwangi", phone: "0712345678", email: "david@example.com", visits: 3, totalSpend: 24500 }
     ];
     this.shifts = [];
+    this.notifications = [
+      {
+        id: "NOTIF-1",
+        type: "shift",
+        title: "Shift Reconciled & Closed",
+        message: "Cashier John Omondi reconciled cash & closed shift at Nairobi CBD Main. Expected: KSh 45,000, Actual: KSh 45,000, Variance: KSh 0 (Perfect Match).",
+        branchId: "B1",
+        cashierName: "John Omondi",
+        timestamp: new Date(Date.now() - 1800000).toISOString(),
+        read: false
+      },
+      {
+        id: "NOTIF-2",
+        type: "cash",
+        title: "Drawer Cash Out Authorized",
+        message: "Cashier John Omondi logged KSh 2,500 Cash Out (Supplier Delivery Petty Cash).",
+        branchId: "B1",
+        cashierName: "John Omondi",
+        timestamp: new Date(Date.now() - 5400000).toISOString(),
+        read: false
+      }
+    ];
     this.currentShift = {
       id: "SHIFT-101",
       branchId: "B1",
@@ -159,6 +181,7 @@ export class CellarStore {
       localStorage.setItem('cellar_sales_backup', JSON.stringify(this.sales || []));
       localStorage.setItem('cellar_products_backup', JSON.stringify(this.products || []));
       localStorage.setItem('cellar_shift_backup', JSON.stringify(this.currentShift || {}));
+      localStorage.setItem('cellar_notifications_backup', JSON.stringify(this.notifications || []));
     } catch (e) {}
   }
 
@@ -172,7 +195,45 @@ export class CellarStore {
 
       const shift = localStorage.getItem('cellar_shift_backup');
       if (shift) this.currentShift = JSON.parse(shift);
+
+      const notifs = localStorage.getItem('cellar_notifications_backup');
+      if (notifs) this.notifications = JSON.parse(notifs);
     } catch (e) {}
+  }
+
+  addNotification(notifData) {
+    const notif = {
+      id: `NOTIF-${Date.now()}`,
+      type: notifData.type || 'shift',
+      title: notifData.title,
+      message: notifData.message,
+      branchId: notifData.branchId || this.activeBranchId,
+      cashierName: notifData.cashierName || (this.currentUser ? this.currentUser.name : 'Cashier'),
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    if (!this.notifications) this.notifications = [];
+    this.notifications.unshift(notif);
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+    if (window.showToastNotification) {
+      window.showToastNotification(notif);
+    }
+    return notif;
+  }
+
+  markNotificationsRead() {
+    if (this.notifications) {
+      this.notifications.forEach(n => n.read = true);
+      this.saveLocalBackup();
+      this.notify();
+    }
+  }
+
+  getUnreadNotificationsCount() {
+    if (!this.notifications) return 0;
+    return this.notifications.filter(n => !n.read).length;
   }
 
   async safeFetchJson(url, options = {}) {
@@ -231,8 +292,14 @@ export class CellarStore {
 
   async fetchProducts() {
     const data = await this.safeFetchJson('/api/products?activeOnly=false');
-    if (data) {
-      this.products = data;
+    if (data && Array.isArray(data)) {
+      this.products = data.map(p => ({
+        ...p,
+        price: p.price !== undefined && p.price !== null ? Number(p.price) : Number(p.selling_price || 0),
+        cost: p.cost !== undefined && p.cost !== null ? Number(p.cost) : Number(p.cost_price || 0),
+        stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : Number(p.current_stock || 0),
+        reorder: p.reorder !== undefined && p.reorder !== null ? Number(p.reorder) : Number(p.reorder_level || 5)
+      }));
       this.saveLocalBackup();
       this.notify();
     }
@@ -404,6 +471,17 @@ export class CellarStore {
     return { success: true };
   }
 
+  async deleteAllProducts() {
+    try {
+      await fetch('/api/products/all', { method: 'DELETE' });
+    } catch (e) {}
+    this.products = [];
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+    return { success: true };
+  }
+
   async createSale(saleData) {
     try {
       const res = await fetch('/api/sales', {
@@ -499,6 +577,17 @@ export class CellarStore {
   }
 
   async logCashMovement(movementData) {
+    const branch = this.getActiveBranch();
+    const cashierName = this.currentUser ? this.currentUser.name : 'Cashier';
+
+    this.addNotification({
+      type: 'cash',
+      title: `Drawer Cash Movement (${movementData.type || 'IN'})`,
+      message: `${cashierName} logged KSh ${(movementData.amount || 0).toLocaleString()} ${movementData.type === 'OUT' || movementData.type === 'CASH_OUT' ? 'Cash Out' : 'Cash In'} at ${branch.name}. Reason: "${movementData.reason || 'No reason specified'}"`,
+      branchId: branch.id,
+      cashierName: cashierName
+    });
+
     try {
       const res = await fetch('/api/shift/cash-movement', {
         method: 'POST',
@@ -534,6 +623,21 @@ export class CellarStore {
   }
 
   async closeShift(closeData) {
+    const expectedCash = this.getExpectedCashInDrawer();
+    const actualCash = closeData.closingCash || 0;
+    const variance = actualCash - expectedCash;
+    const branch = this.getActiveBranch();
+    const cashierName = this.currentUser ? this.currentUser.name : 'Cashier';
+
+    const notif = this.addNotification({
+      type: 'shift',
+      title: 'Shift Reconciled & Closed',
+      message: `${cashierName} reconciled & closed shift at ${branch.name}. Actual Cash: KSh ${actualCash.toLocaleString()}, Expected: KSh ${expectedCash.toLocaleString()}, Variance: KSh ${variance.toLocaleString()}${variance === 0 ? ' (Perfect Match)' : ''}. Notes: "${closeData.notes || 'None'}"`,
+      branchId: branch.id,
+      cashierName: cashierName
+    });
+
+    let shiftResult = null;
     try {
       const res = await fetch('/api/shift/close', {
         method: 'POST',
@@ -548,19 +652,20 @@ export class CellarStore {
         const data = await res.json();
         await this.fetchShift();
         await this.fetchAuditLogs();
-        return data.shift;
+        shiftResult = data.shift;
       }
     } catch (e) {}
 
-    if (this.currentShift) {
+    if (!shiftResult && this.currentShift) {
       this.currentShift.status = 'CLOSED';
       this.currentShift.closingTime = new Date().toISOString();
       this.currentShift.closingCash = closeData.closingCash;
+      shiftResult = this.currentShift;
     }
     this.saveLocalBackup();
     this.notify();
     this.broadcastUpdate();
-    return this.currentShift;
+    return shiftResult || { variance, closingCash: actualCash };
   }
 
   async recordStockDamage(damageData) {

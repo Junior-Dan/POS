@@ -240,25 +240,32 @@ function renderProductGridHtml() {
   const filtered = store.products.filter(p => {
     if (!p.active) return false;
     const matchesCat = activeCategoryFilter === "ALL" || p.category === activeCategoryFilter;
-    const matchesSearch = p.name.toLowerCase().includes(query) || p.brand.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query) || p.barcode.includes(query);
+    const nameStr = (p.name || '').toLowerCase();
+    const brandStr = (p.brand || '').toLowerCase();
+    const skuStr = (p.sku || '').toLowerCase();
+    const barcodeStr = String(p.barcode || '');
+    const matchesSearch = !query || nameStr.includes(query) || brandStr.includes(query) || skuStr.includes(query) || barcodeStr.includes(query);
     return matchesCat && matchesSearch;
   });
 
   return filtered.map(p => {
-    const isOut = p.stock <= 0;
-    const isLow = p.stock > 0 && p.stock <= p.reorder;
+    const stockVal = p.stock !== undefined && p.stock !== null ? Number(p.stock) : Number(p.current_stock || 0);
+    const priceVal = p.price !== undefined && p.price !== null ? Number(p.price) : Number(p.selling_price || 0);
+    const reorderVal = p.reorder !== undefined && p.reorder !== null ? Number(p.reorder) : Number(p.reorder_level || 5);
+    const isOut = stockVal <= 0;
+    const isLow = stockVal > 0 && stockVal <= reorderVal;
     return `
       <div class="product-card ${isOut ? 'out-of-stock' : ''}" onclick="addToCart('${p.id}')" style="${isOut ? 'opacity:0.6; cursor:not-allowed;' : ''}">
         <div class="product-badge-bar">
-          <span class="size-badge">${p.size}</span>
+          <span class="size-badge">${p.size || '750ml'}</span>
           ${isOut ? '<span class="badge badge-danger" style="font-size:9.5px; padding:2px 6px;">OUT OF STOCK</span>' : p.highValue ? '<span class="high-val-badge">HIGH VALUE</span>' : ''}
         </div>
-        <div class="product-brand">${p.brand}</div>
-        <div class="product-name">${p.name}</div>
+        <div class="product-brand">${p.brand || 'Brand'}</div>
+        <div class="product-name">${p.name || 'Product'}</div>
         <div class="product-meta-row">
-          <div class="product-price">KSh ${p.price.toLocaleString()}</div>
+          <div class="product-price">KSh ${priceVal.toLocaleString()}</div>
           <div class="product-stock ${isOut ? 'out' : isLow ? 'low' : ''}" style="${isOut ? 'color:var(--danger); font-weight:800;' : isLow ? 'color:var(--yellow); font-weight:700;' : ''}">
-            ${isOut ? 'Out of Stock' : `Stk: ${p.stock}`}
+            ${isOut ? 'Out of Stock' : `Stk: ${stockVal}`}
           </div>
         </div>
       </div>
@@ -296,19 +303,23 @@ function renderCartItemsHtml() {
 window.addToCart = function(productId) {
   const prod = store.products.find(p => p.id === productId);
   if (!prod) return;
-  if (prod.stock <= 0) return alert(`Warning: Product "${prod.brand} ${prod.name}" is currently out of stock!`);
+  const stockVal = prod.stock !== undefined && prod.stock !== null ? Number(prod.stock) : Number(prod.current_stock || 0);
+  const priceVal = prod.price !== undefined && prod.price !== null ? Number(prod.price) : Number(prod.selling_price || 0);
+  const costVal = prod.cost !== undefined && prod.cost !== null ? Number(prod.cost) : Number(prod.cost_price || 0);
+
+  if (stockVal <= 0) return alert(`Warning: Product "${prod.brand || ''} ${prod.name || ''}" is currently out of stock!`);
   
   const existing = currentCart.find(item => item.productId === productId);
   if (existing) {
-    if (existing.qty + 1 > prod.stock) return alert(`Cannot exceed available physical stock (${prod.stock} available)!`);
+    if (existing.qty + 1 > stockVal) return alert(`Cannot exceed available physical stock (${stockVal} available)!`);
     existing.qty += 1;
   } else {
     currentCart.push({
       productId: prod.id,
-      name: `${prod.brand} ${prod.name}`,
-      size: prod.size,
-      price: prod.price,
-      costSnapshot: prod.cost,
+      name: `${prod.brand || ''} ${prod.name || ''}`.trim(),
+      size: prod.size || '750ml',
+      price: priceVal,
+      costSnapshot: costVal,
       qty: 1
     });
   }
@@ -323,7 +334,8 @@ window.removeFromCart = function(index) {
 window.updateCartQty = function(index, delta) {
   const item = currentCart[index];
   const prod = store.products.find(p => p.id === item.productId);
-  if (delta > 0 && item.qty + 1 > prod.stock) return alert("Cannot exceed physical stock!");
+  const stockVal = prod ? (prod.stock !== undefined && prod.stock !== null ? Number(prod.stock) : Number(prod.current_stock || 0)) : 999;
+  if (delta > 0 && item.qty + 1 > stockVal) return alert("Cannot exceed physical stock!");
   item.qty += delta;
   if (item.qty <= 0) currentCart.splice(index, 1);
   refreshCartUi();
@@ -371,7 +383,10 @@ window.completePosSale = function(paymentMethod = 'CASH') {
     return;
   }
 
-  const subtotal = currentCart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  const subtotal = currentCart.reduce((acc, i) => {
+    const p = i.price !== undefined && i.price !== null ? Number(i.price) : 0;
+    return acc + (p * i.qty);
+  }, 0);
   const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
   const custId = document.getElementById('posCustomerSelect')?.value;
   
@@ -397,7 +412,7 @@ window.completePosSale = function(paymentMethod = 'CASH') {
       if (window.renderReceiptHtml) window.renderReceiptHtml(saleResult);
       window.openModal('receiptModal');
 
-      if (window.renderAllApp) window.renderAllApp();
+      if (window.initApp) window.initApp();
     } catch (err) {
       alert("Checkout Transaction Error: " + err.message);
     }

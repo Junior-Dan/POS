@@ -22,8 +22,24 @@ export function renderTopbar(currentUser = store.currentUser) {
     if (availableBranches.length === 0) availableBranches = [store.branches[0]];
   }
 
-  const activeBranch = store.getActiveBranch();
+  const activeBranch = store.getActiveBranch() || { name: 'Nairobi CBD Main' };
 
+
+  const notifications = store.notifications || [];
+  const unreadCount = store.getUnreadNotificationsCount();
+
+  const notifItemsHtml = notifications.length > 0 ? notifications.map(n => `
+    <div class="notif-item ${!n.read ? 'unread' : ''}">
+      <div class="notif-icon ${n.type === 'shift' ? 'shift' : n.type === 'cash' ? 'cash' : 'alert'}">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </div>
+      <div class="notif-content">
+        <div class="notif-item-title">${n.title}</div>
+        <div class="notif-item-msg">${n.message}</div>
+        <div class="notif-time">${new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${n.cashierName || 'Cashier'}</div>
+      </div>
+    </div>
+  `).join('') : `<div style="padding:20px; text-align:center; color:var(--text-faint); font-size:12px;">No notifications yet</div>`;
 
   return `
   <header class="top-header">
@@ -81,11 +97,26 @@ export function renderTopbar(currentUser = store.currentUser) {
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
 
-      <!-- Alert Notification Bell with Badge Dot -->
-      <button class="topbar-icon-btn" title="Notifications">
-        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-        <span class="notification-badge-dot"></span>
-      </button>
+      <!-- Alert Notification Bell with Badge Dot & Popover Dropdown -->
+      <div style="position:relative;" id="topbarNotifWrap">
+        <button class="topbar-icon-btn" id="topbarNotificationBtn" title="Shift & Manager Notifications">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          ${unreadCount > 0 ? `<span class="notification-count-badge">${unreadCount}</span>` : ''}
+        </button>
+
+        <div class="notifications-popover" id="notificationsPopover">
+          <div class="notif-header">
+            <div class="notif-title">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color:var(--accent);"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span>Manager & Shift Alerts (${unreadCount} unread)</span>
+            </div>
+            <button class="notif-clear-btn" type="button" onclick="markAllNotificationsRead()">Mark all as read</button>
+          </div>
+          <div class="notif-list">
+            ${notifItemsHtml}
+          </div>
+        </div>
+      </div>
 
       <!-- Interactive Branch Switcher Dropdown (Company Name Top, Tiny Branch Below - Image 1 & 3) -->
       <div class="topbar-branch-badge" id="topbarBranchContainer" title="Click to switch branch">

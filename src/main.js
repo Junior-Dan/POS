@@ -269,6 +269,55 @@ function bindEvents() {
     });
   }
 
+  // Notifications Popover & Toast Banner Engine
+  const notifBtn = document.getElementById('topbarNotificationBtn');
+  const notifPopover = document.getElementById('notificationsPopover');
+  if (notifBtn && notifPopover) {
+    notifBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifPopover.classList.toggle('active');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (notifPopover && notifPopover.classList.contains('active') && !notifPopover.contains(e.target) && !notifBtn.contains(e.target)) {
+        notifPopover.classList.remove('active');
+      }
+    });
+  }
+
+  window.markAllNotificationsRead = () => {
+    store.markNotificationsRead();
+    initApp();
+  };
+
+  window.showToastNotification = (notif) => {
+    let container = document.getElementById('globalToastContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'globalToastContainer';
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast-banner ${notif.type || 'shift'}`;
+    toast.innerHTML = `
+      <div style="width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </div>
+      <div class="toast-body">
+        <div class="toast-title">🔔 ${notif.title}</div>
+        <div class="toast-desc">${notif.message}</div>
+      </div>
+      <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+
+    container.appendChild(toast);
+    setTimeout(() => {
+      if (toast && toast.parentElement) toast.remove();
+    }, 6000);
+  };
+
   // Auto-Hiding Scrollbar Behavior (Shows scrollbar thumb only when actively scrolling)
   if (!window._scrollListenerAttached) {
     window._scrollListenerAttached = true;
@@ -306,8 +355,10 @@ function bindEvents() {
 
   // Interactive Staff Login & Role Switcher
   window.loginEnteredPin = "";
+  window._isSubmittingPin = false;
 
   window.openStaffLoginModal = (isMandatory = false) => {
+    window._isSubmittingPin = false;
     const sel = document.getElementById('loginUserSelect');
     if (sel) {
       sel.innerHTML = store.users.map(u => `<option value="${u.id}" ${u.id === store.currentUser.id ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
@@ -329,20 +380,25 @@ function bindEvents() {
   };
 
   window.pressLoginPin = (num) => {
-    if (window.loginEnteredPin.length < 4) {
-      window.loginEnteredPin += num;
+    if (window._isSubmittingPin) return;
+    if ((window.loginEnteredPin || "").length < 4) {
+      window.loginEnteredPin = (window.loginEnteredPin || "") + num;
       updateLoginPinDots();
       const err = document.getElementById('loginPinErrorMsg');
       if (err) err.textContent = "";
-    }
-    if (window.loginEnteredPin.length === 4) {
-      setTimeout(() => {
-        window.submitLoginPin();
-      }, 100);
+
+      if (window.loginEnteredPin.length === 4) {
+        setTimeout(() => {
+          if (window.loginEnteredPin.length === 4) {
+            window.submitLoginPin();
+          }
+        }, 100);
+      }
     }
   };
 
   window.clearLoginPin = () => {
+    window._isSubmittingPin = false;
     window.loginEnteredPin = "";
     updateLoginPinDots();
     const err = document.getElementById('loginPinErrorMsg');
@@ -380,23 +436,34 @@ function bindEvents() {
   }
 
   window.submitLoginPin = () => {
+    if (window._isSubmittingPin) return;
     const pin = window.loginEnteredPin;
     if (!pin || pin.length < 4) {
-      return; // Prevent duplicate trigger on empty pin!
+      const err = document.getElementById('loginPinErrorMsg');
+      if (err && pin.length > 0) err.textContent = "Please enter all 4 digits.";
+      return;
     }
 
-    const selectedUserId = document.getElementById('loginUserSelect')?.value;
-    const userList = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
+    window._isSubmittingPin = true;
 
-    let targetUser = userList.find(u => String(u.pin).trim() === String(pin).trim());
+    // Build complete user list with PINs merged from INITIAL_USERS if API stripped pin field
+    const rawUsers = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
+    const userList = rawUsers.map(u => {
+      const p = u.pin || INITIAL_USERS.find(iu => iu.id === u.id || iu.name.toLowerCase() === u.name.toLowerCase())?.pin;
+      return { ...u, pin: p };
+    });
+
+    const selectedUserId = document.getElementById('loginUserSelect')?.value;
+
+    let targetUser = userList.find(u => u.pin && String(u.pin).trim() === String(pin).trim());
 
     if (!targetUser) {
-      targetUser = userList.find(u => normalizePin(u.pin) === normalizePin(pin));
+      targetUser = userList.find(u => u.pin && normalizePin(u.pin) === normalizePin(pin));
     }
 
     if (!targetUser && selectedUserId) {
       const u = userList.find(x => x.id === selectedUserId);
-      if (u && (String(u.pin).trim() === String(pin).trim() || normalizePin(u.pin) === normalizePin(pin))) {
+      if (u && u.pin && (String(u.pin).trim() === String(pin).trim() || normalizePin(u.pin) === normalizePin(pin))) {
         targetUser = u;
       }
     }
@@ -410,32 +477,37 @@ function bindEvents() {
         store.setActiveBranch(targetUser.primaryBranchId);
       }
       window.loginEnteredPin = "";
+      window._isSubmittingPin = false;
       updateLoginPinDots();
       window.closeModal('userLoginModal');
       initApp();
       store.logAudit("Staff Login Successful", targetUser.name, "-", targetUser.role, "Authenticated via PIN");
     } else {
       const err = document.getElementById('loginPinErrorMsg');
-      if (err) err.textContent = `Invalid PIN (${pin})! Please try again.`;
+      if (err) err.textContent = "Invalid PIN! Access Denied.";
       window.loginEnteredPin = "";
+      window._isSubmittingPin = false;
       updateLoginPinDots();
     }
   };
 
-  // Keyboard typing support for PIN Terminal
+  // Keyboard typing support for PIN Terminal (Bound once)
   if (!window._keypadKeyboardListenerAttached) {
     window._keypadKeyboardListenerAttached = true;
     window.addEventListener('keydown', (e) => {
       const modal = document.getElementById('userLoginModal');
       if (modal && modal.classList.contains('active')) {
         if (e.key >= '0' && e.key <= '9') {
+          e.preventDefault();
           window.pressLoginPin(e.key);
         } else if (e.key === 'Backspace') {
-          if (window.loginEnteredPin.length > 0) {
+          e.preventDefault();
+          if ((window.loginEnteredPin || "").length > 0) {
             window.loginEnteredPin = window.loginEnteredPin.slice(0, -1);
             updateLoginPinDots();
           }
         } else if (e.key === 'Enter') {
+          e.preventDefault();
           window.submitLoginPin();
         }
       }

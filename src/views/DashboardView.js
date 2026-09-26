@@ -138,7 +138,7 @@ export function renderDashboardView() {
             ${topProds.map(([name, data]) => `
               <tr>
                 <td><strong>${name}</strong></td>
-                <td><span class="size-badge">${data.size}</span></td>
+                <td><span class="size-badge">${data.size || '750ml'}</span></td>
                 <td><span class="badge badge-success">Available</span></td>
                 <td>${data.qty}</td>
                 <td>KSh ${data.rev.toLocaleString()}</td>
@@ -183,8 +183,8 @@ export function renderDashboardView() {
             <tbody>
               ${store.products.filter(p => p.stock > 10).slice(0, 4).map(p => `
                 <tr>
-                  <td><strong>${p.brand} ${p.name}</strong> (${p.size})</td>
-                  <td>${p.stock}</td>
+                  <td><strong>${p.brand || ''} ${p.name || 'Spirits Item'}</strong> ${p.size ? `(${p.size})` : ''}</td>
+                  <td>${p.stock !== undefined ? p.stock : (p.current_stock || 0)}</td>
                   <td><span class="badge badge-warning">Low Movement</span></td>
                   <td><button class="btn btn-secondary btn-sm" onclick="switchTab('pos')">Promote</button></td>
                 </tr>
@@ -242,7 +242,7 @@ export function initDashboardCharts() {
       topBody.innerHTML = topProds.map(([name, data]) => `
         <tr>
           <td><strong>${name}</strong></td>
-          <td><span class="size-badge">${data.size}</span></td>
+          <td><span class="size-badge">${data.size || '750ml'}</span></td>
           <td><span class="badge badge-success">Available</span></td>
           <td>${data.qty}</td>
           <td>KSh ${data.rev.toLocaleString()}</td>

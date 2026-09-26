@@ -62,7 +62,7 @@ router.post('/verify-pin', (req, res) => {
 
 // GET all users
 router.get('/users', (req, res) => {
-  const users = db.prepare('SELECT id, name, role, email, active FROM users').all();
+  const users = db.prepare('SELECT id, name, role, pin, email, active FROM users').all();
   res.json(users);
 });
 
