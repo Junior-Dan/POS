@@ -146,7 +146,8 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
               </thead>
               <tbody>
                 ${branches.map((b, idx) => {
-                  const manager = users.find(u => u.id === b.managerId);
+                  const isOwner = store.currentUser?.role === 'owner';
+                  const manager = isOwner ? users.find(u => u.id === b.managerId) : (b.managerId === store.currentUser?.id ? store.currentUser : null);
                   const subLabel = idx === 0 ? 'Main' : 'Branch';
                   return `
                     <tr>
@@ -164,7 +165,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                       <td><span class="size-badge">${b.code}</span></td>
                       <td>${b.location}</td>
                       <td>${b.phone || 'N/A'}</td>
-                      <td>${manager ? manager.name : '<span style="color:var(--text-faint);">Unassigned</span>'}</td>
+                      <td>${manager ? manager.name : '<span style="color:var(--text-faint);">Branch Admin</span>'}</td>
                       <td><span class="badge badge-success">• ACTIVE</span></td>
                       <td>
                         <div style="display:flex; gap:8px;">
@@ -185,13 +186,24 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
         </div>
       `;
 
-    case 'staff':
+    case 'staff': {
+      const isOwner = store.currentUser?.role === 'owner';
+      const userBranchIds = [store.currentUser?.primaryBranchId, ...(store.currentUser?.additionalBranchIds || [])].filter(Boolean);
+
+      const visibleUsers = users.filter(u => {
+        if (isOwner) return true;
+        // Managers can ONLY see Cashiers and Inventory Officers assigned to their branch (never managers or owners)
+        const isCashierOrInventory = u.role === 'cashier' || u.role === 'inventory_officer';
+        const isSameBranch = userBranchIds.length === 0 || userBranchIds.includes(u.primaryBranchId) || !u.primaryBranchId;
+        return isCashierOrInventory && isSameBranch;
+      });
+
       return `
         <div class="section-card">
           <div class="section-header">
             <div>
               <div class="section-title">Staff Management & Security PINs</div>
-              <span class="section-subtitle">Manage staff accounts, primary & cross-branch access, roles, and secret PINs</span>
+              <span class="section-subtitle">${isOwner ? 'Manage enterprise staff, branch access, roles, and PINs' : 'Manage your branch cashiers and inventory staff'}</span>
             </div>
             <button class="btn btn-primary" onclick="openAddStaffModal()">+ Add Staff Account</button>
           </div>
@@ -209,16 +221,17 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                 </tr>
               </thead>
               <tbody>
-                ${users.map(u => {
+                ${visibleUsers.length > 0 ? visibleUsers.map(u => {
                   const primBranch = branches.find(b => b.id === u.primaryBranchId);
                   const addBranches = (u.additionalBranchIds || []).map(id => branches.find(b => b.id === id)?.name).filter(Boolean);
+
                   return `
                     <tr>
                       <td>
                         <strong>${u.name}</strong><br>
                         <span style="font-size:11px; color:var(--text-dim);">${u.email || u.phone || ''}</span>
                       </td>
-                      <td><span class="badge badge-warning" style="text-transform:uppercase;">${u.role}</span></td>
+                      <td><span class="badge ${u.role === 'cashier' ? 'badge-info' : 'badge-primary'}" style="text-transform:uppercase;">${u.role.replace('_', ' ')}</span></td>
                       <td>${primBranch ? primBranch.name : 'Nairobi CBD Main'}</td>
                       <td>${addBranches.length ? addBranches.map(n => `<span class="size-badge">${n}</span>`).join(' ') : '<span style="color:var(--text-faint);">None</span>'}</td>
                       <td><span style="font-family:monospace; letter-spacing:3px; color:var(--accent);">••••</span></td>
@@ -227,17 +240,18 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                         <div style="display:flex; gap:6px;">
                           <button class="btn btn-secondary btn-sm" onclick="openEditStaffModal('${u.id}')">Edit</button>
                           <button class="btn btn-primary btn-sm" onclick="openResetPinModal('${u.id}')" style="background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-border);">Reset PIN</button>
-                          ${u.role !== 'owner' ? `<button class="btn btn-danger btn-sm" onclick="deleteStaff('${u.id}')">Deactivate</button>` : ''}
+                          <button class="btn btn-danger btn-sm" onclick="deleteStaff('${u.id}')">Deactivate</button>
                         </div>
                       </td>
                     </tr>
                   `;
-                }).join('')}
+                }).join('') : '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-faint);">No cashier or inventory staff registered for this branch yet</td></tr>'}
               </tbody>
             </table>
           </div>
         </div>
       `;
+    }
 
     case 'roles':
       return `

@@ -106,6 +106,22 @@ function bindPosToolbarEvents() {
       const grid = document.getElementById('posProductGrid');
       if (grid) grid.innerHTML = renderProductGridHtml();
     };
+    searchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const query = searchInput.value.toLowerCase().trim();
+        if (!query) return;
+        const matches = store.products.filter(p => p.active && (p.name.toLowerCase().includes(query) || p.brand.toLowerCase().includes(query) || p.sku.toLowerCase() === query || p.barcode === query));
+        if (matches.length === 1) {
+          window.addToCart(matches[0].id);
+          searchInput.value = '';
+          const grid = document.getElementById('posProductGrid');
+          if (grid) grid.innerHTML = renderProductGridHtml();
+        } else if (matches.length > 1) {
+          window.addToCart(matches[0].id);
+        }
+      }
+    };
   }
 
   if (clearBtn) {
@@ -116,7 +132,7 @@ function bindPosToolbarEvents() {
   }
 
   const payQuickBtn = document.getElementById('payQuickBtn');
-  if (payQuickBtn) payQuickBtn.onclick = () => window.openCashModal();
+  if (payQuickBtn) payQuickBtn.onclick = () => window.completePosSale('CASH');
 
   const payCashBtn = document.getElementById('payCashBtn');
   if (payCashBtn) payCashBtn.onclick = () => window.openCashModal();
@@ -197,7 +213,7 @@ window.openMpesaModal = function() {
       badgeEl.className = 'badge badge-warning';
       badgeEl.textContent = 'STK PUSH INITIATED';
     }
-    if (textEl) textEl.textContent = `📱 STK Push prompt sent to ${phone}. Waiting for customer PIN...`;
+    if (textEl) textEl.textContent = `📱 STK Push prompt sent to ${phone}...`;
     if (pushBtn) pushBtn.disabled = true;
 
     setTimeout(() => {
@@ -205,12 +221,12 @@ window.openMpesaModal = function() {
         badgeEl.className = 'badge badge-success';
         badgeEl.textContent = 'PAYMENT CONFIRMED';
       }
-      if (textEl) textEl.textContent = `✅ KSh ${total.toLocaleString()} received from ${phone}! Completing transaction...`;
+      if (textEl) textEl.textContent = `✅ KSh ${total.toLocaleString()} received via M-PESA from ${phone}!`;
       setTimeout(() => {
         window.closeModal('mpesaPaymentModal');
         window.completePosSale('M-PESA');
-      }, 700);
-    }, 1200);
+      }, 500);
+    }, 600);
   };
 
   if (pushBtn) pushBtn.onclick = triggerFlow;
@@ -228,20 +244,26 @@ function renderProductGridHtml() {
     return matchesCat && matchesSearch;
   });
 
-  return filtered.map(p => `
-    <div class="product-card" onclick="addToCart('${p.id}')">
-      <div class="product-badge-bar">
-        <span class="size-badge">${p.size}</span>
-        ${p.highValue ? '<span class="high-val-badge">HIGH VALUE</span>' : ''}
+  return filtered.map(p => {
+    const isOut = p.stock <= 0;
+    const isLow = p.stock > 0 && p.stock <= p.reorder;
+    return `
+      <div class="product-card ${isOut ? 'out-of-stock' : ''}" onclick="addToCart('${p.id}')" style="${isOut ? 'opacity:0.6; cursor:not-allowed;' : ''}">
+        <div class="product-badge-bar">
+          <span class="size-badge">${p.size}</span>
+          ${isOut ? '<span class="badge badge-danger" style="font-size:9.5px; padding:2px 6px;">OUT OF STOCK</span>' : p.highValue ? '<span class="high-val-badge">HIGH VALUE</span>' : ''}
+        </div>
+        <div class="product-brand">${p.brand}</div>
+        <div class="product-name">${p.name}</div>
+        <div class="product-meta-row">
+          <div class="product-price">KSh ${p.price.toLocaleString()}</div>
+          <div class="product-stock ${isOut ? 'out' : isLow ? 'low' : ''}" style="${isOut ? 'color:var(--danger); font-weight:800;' : isLow ? 'color:var(--yellow); font-weight:700;' : ''}">
+            ${isOut ? 'Out of Stock' : `Stk: ${p.stock}`}
+          </div>
+        </div>
       </div>
-      <div class="product-brand">${p.brand}</div>
-      <div class="product-name">${p.name}</div>
-      <div class="product-meta-row">
-        <div class="product-price">KSh ${p.price.toLocaleString()}</div>
-        <div class="product-stock ${p.stock <= p.reorder ? 'low' : ''}">Stk: ${p.stock}</div>
-      </div>
-    </div>
-  `).join('') || '<div style="grid-column: span 3; text-align:center; padding:40px; color:var(--text-faint);">No matching products found</div>';
+    `;
+  }).join('') || '<div style="grid-column: span 3; text-align:center; padding:40px; color:var(--text-faint);">No matching products found</div>';
 }
 
 function renderCartItemsHtml() {
@@ -256,10 +278,15 @@ function renderCartItemsHtml() {
       </div>
       <div class="cart-item-controls">
         <div style="font-size:11.5px; color:var(--text-dim);">@ KSh ${item.price.toLocaleString()}</div>
-        <div class="qty-picker">
-          <button class="qty-btn" onclick="updateCartQty(${idx}, -1)">-</button>
-          <span class="qty-val">${item.qty}</span>
-          <button class="qty-btn" onclick="updateCartQty(${idx}, 1)">+</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="qty-picker">
+            <button class="qty-btn" onclick="updateCartQty(${idx}, -1)">-</button>
+            <span class="qty-val">${item.qty}</span>
+            <button class="qty-btn" onclick="updateCartQty(${idx}, 1)">+</button>
+          </div>
+          <button class="btn btn-danger-soft btn-sm" onclick="removeFromCart(${idx})" title="Remove item" style="padding:4px 6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px; height:13px;"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
         </div>
       </div>
     </div>
@@ -269,11 +296,11 @@ function renderCartItemsHtml() {
 window.addToCart = function(productId) {
   const prod = store.products.find(p => p.id === productId);
   if (!prod) return;
-  if (prod.stock <= 0) return alert("Warning: Product is out of stock!");
+  if (prod.stock <= 0) return alert(`Warning: Product "${prod.brand} ${prod.name}" is currently out of stock!`);
   
   const existing = currentCart.find(item => item.productId === productId);
   if (existing) {
-    if (existing.qty + 1 > prod.stock) return alert("Cannot exceed available stock!");
+    if (existing.qty + 1 > prod.stock) return alert(`Cannot exceed available physical stock (${prod.stock} available)!`);
     existing.qty += 1;
   } else {
     currentCart.push({
@@ -285,6 +312,11 @@ window.addToCart = function(productId) {
       qty: 1
     });
   }
+  refreshCartUi();
+};
+
+window.removeFromCart = function(index) {
+  currentCart.splice(index, 1);
   refreshCartUi();
 };
 

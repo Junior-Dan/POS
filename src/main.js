@@ -875,12 +875,23 @@ function bindEvents() {
   };
 
   window.openAddStaffModal = () => {
+    const isOwner = store.currentUser?.role === 'owner';
     document.getElementById('staffModalTitle').textContent = "Add Staff Account";
     document.getElementById('staffEditId').value = "";
     document.getElementById('staffNameInput').value = "";
     document.getElementById('staffPhoneInput').value = "";
     document.getElementById('staffEmailInput').value = "";
     document.getElementById('staffPinInput').value = "";
+
+    const roleSelect = document.getElementById('staffRoleSelect');
+    if (roleSelect) {
+      roleSelect.innerHTML = `
+        ${isOwner ? '<option value="owner">OWNER (Business-wide full access)</option>' : ''}
+        ${isOwner ? '<option value="manager">MANAGER (Branch operational admin)</option>' : ''}
+        <option value="cashier" selected>CASHIER (POS & assigned drawer)</option>
+        <option value="inventory_officer">INVENTORY OFFICER (Stock & purchasing)</option>
+      `;
+    }
 
     const primSelect = document.getElementById('staffPrimaryBranchSelect');
     if (primSelect) {
@@ -899,12 +910,27 @@ function bindEvents() {
     const u = store.users.find(x => x.id === id);
     if (!u) return;
 
+    const isOwner = store.currentUser?.role === 'owner';
+    if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
+      return alert("Access Denied: Only the Business Owner can edit Manager or Owner staff accounts!");
+    }
+
     document.getElementById('staffModalTitle').textContent = "Edit Staff Account";
     document.getElementById('staffEditId').value = u.id;
     document.getElementById('staffNameInput').value = u.name;
     document.getElementById('staffPhoneInput').value = u.phone || "";
     document.getElementById('staffEmailInput').value = u.email || "";
-    document.getElementById('staffRoleSelect').value = u.role;
+
+    const roleSelect = document.getElementById('staffRoleSelect');
+    if (roleSelect) {
+      roleSelect.innerHTML = `
+        ${isOwner ? `<option value="owner" ${u.role === 'owner' ? 'selected' : ''}>OWNER (Business-wide full access)</option>` : ''}
+        ${isOwner ? `<option value="manager" ${u.role === 'manager' ? 'selected' : ''}>MANAGER (Branch operational admin)</option>` : ''}
+        <option value="cashier" ${u.role === 'cashier' ? 'selected' : ''}>CASHIER (POS & assigned drawer)</option>
+        <option value="inventory_officer" ${u.role === 'inventory_officer' ? 'selected' : ''}>INVENTORY OFFICER (Stock & purchasing)</option>
+      `;
+    }
+
     document.getElementById('staffStatusSelect').value = u.status || "ACTIVE";
     document.getElementById('staffPinInput').value = ""; // Masked PIN!
 
@@ -922,6 +948,7 @@ function bindEvents() {
   };
 
   window.submitSaveStaff = () => {
+    const isOwner = store.currentUser?.role === 'owner';
     const name = document.getElementById('staffNameInput').value.trim();
     const phone = document.getElementById('staffPhoneInput').value.trim();
     const email = document.getElementById('staffEmailInput').value.trim();
@@ -935,10 +962,17 @@ function bindEvents() {
 
     if (!name || !phone) return alert("Please enter Staff Name and Phone Number!");
 
+    if (!isOwner && (role === 'manager' || role === 'owner')) {
+      return alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
+    }
+
     const editId = document.getElementById('staffEditId').value;
     if (editId) {
       const u = store.users.find(x => x.id === editId);
       if (u) {
+        if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
+          return alert("Access Denied: Managers cannot modify Manager or Owner accounts!");
+        }
         u.name = name; u.phone = phone; u.email = email; u.role = role;
         u.primaryBranchId = primaryBranchId; u.additionalBranchIds = additionalBranchIds;
         u.status = status;
@@ -965,6 +999,10 @@ function bindEvents() {
   window.deleteStaff = (id) => {
     const u = store.users.find(x => x.id === id);
     if (!u) return;
+    const isOwner = store.currentUser?.role === 'owner';
+    if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
+      return alert("Access Denied: Only the Business Owner can deactivate Manager or Owner accounts!");
+    }
     if (confirm(`Deactivate staff account "${u.name}"?`)) {
       u.status = "INACTIVE";
       store.logAudit("Deactivated Staff Account", u.name, "-", "-", "Account Deactivated");
@@ -976,6 +1014,10 @@ function bindEvents() {
   window.openResetPinModal = (id) => {
     const u = store.users.find(x => x.id === id);
     if (!u) return;
+    const isOwner = store.currentUser?.role === 'owner';
+    if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
+      return alert("Access Denied: Only the Business Owner can reset Security PINs for Manager or Owner accounts!");
+    }
 
     document.getElementById('resetPinUserId').value = u.id;
     document.getElementById('resetPinTargetUserText').textContent = `Staff: ${u.name} (${u.role.toUpperCase()})`;
