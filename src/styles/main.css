@@ -207,11 +207,11 @@ svg.icon-lg { width: 24px; height: 24px; }
   justify-content: center;
 }
 
-.sidebar-header { padding: 14px 14px 12px; border-bottom: 1px solid var(--sidebar-border); }
+.sidebar-header { padding: 16px 14px 14px; border-bottom: 1px solid var(--sidebar-border); }
 .brand-box { display: flex; align-items: center; gap: 10px; }
 .brand-mark {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   background: #ffffff;
   border-radius: 8px;
   display: flex;
@@ -221,8 +221,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   flex-shrink: 0;
   box-shadow: 0 3px 8px rgba(0,0,0,0.25);
 }
-.brand-mark svg { width: 17px; height: 17px; color: #0f0f12; }
-.brand-title { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px; line-height: 1.1; }
+.brand-mark svg { width: 18px; height: 18px; color: #0f0f12; }
+.brand-title { font-size: 16px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px; line-height: 1.1; }
 .brand-subtitle { font-size: 9.5px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
 
 .branch-selector {
@@ -237,19 +237,19 @@ svg.icon-lg { width: 24px; height: 24px; }
   justify-content: space-between;
 }
 
-.sidebar-nav { padding: 12px 8px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.nav-section { display: flex; flex-direction: column; gap: 2px; }
-.nav-section-title { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-weight: 800; padding: 0 8px 4px; }
+.sidebar-nav { padding: 16px 10px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; }
+.nav-section { display: flex; flex-direction: column; gap: 4px; }
+.nav-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.9px; color: #64748b; font-weight: 800; padding: 0 8px 6px; }
 
-/* Smooth Compact Sidebar Nav Buttons */
+/* Smooth Squeezed Sideways, Vertically Spaced Nav Buttons */
 .nav-btn {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7.5px 10px;
-  border-radius: var(--radius-sm);
+  gap: 10px;
+  padding: 9.5px 10px;
+  border-radius: 8px;
   color: var(--sidebar-text);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   text-align: left;
   width: 100%;
@@ -258,7 +258,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.nav-btn svg { width: 16px; height: 16px; opacity: 0.8; color: var(--sidebar-text); transition: all 0.18s; flex-shrink: 0; }
+.nav-btn svg { width: 17px; height: 17px; opacity: 0.8; color: var(--sidebar-text); transition: all 0.18s; flex-shrink: 0; }
 .nav-btn:hover { background: var(--sidebar-hover); color: #ffffff; transform: translateX(2px); }
 .nav-btn:hover svg { opacity: 1; color: #ffffff; }
 .nav-btn.active {
@@ -272,11 +272,11 @@ svg.icon-lg { width: 24px; height: 24px; }
 .nav-btn.active svg { color: var(--accent); opacity: 1; transform: scale(1.05); }
 .nav-badge { margin-left: auto; background: var(--accent); color: #fff; font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 8px; }
 
-.sidebar-footer { padding: 10px 10px; border-top: 1px solid var(--sidebar-border); display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.3); }
+.sidebar-footer { padding: 14px 12px; border-top: 1px solid var(--sidebar-border); display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.3); }
 .user-card { display: flex; align-items: center; gap: 8px; }
-.user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #ffffff; font-weight: 800; font-size: 11.5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,86,48,0.4); }
+.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #ffffff; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,86,48,0.4); }
 .user-details { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.user-name-text { font-size: 12px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-name-text { font-size: 12.5px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-role-badge { font-size: 9.5px; color: var(--accent); font-weight: 700; text-transform: uppercase; }
 
 /* Main Wrapper & Modern Light Header */
