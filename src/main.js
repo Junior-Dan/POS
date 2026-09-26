@@ -332,9 +332,13 @@ function bindEvents() {
     if (window.loginEnteredPin.length < 4) {
       window.loginEnteredPin += num;
       updateLoginPinDots();
+      const err = document.getElementById('loginPinErrorMsg');
+      if (err) err.textContent = "";
     }
     if (window.loginEnteredPin.length === 4) {
-      window.submitLoginPin();
+      setTimeout(() => {
+        window.submitLoginPin();
+      }, 100);
     }
   };
 
@@ -377,22 +381,22 @@ function bindEvents() {
 
   window.submitLoginPin = () => {
     const pin = window.loginEnteredPin;
-    const selectedUserId = document.getElementById('loginUserSelect')?.value;
-
-    const userList = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
-    const normInput = normalizePin(pin);
-
-    let targetUser = null;
-
-    // 1. Direct PIN Matching across all active users
-    if (normInput) {
-      targetUser = userList.find(u => normalizePin(u.pin) === normInput);
+    if (!pin || pin.length < 4) {
+      return; // Prevent duplicate trigger on empty pin!
     }
 
-    // 2. Dropdown Selected User Fallback Matching
+    const selectedUserId = document.getElementById('loginUserSelect')?.value;
+    const userList = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
+
+    let targetUser = userList.find(u => String(u.pin).trim() === String(pin).trim());
+
+    if (!targetUser) {
+      targetUser = userList.find(u => normalizePin(u.pin) === normalizePin(pin));
+    }
+
     if (!targetUser && selectedUserId) {
       const u = userList.find(x => x.id === selectedUserId);
-      if (u && normalizePin(u.pin) === normInput) {
+      if (u && (String(u.pin).trim() === String(pin).trim() || normalizePin(u.pin) === normalizePin(pin))) {
         targetUser = u;
       }
     }
@@ -405,16 +409,38 @@ function bindEvents() {
       if (targetUser.primaryBranchId) {
         store.setActiveBranch(targetUser.primaryBranchId);
       }
+      window.loginEnteredPin = "";
+      updateLoginPinDots();
       window.closeModal('userLoginModal');
       initApp();
       store.logAudit("Staff Login Successful", targetUser.name, "-", targetUser.role, "Authenticated via PIN");
     } else {
       const err = document.getElementById('loginPinErrorMsg');
-      if (err) err.textContent = "Invalid PIN! Access Denied.";
+      if (err) err.textContent = `Invalid PIN (${pin})! Please try again.`;
       window.loginEnteredPin = "";
       updateLoginPinDots();
     }
   };
+
+  // Keyboard typing support for PIN Terminal
+  if (!window._keypadKeyboardListenerAttached) {
+    window._keypadKeyboardListenerAttached = true;
+    window.addEventListener('keydown', (e) => {
+      const modal = document.getElementById('userLoginModal');
+      if (modal && modal.classList.contains('active')) {
+        if (e.key >= '0' && e.key <= '9') {
+          window.pressLoginPin(e.key);
+        } else if (e.key === 'Backspace') {
+          if (window.loginEnteredPin.length > 0) {
+            window.loginEnteredPin = window.loginEnteredPin.slice(0, -1);
+            updateLoginPinDots();
+          }
+        } else if (e.key === 'Enter') {
+          window.submitLoginPin();
+        }
+      }
+    });
+  }
 
   window.lockTerminal = () => {
     sessionStorage.removeItem('cellar_session_auth');
