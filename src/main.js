@@ -1,4 +1,5 @@
 import { store } from './store/CellarStore.js';
+import { INITIAL_USERS } from './data/initialUsers.js';
 import { renderSidebar } from './components/Sidebar.js';
 import { renderTopbar } from './components/Topbar.js';
 import { renderDashboardView } from './views/DashboardView.js';
@@ -367,21 +368,31 @@ function bindEvents() {
     }
   }
 
+  function normalizePin(pinVal) {
+    if (pinVal === null || pinVal === undefined) return "";
+    const str = String(pinVal).trim();
+    if (str.length < 4 && !isNaN(str)) return str.padStart(4, '0');
+    return str;
+  }
+
   window.submitLoginPin = () => {
     const pin = window.loginEnteredPin;
     const selectedUserId = document.getElementById('loginUserSelect')?.value;
 
+    const userList = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
+    const normInput = normalizePin(pin);
+
     let targetUser = null;
 
-    // 1. Direct PIN Matching
-    if (pin) {
-      targetUser = store.users.find(u => u.pin === pin);
+    // 1. Direct PIN Matching across all active users
+    if (normInput) {
+      targetUser = userList.find(u => normalizePin(u.pin) === normInput);
     }
 
-    // 2. Dropdown Fallback Matching
+    // 2. Dropdown Selected User Fallback Matching
     if (!targetUser && selectedUserId) {
-      const u = store.users.find(x => x.id === selectedUserId);
-      if (u && u.pin === pin) {
+      const u = userList.find(x => x.id === selectedUserId);
+      if (u && normalizePin(u.pin) === normInput) {
         targetUser = u;
       }
     }

@@ -51,9 +51,18 @@ function updatePinDots() {
   }
 }
 
+function normalizePin(pinVal) {
+  if (pinVal === null || pinVal === undefined) return "";
+  const str = String(pinVal).trim();
+  if (str.length < 4 && !isNaN(str)) return str.padStart(4, '0');
+  return str;
+}
+
 export function submitPin() {
   const errEl = document.getElementById('pinErrorMsg');
-  const foundUser = store.users.find(u => u.pin === currentPinInput);
+  const userList = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
+  const normInput = normalizePin(currentPinInput);
+  const foundUser = userList.find(u => normalizePin(u.pin) === normInput);
   if (foundUser) {
     if (pendingPinCallback) pendingPinCallback(foundUser);
   } else {
