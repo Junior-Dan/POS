@@ -1,7 +1,12 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession, findUserByPin, requireRole } from './auth.js';
 
 const router = express.Router();
+
+router.use(authenticateSession);
+// Cashiers have no access to inventory operations.
+router.use(requireRole('owner', 'manager', 'inventory_officer'));
 
 // GET inventory stock movements log
 router.get('/movements', (req, res) => {
@@ -44,12 +49,16 @@ router.get('/movements', (req, res) => {
 router.post('/adjust', (req, res) => {
   const { productId, newStock, reason, userName, managerPin } = req.body;
 
+  if (req.authUser && req.authUser.role === 'cashier') {
+    return res.status(403).json({ error: "Access Denied: Cashiers are not permitted to adjust inventory quantities." });
+  }
+
   if (!productId || newStock === undefined || newStock < 0 || !reason) {
     return res.status(400).json({ error: "Product ID, valid non-negative stock quantity, and reason are required." });
   }
 
   if (managerPin) {
-    const mgr = db.prepare("SELECT name FROM users WHERE pin = ? AND active = 1 AND role IN ('owner', 'manager')").get(managerPin);
+    const mgr = findUserByPin(managerPin, ['owner', 'manager']);
     if (!mgr) {
       return res.status(403).json({ error: "Invalid Manager/Owner PIN for stock adjustment." });
     }
@@ -98,7 +107,7 @@ router.post('/damage', (req, res) => {
   }
 
   if (managerPin) {
-    const mgr = db.prepare("SELECT name FROM users WHERE pin = ? AND active = 1 AND role IN ('owner', 'manager')").get(managerPin);
+    const mgr = findUserByPin(managerPin, ['owner', 'manager']);
     if (!mgr) {
       return res.status(403).json({ error: "Invalid Manager PIN." });
     }

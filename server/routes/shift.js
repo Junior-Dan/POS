@@ -1,7 +1,11 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession, requireRole } from './auth.js';
 
 const router = express.Router();
+router.use(authenticateSession);
+// Cashiers, managers and owners operate shifts/drawers; inventory officers do not.
+router.use(requireRole('owner', 'manager', 'cashier'));
 
 // GET active shift
 router.get('/current', (req, res) => {

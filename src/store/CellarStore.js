@@ -3,6 +3,30 @@ import { INITIAL_USERS } from '../data/initialUsers.js';
 import { INITIAL_SUPPLIERS } from '../data/initialSuppliers.js';
 import { INITIAL_BRANCHES } from '../data/initialBranches.js';
 
+// ---------------------------------------------------------------------------
+// Attach the session token (Bearer) to every same-origin /api request so the
+// backend can enforce authentication, role and branch isolation. Runs once at
+// module load, before the store issues its first fetch.
+// ---------------------------------------------------------------------------
+if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
+  window._cellarFetchPatched = true;
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (url.includes('/api/')) {
+        const token = localStorage.getItem('cellar_token');
+        if (token) {
+          const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined) || {});
+          if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+          init = { ...init, headers };
+        }
+      }
+    } catch (e) { /* fall through to normal fetch */ }
+    return _origFetch(input, init);
+  };
+}
+
 export class CellarStore {
   constructor() {
     this.listeners = [];
@@ -11,6 +35,10 @@ export class CellarStore {
     this.suppliers = INITIAL_SUPPLIERS;
     this.branches = INITIAL_BRANCHES;
     this.activeBranchId = "B1";
+    // Branch-scoped login roster (populated from the public branch-info
+    // endpoint — used to render the "Who are you?" account picker).
+    this.loginUsers = [];
+    this.loginBranch = null;
     this.sales = [];
     this.stockMovements = [];
     this.cashMovements = [];
@@ -53,7 +81,9 @@ export class CellarStore {
       openingFloat: 5000,
       status: "ACTIVE"
     };
-    this.currentUser = this.users[0];
+    // No implicit login: unauthenticated until a valid session token is
+    // restored or a PIN login succeeds.
+    this.currentUser = null;
 
 
     this.businessProfile = {
@@ -108,7 +138,8 @@ export class CellarStore {
       theme: "dark"
     };
 
-    this.initStore();
+    // Expose readiness so the UI can render once the session/roster is loaded.
+    this.readyPromise = this.initStore();
     this.setupRealtimeSync();
   }
 
@@ -247,8 +278,39 @@ export class CellarStore {
     return null;
   }
 
-  async initStore() {
-    this.loadLocalBackup();
+  // Public branch roster for the login screen (no auth token required).
+  async fetchBranchLogin() {
+    let code = '';
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      code = params.get('branch') || '';
+    }
+    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}`);
+    if (data && data.branch) {
+      this.loginBranch = data.branch;
+      this.loginUsers = Array.isArray(data.users) ? data.users : [];
+      this.notify();
+    }
+  }
+
+  // Restore a persisted session (page reload) from the stored token.
+  async restoreSession() {
+    const token = (typeof localStorage !== 'undefined') ? localStorage.getItem('cellar_token') : null;
+    if (!token) return false;
+    const data = await this.safeFetchJson('/api/auth/me');
+    if (data && data.user && data.user.id) {
+      this.currentUser = data.user;
+      try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
+      return true;
+    }
+    // Token invalid/expired — clear it.
+    try { localStorage.removeItem('cellar_token'); sessionStorage.removeItem('cellar_session_auth'); } catch (e) {}
+    this.currentUser = null;
+    return false;
+  }
+
+  // Fetch all role/branch-protected resources (only meaningful once logged in).
+  async loadAuthenticatedData() {
     try {
       await Promise.all([
         this.fetchUsers(),
@@ -268,6 +330,16 @@ export class CellarStore {
     }
   }
 
+  async initStore() {
+    this.loadLocalBackup();
+    // Load the public branch roster first so the login screen is populated
+    // even before the user authenticates.
+    await this.fetchBranchLogin();
+    // Restore any prior session, then load protected data if authenticated.
+    await this.restoreSession();
+    await this.loadAuthenticatedData();
+  }
+
   seedFallback() {
     this.products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
     this.users = JSON.parse(JSON.stringify(INITIAL_USERS));
@@ -280,12 +352,11 @@ export class CellarStore {
 
   // --- API FETCHERS ---
   async fetchUsers() {
+    // Staff roster is protected (owner/manager only) — silently ignored for
+    // other roles. Never auto-assigns currentUser (that would bypass login).
     const data = await this.safeFetchJson('/api/auth/users');
-    if (data) {
+    if (data && Array.isArray(data)) {
       this.users = data;
-      if (!this.currentUser && this.users.length > 0) {
-        this.currentUser = this.users[0];
-      }
       this.notify();
     }
   }

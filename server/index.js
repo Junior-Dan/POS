@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { initDb } from './db.js';
 import { seedDatabase } from './seedData.js';
 
-import authRoutes from './routes/auth.js';
+import authRoutes, { migratePins } from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import salesRoutes from './routes/sales.js';
 import shiftRoutes from './routes/shift.js';
@@ -30,6 +30,7 @@ app.use(express.json());
 // Initialize DB schema & Seed clean data if needed
 initDb();
 seedDatabase();
+migratePins(); // strip any plaintext PINs, backfill secure hashes
 
 // API Health Check
 app.get('/api/health', (req, res) => {

@@ -1,7 +1,10 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession, requireRole } from './auth.js';
 
 const router = express.Router();
+router.use(authenticateSession);
+router.use(requireRole('owner', 'manager', 'inventory_officer'));
 
 // GET purchases list
 router.get('/', (req, res) => {

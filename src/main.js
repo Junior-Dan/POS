@@ -41,7 +41,9 @@ import { renderResetPinModal } from './components/ResetPinModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 let activeViewId = 'dashboard';
-window.currentAuthTab = 'setup'; // Default view on http://localhost:3001/ is Create Account
+// Auth tab is chosen at render time: LOGIN when a branch roster exists,
+// otherwise CREATE ACCOUNT (first-run owner setup). null = auto-select.
+window.currentAuthTab = null;
 
 window.switchAuthTab = (tab) => {
   window.currentAuthTab = tab;
@@ -55,9 +57,16 @@ export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
 
-  // If unauthenticated or no current user, render standalone full-screen Auth Landing Page (dashboard hidden, default to setup)
+  // If unauthenticated, render the standalone full-screen Auth Landing Page.
+  // Default to the LOGIN tab when a branch roster exists (an established
+  // business), otherwise the CREATE ACCOUNT tab for first-run owner setup.
   if (!store.currentUser || !store.currentUser.id) {
-    root.innerHTML = renderAuthLandingScreen(window.currentAuthTab || 'setup');
+    const hasRoster = store.loginUsers && store.loginUsers.length > 0;
+    const tab = window.currentAuthTab || (hasRoster ? 'login' : 'setup');
+    root.innerHTML = renderAuthLandingScreen(tab);
+    // bindEvents defines the login/PIN handlers (window.submitLoginPin etc.);
+    // it must run here too since we return before the main binding below.
+    bindEvents();
     return;
   }
 
@@ -382,8 +391,10 @@ function bindEvents() {
 
   window.submitInitialSetup = async () => {
     const name = document.getElementById('setupNameInput').value.trim();
+    const phone = document.getElementById('setupPhoneInput')?.value.trim() || "";
     const email = document.getElementById('setupEmailInput').value.trim();
     const pin = document.getElementById('setupPinInput').value.trim();
+    const confirmPin = document.getElementById('setupConfirmPinInput')?.value.trim() || "";
     const businessName = document.getElementById('setupBizNameInput').value.trim() || "Cisco Wines & Spirits";
     const branchName = document.getElementById('setupBranchNameInput')?.value.trim() || "Nairobi CBD Main";
     const branchCode = document.getElementById('setupBranchCodeInput')?.value.trim() || "cbd";
@@ -397,21 +408,31 @@ function bindEvents() {
       if (err) err.textContent = "Please enter a 4-digit Security PIN!";
       return;
     }
+    if (confirmPin && confirmPin !== pin) {
+      if (err) err.textContent = "Security PIN and Confirm PIN do not match!";
+      return;
+    }
 
     try {
       const res = await fetch('/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, pin, businessName, branchName, branchCode })
+        body: JSON.stringify({ name, phone, email, pin, confirmPin, businessName, branchName, branchCode })
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to setup account");
       }
 
-      await store.fetchUsers();
-      await store.fetchSettings();
+      if (data.token) {
+        localStorage.setItem('cellar_token', data.token);
+        sessionStorage.setItem('cellar_session_auth', 'true');
+      }
+
       store.currentUser = data.user;
+      if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
+      await store.fetchBranchLogin();
+      await store.loadAuthenticatedData();
       store.saveLocalBackup();
 
       if (branchCode && window.history) {
@@ -427,14 +448,20 @@ function bindEvents() {
   };
 
   window.openStaffLoginModal = (isMandatory = false) => {
-    if (!store.users || store.users.length === 0) {
+    // Use the branch-scoped roster (public) so the picker lists only this
+    // branch's staff (plus org owners), never other branches' users.
+    const roster = (store.loginUsers && store.loginUsers.length > 0) ? store.loginUsers : (store.users || []);
+    if (!roster || roster.length === 0) {
       window.openInitialSetupModal();
       return;
     }
     window._isSubmittingPin = false;
     const sel = document.getElementById('loginUserSelect');
     if (sel) {
-      sel.innerHTML = store.users.map(u => `<option value="${u.id}" ${u.id === store.currentUser.id ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
+      const currentId = store.currentUser?.id;
+      sel.innerHTML = roster
+        .filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE')
+        .map(u => `<option value="${u.id}" ${u.id === currentId ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
     }
     window.loginEnteredPin = "";
     updateLoginPinDots();
@@ -508,7 +535,7 @@ function bindEvents() {
     return str;
   }
 
-  window.submitLoginPin = () => {
+  window.submitLoginPin = async () => {
     if (window._isSubmittingPin) return;
     const pin = window.loginEnteredPin;
     if (!pin || pin.length < 4) {
@@ -518,46 +545,54 @@ function bindEvents() {
     }
 
     window._isSubmittingPin = true;
-
-    // Build complete user list with PINs merged from INITIAL_USERS if API stripped pin field
-    const rawUsers = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
-    const userList = rawUsers.map(u => {
-      const p = u.pin || INITIAL_USERS.find(iu => iu.id === u.id || iu.name.toLowerCase() === u.name.toLowerCase())?.pin;
-      return { ...u, pin: p };
-    });
-
     const selectedUserId = document.getElementById('loginUserSelect')?.value;
+    const branchCode = store.loginBranch?.code || null;
 
-    let targetUser = userList.find(u => u.pin && String(u.pin).trim() === String(pin).trim());
-
-    if (!targetUser) {
-      targetUser = userList.find(u => u.pin && normalizePin(u.pin) === normalizePin(pin));
-    }
-
-    if (!targetUser && selectedUserId) {
-      const u = userList.find(x => x.id === selectedUserId);
-      if (u && u.pin && (String(u.pin).trim() === String(pin).trim() || normalizePin(u.pin) === normalizePin(pin))) {
-        targetUser = u;
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin, userId: selectedUserId, branchCode })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Invalid PIN! Access Denied.");
       }
-    }
 
-    if (targetUser) {
-      store.currentUser = targetUser;
-      sessionStorage.setItem('cellar_session_auth', 'true');
-      sessionStorage.setItem('cellar_authenticated_user', targetUser.id);
-
-      if (targetUser.primaryBranchId) {
-        store.setActiveBranch(targetUser.primaryBranchId);
+      if (data.token) {
+        localStorage.setItem('cellar_token', data.token);
+        sessionStorage.setItem('cellar_session_auth', 'true');
       }
+
+      store.currentUser = data.user;
+      sessionStorage.setItem('cellar_authenticated_user', data.user.id);
+
+      // Bind the active branch to the authenticated user (non-owners).
+      if (data.user.branchId) {
+        store.activeBranchId = data.user.branchId;
+      }
+
+      // Role-based view redirection (Requirement #6)
+      const roleMap = {
+        owner: 'dashboard',
+        manager: 'dashboard',
+        inventory_officer: 'inventory',
+        cashier: 'pos'
+      };
+      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+
       window.loginEnteredPin = "";
       window._isSubmittingPin = false;
       updateLoginPinDots();
       window.closeModal('userLoginModal');
+
+      // Now that we hold a token, load the role/branch-protected data.
+      await store.loadAuthenticatedData();
       initApp();
-      store.logAudit("Staff Login Successful", targetUser.name, "-", targetUser.role, "Authenticated via PIN");
-    } else {
+      store.logAudit("Staff Login Successful", data.user.name, "-", data.user.role, "Authenticated via PIN");
+    } catch (e) {
       const err = document.getElementById('loginPinErrorMsg');
-      if (err) err.textContent = "Invalid PIN! Access Denied.";
+      if (err) err.textContent = e.message || "Invalid PIN! Access Denied.";
       window.loginEnteredPin = "";
       window._isSubmittingPin = false;
       updateLoginPinDots();
@@ -587,9 +622,20 @@ function bindEvents() {
     });
   }
 
-  window.lockTerminal = () => {
-    sessionStorage.removeItem('cellar_session_auth');
-    window.openStaffLoginModal(true);
+  window.lockTerminal = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+    try {
+      localStorage.removeItem('cellar_token');
+      sessionStorage.removeItem('cellar_session_auth');
+      sessionStorage.removeItem('cellar_authenticated_user');
+    } catch (e) {}
+    store.currentUser = null;
+    // Refresh the branch roster and return to the standalone login screen.
+    await store.fetchBranchLogin();
+    window.currentAuthTab = 'login';
+    initApp();
   };
 
   const switchBtn = document.getElementById('switchUserBtn');
@@ -1278,7 +1324,7 @@ function bindEvents() {
     window.openModal('staffModal');
   };
 
-  window.submitSaveStaff = () => {
+  window.submitSaveStaff = async () => {
     const isOwner = store.currentUser?.role === 'owner';
     const name = document.getElementById('staffNameInput').value.trim();
     const phone = document.getElementById('staffPhoneInput').value.trim();
@@ -1288,9 +1334,6 @@ function bindEvents() {
     const status = document.getElementById('staffStatusSelect').value;
     const pin = document.getElementById('staffPinInput').value.trim();
 
-    const addSelect = document.getElementById('staffAdditionalBranchesSelect');
-    const additionalBranchIds = Array.from(addSelect.selectedOptions).map(opt => opt.value);
-
     if (!name || !phone) return alert("Please enter Staff Name and Phone Number!");
 
     if (!isOwner && (role === 'manager' || role === 'owner')) {
@@ -1298,36 +1341,36 @@ function bindEvents() {
     }
 
     const editId = document.getElementById('staffEditId').value;
-    if (editId) {
-      const u = store.users.find(x => x.id === editId);
-      if (u) {
-        if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
-          return alert("Access Denied: Managers cannot modify Manager or Owner accounts!");
-        }
-        u.name = name; u.phone = phone; u.email = email; u.role = role;
-        u.primaryBranchId = primaryBranchId; u.additionalBranchIds = additionalBranchIds;
-        u.status = status;
-        if (pin && pin.length === 4) u.pin = pin;
+    try {
+      if (editId) {
+        const res = await fetch(`/api/auth/users/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed to update staff");
         store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
+      } else {
+        if (!pin || pin.length < 4) return alert("Please enter a 4-digit Secret Security PIN!");
+        const res = await fetch('/api/auth/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed to create staff");
+        store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
       }
-    } else {
-      if (!pin || pin.length !== 4) return alert("Please enter a 4-digit Secret Security PIN!");
-      const newStaff = {
-        id: `U${store.users.length + 1}`,
-        name, phone, email, role, primaryBranchId, additionalBranchIds, status, pin,
-        permissions: []
-      };
-      store.users.push(newStaff);
-      store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
-    }
 
-    store.save();
-    window.closeModal('staffModal');
-    initApp();
-    alert("Staff member configuration saved successfully!");
+      await store.fetchUsers();
+      window.closeModal('staffModal');
+      initApp();
+      alert("Staff member configuration saved successfully!");
+    } catch (e) {
+      alert("Error saving staff account: " + e.message);
+    }
   };
 
-  window.deleteStaff = (id) => {
+  window.deleteStaff = async (id) => {
     const u = store.users.find(x => x.id === id);
     if (!u) return;
     const isOwner = store.currentUser?.role === 'owner';
@@ -1335,10 +1378,18 @@ function bindEvents() {
       return alert("Access Denied: Only the Business Owner can deactivate Manager or Owner accounts!");
     }
     if (confirm(`Deactivate staff account "${u.name}"?`)) {
-      u.status = "INACTIVE";
-      store.logAudit("Deactivated Staff Account", u.name, "-", "-", "Account Deactivated");
-      store.save();
-      initApp();
+      try {
+        await fetch(`/api/auth/users/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: "INACTIVE", active: 0 })
+        });
+        store.logAudit("Deactivated Staff Account", u.name, "-", "-", "Account Deactivated");
+        await store.fetchUsers();
+        initApp();
+      } catch (e) {
+        alert("Error deactivating staff: " + e.message);
+      }
     }
   };
 
@@ -1357,26 +1408,28 @@ function bindEvents() {
     window.openModal('resetPinModal');
   };
 
-  window.submitResetPin = () => {
+  window.submitResetPin = async () => {
     const userId = document.getElementById('resetPinUserId').value;
     const newPin = document.getElementById('newPinInput').value.trim();
     const confirmPin = document.getElementById('confirmNewPinInput').value.trim();
 
-    if (!newPin || newPin.length !== 4 || isNaN(newPin)) {
-      return alert("PIN must be exactly 4 digits!");
-    }
+    if (!newPin || newPin.length < 4) return alert("Please enter a 4-digit new PIN!");
+    if (confirmPin && newPin !== confirmPin) return alert("New PIN and Confirm PIN do not match!");
 
-    if (newPin !== confirmPin) {
-      return alert("PIN confirmation does not match!");
-    }
+    try {
+      const res = await fetch('/api/auth/reset-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, newPin, confirmPin })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to reset PIN");
 
-    const u = store.users.find(x => x.id === userId);
-    if (u) {
-      u.pin = newPin;
-      store.logAudit("Reset Security PIN", u.name, "••••", "••••", "Staff Security PIN Reset (Masked)");
-      store.save();
+      await store.fetchUsers();
       window.closeModal('resetPinModal');
-      alert(`Security PIN updated successfully for ${u.name}!`);
+      alert("Security PIN reset successfully!");
+    } catch (e) {
+      alert("Error resetting PIN: " + e.message);
     }
   };
 
@@ -1504,8 +1557,15 @@ export function switchTab(viewId) {
 window.switchTab = switchTab;
 window.renderAllApp = initApp;
 
-// Bootstrap
-document.addEventListener('DOMContentLoaded', initApp);
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
+// Bootstrap: paint immediately, then re-render once the store has resolved the
+// session/branch roster (session restore + branch-info are async).
+function bootstrap() {
   initApp();
+  if (store.readyPromise && typeof store.readyPromise.then === 'function') {
+    store.readyPromise.then(() => initApp()).catch(() => {});
+  }
+}
+document.addEventListener('DOMContentLoaded', bootstrap);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  bootstrap();
 }

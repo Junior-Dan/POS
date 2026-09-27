@@ -105,5 +105,57 @@ export function initDb() {
     throw new Error(`SQLite database is missing: ${databasePath}`);
   }
   db.exec('PRAGMA foreign_keys = ON; PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;');
+
+  // Ensure organizations table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Ensure branches table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS branches (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT,
+      name TEXT NOT NULL,
+      code TEXT UNIQUE NOT NULL,
+      location TEXT,
+      phone TEXT,
+      status TEXT DEFAULT 'ACTIVE',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Migration helper for adding missing columns to users table safely
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!userColumns.includes('organization_id')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('branch_id')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('phone')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('status')) {
+    try { db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE';"); } catch (e) {}
+  }
+  if (!userColumns.includes('created_by')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN created_by TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('pin_hash')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('updated_at')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN updated_at DATETIME;'); } catch (e) {}
+  }
+
   console.log(`SQLite database engine active: ${databasePath}`);
 }

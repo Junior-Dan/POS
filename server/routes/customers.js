@@ -1,7 +1,9 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession } from './auth.js';
 
 const router = express.Router();
+router.use(authenticateSession); // any authenticated staff (POS needs customer lookup)
 
 // GET all customers
 router.get('/', (req, res) => {

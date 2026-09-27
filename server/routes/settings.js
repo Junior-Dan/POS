@@ -1,7 +1,17 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession } from './auth.js';
 
 const router = express.Router();
+router.use(authenticateSession);
+// Any authenticated user may read settings (business profile, receipt config
+// etc. are needed app-wide); only owner/manager may change them.
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && !['owner', 'manager'].includes(req.authUser.role)) {
+    return res.status(403).json({ error: 'Only Owner or Manager may change settings.' });
+  }
+  next();
+});
 
 // GET all settings
 router.get('/', (req, res) => {

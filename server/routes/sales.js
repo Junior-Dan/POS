@@ -1,15 +1,25 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession, findUserByPin, canAccessBranch } from './auth.js';
 
 const router = express.Router();
+
+router.use(authenticateSession);
 
 // GET sales list with filters
 router.get('/', (req, res) => {
   try {
-    const { startDate, endDate, cashierId, paymentMethod, customerId } = req.query;
+    const { startDate, endDate, cashierId, paymentMethod, customerId, branchId: requestedBranch } = req.query;
 
     let sql = `SELECT * FROM sales WHERE 1=1`;
     const params = [];
+
+    // Enforce branch isolation for non-owners
+    const branchId = (req.authUser && req.authUser.role !== 'owner') ? req.authUser.branchId : (requestedBranch || null);
+    if (branchId) {
+      sql += ` AND branch_id = ?`;
+      params.push(branchId);
+    }
 
     if (startDate) {
       sql += ` AND created_at >= ?`;
@@ -165,6 +175,11 @@ router.post('/', (req, res) => {
     // 2. Generate Receipt Number and Sale ID
     const receiptNo = `REC-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
     const saleId = `SALE-${Date.now()}`;
+    // Never trust a client-supplied branch for a scoped user: bind the sale to
+    // the authenticated user's branch (owners may transact on any branch).
+    const effectiveBranch = (req.authUser && req.authUser.role !== 'owner' && req.authUser.branchId)
+      ? req.authUser.branchId
+      : (branchId || (req.authUser && req.authUser.branchId) || 'B1');
     const cashierId = cashier?.id || 'U3';
     const cashierName = cashier?.name || 'John Omondi';
     const customerId = customer?.id || 'C1';
@@ -182,7 +197,7 @@ router.post('/', (req, res) => {
     `).run(
       saleId,
       receiptNo,
-      branchId || 'B1',
+      effectiveBranch,
       cashierId,
       cashierName,
       customerId,
@@ -293,11 +308,18 @@ router.post('/:id/refund', (req, res) => {
     return res.status(400).json({ error: "Manager/Owner PIN authentication required for refunds!" });
   }
 
-  // Verify Manager PIN
-  const manager = db.prepare("SELECT * FROM users WHERE pin = ? AND active = 1 AND role IN ('owner', 'manager')").get(managerPin);
+  // Verify Manager/Owner PIN against secure hashes (no plaintext comparison).
+  const manager = findUserByPin(managerPin, ['owner', 'manager']);
 
   if (!manager) {
     return res.status(403).json({ error: "Invalid Manager PIN or insufficient permissions for refund." });
+  }
+
+  // Branch isolation: the approving manager must belong to the sale's branch
+  // (owners are organization-wide and may approve any branch).
+  const saleForBranch = db.prepare('SELECT branch_id FROM sales WHERE id = ? OR receipt_no = ?').get(id, id);
+  if (saleForBranch && manager.role.toLowerCase() !== 'owner' && manager.branch_id !== saleForBranch.branch_id) {
+    return res.status(403).json({ error: "Refund approver does not belong to this branch." });
   }
 
   const processRefundTransaction = db.transaction(() => {

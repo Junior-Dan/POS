@@ -2,8 +2,10 @@ import { store } from '../store/CellarStore.js';
 
 export function renderAuthLandingScreen(activeTab = 'login') {
   const isSetup = activeTab === 'setup';
-  const activeBranch = store.getActiveBranch() || { name: 'Nairobi CBD Main', code: 'cbd' };
-  const userList = store.users || [];
+  // Prefer the branch-scoped roster resolved from the branch URL; fall back to
+  // the active branch only for display.
+  const activeBranch = store.loginBranch || store.getActiveBranch() || { name: 'Main Branch', code: 'cbd' };
+  const userList = (store.loginUsers && store.loginUsers.length > 0) ? store.loginUsers : (store.users || []);
 
   return `
     <div class="welcome-setup-container">
@@ -31,10 +33,19 @@ export function renderAuthLandingScreen(activeTab = 'login') {
           <!-- LOG IN TAB -->
           <div class="auth-mode-content">
             <div style="text-align:center; margin-bottom:16px;">
-              <div style="font-size:12px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
-                📍 REGISTER TERMINAL: ${activeBranch.name.toUpperCase()}
+              <div style="font-size:13px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
+                📍 ${activeBranch.name.toUpperCase()} TERMINAL
               </div>
-              <div style="font-size:12px; color:#94a3b8;">Type your 4-digit PIN to unlock register & dashboard</div>
+              <div style="font-size:12px; color:#94a3b8;">Select your staff account and enter your 4-digit Security PIN</div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:16px;">
+              <label class="form-label" style="font-weight:700; color:#cbd5e1; font-size:12px; text-transform:uppercase;">Who are you?</label>
+              <select class="form-select" id="loginUserSelect" style="background:#0f0f12; color:#fff; border:1.5px solid rgba(255,255,255,0.2); font-weight:700; font-size:13px; padding:10px; border-radius:8px;">
+                ${userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE').map(u => `
+                  <option value="${u.id}">${u.name} — ${u.role.toUpperCase()}</option>
+                `).join('')}
+              </select>
             </div>
 
             <div class="pin-display-container" style="justify-content:center; margin-bottom:18px;">
@@ -64,17 +75,6 @@ export function renderAuthLandingScreen(activeTab = 'login') {
 
             <div id="loginPinErrorMsg" style="color:#ef4444; font-size:12px; text-align:center; font-weight:700; min-height:16px; margin-top:12px;"></div>
 
-            ${userList.length > 0 ? `
-              <details style="border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; margin-top:12px; font-size:12px; color:#94a3b8;">
-                <summary style="cursor:pointer; font-weight:700; color:var(--accent);">Select Staff Account (Optional)</summary>
-                <div class="form-group" style="margin-top:8px;">
-                  <select class="form-select" id="loginUserSelect" style="background:#0f0f12; color:#fff; border-color:rgba(255,255,255,0.15); font-weight:700; font-size:12px;">
-                    ${userList.map(u => `<option value="${u.id}">${u.name} (${u.role.toUpperCase()})</option>`).join('')}
-                  </select>
-                </div>
-              </details>
-            ` : ''}
-
             <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:16px; padding-top:14px; text-align:center;">
               <span style="font-size:12px; color:#94a3b8;">Need to register a new business account?</span>
               <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthTab('setup')" style="margin-left:8px; font-size:11.5px;">Create Account</button>
@@ -90,29 +90,40 @@ export function renderAuthLandingScreen(activeTab = 'login') {
 
             <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <div class="form-group">
-                <label class="form-label">Owner Full Name</label>
+                <label class="form-label">Owner Full Name *</label>
                 <input type="text" class="form-input" id="setupNameInput" placeholder="e.g. David Kamau" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Email Address (Optional)</label>
-                <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke">
+                <label class="form-label">Phone Number *</label>
+                <input type="tel" class="form-input" id="setupPhoneInput" placeholder="e.g. 0722 000 111" required>
               </div>
             </div>
 
             <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <div class="form-group">
-                <label class="form-label">Initial Main Branch Name</label>
-                <input type="text" class="form-input" id="setupBranchNameInput" placeholder="e.g. Nairobi CBD Main" value="${activeBranch.name || 'Nairobi CBD Main'}" required>
+                <label class="form-label">Email Address (Optional)</label>
+                <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke">
               </div>
               <div class="form-group">
-                <label class="form-label">Branch Code / URL Slug</label>
-                <input type="text" class="form-input" id="setupBranchCodeInput" placeholder="e.g. cbd" value="${activeBranch.code || 'cbd'}" required>
+                <label class="form-label">Initial Main Branch Name</label>
+                <input type="text" class="form-input" id="setupBranchNameInput" placeholder="e.g. Nairobi CBD Main" value="${activeBranch.name || 'Nairobi CBD Main'}" required>
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Create 4-Digit Owner Security PIN</label>
-              <input type="password" maxlength="4" class="form-input" id="setupPinInput" placeholder="0000" style="letter-spacing:6px; font-size:22px; text-align:center; font-weight:800;" required>
+              <label class="form-label">Branch Code / URL Slug</label>
+              <input type="text" class="form-input" id="setupBranchCodeInput" placeholder="e.g. cbd" value="${activeBranch.code || 'cbd'}" required>
+            </div>
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Create 4-Digit Owner Security PIN *</label>
+                <input type="password" maxlength="4" class="form-input" id="setupPinInput" placeholder="••••" style="letter-spacing:6px; font-size:20px; text-align:center; font-weight:800;" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Confirm Security PIN *</label>
+                <input type="password" maxlength="4" class="form-input" id="setupConfirmPinInput" placeholder="••••" style="letter-spacing:6px; font-size:20px; text-align:center; font-weight:800;" required>
+              </div>
             </div>
 
             <div id="setupErrorMsg" class="setup-error-msg"></div>

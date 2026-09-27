@@ -1,7 +1,17 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession } from './auth.js';
 
 const router = express.Router();
+router.use(authenticateSession);
+// All roles may read the catalogue (cashiers need it to sell); only
+// owner/manager/inventory_officer may modify products.
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && req.authUser.role === 'cashier') {
+    return res.status(403).json({ error: 'Cashiers are not permitted to modify product data.' });
+  }
+  next();
+});
 
 // GET all active products
 router.get('/', (req, res) => {

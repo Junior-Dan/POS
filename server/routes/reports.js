@@ -1,7 +1,11 @@
 import express from 'express';
 import { db } from '../db.js';
+import { authenticateSession, requireRole } from './auth.js';
 
 const router = express.Router();
+router.use(authenticateSession);
+// Organization-wide / branch reports are management-only.
+router.use(requireRole('owner', 'manager'));
 const kenyaDate = value => new Date(value).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
 
 function completedSales(date) {
