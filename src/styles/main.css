@@ -1260,3 +1260,124 @@ svg.icon-lg { width: 24px; height: 24px; }
   background: var(--accent-hover);
   box-shadow: 0 4px 14px rgba(255, 86, 48, 0.4);
 }
+
+/* Full-Screen Welcome Setup Landing Page */
+.welcome-setup-container {
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top right, rgba(255, 86, 48, 0.12), transparent 45%),
+              radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.08), transparent 45%),
+              #0f0f12;
+  padding: 24px;
+}
+
+.welcome-setup-card {
+  width: 100%;
+  max-width: 500px;
+  background: #18181c;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 40px 36px;
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  animation: fadeInScale 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.welcome-setup-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.welcome-logo-badge {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent) 0%, #ea431b 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+  box-shadow: 0 10px 24px rgba(255, 86, 48, 0.35);
+}
+
+.welcome-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.welcome-subtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.welcome-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.welcome-setup-form .form-label {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.welcome-setup-form .form-input {
+  background: #0f0f12;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.welcome-setup-form .form-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 86, 48, 0.2);
+  outline: none;
+}
+
+.setup-error-msg {
+  color: #ef4444;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+  min-height: 18px;
+}
+
+.welcome-submit-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  margin-top: 8px;
+  background: var(--accent);
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.welcome-submit-btn:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 8px 20px rgba(255, 86, 48, 0.4);
+  transform: translateY(-1px);
+}

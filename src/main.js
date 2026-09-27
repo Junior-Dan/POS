@@ -38,12 +38,19 @@ import { renderCustomerModal } from './components/CustomerModal.js';
 import { renderBranchModal } from './components/BranchModal.js';
 import { renderStaffModal } from './components/StaffModal.js';
 import { renderResetPinModal } from './components/ResetPinModal.js';
+import { renderSetupScreen } from './components/SetupScreen.js';
 
 let activeViewId = 'dashboard';
 
 export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
+
+  // If no users exist, render standalone full-screen Welcome Setup Landing Page (dashboard hidden)
+  if (!store.users || store.users.length === 0) {
+    root.innerHTML = renderSetupScreen();
+    return;
+  }
 
   if (!store.canUserAccessView(store.currentUser, activeViewId)) {
     const allowedModules = ['pos', 'sales', 'shift', 'customers', 'dashboard', 'products', 'inventory', 'suppliers', 'purchases', 'expenses', 'compliance', 'reports', 'audit', 'settings'];
