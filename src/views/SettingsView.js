@@ -137,8 +137,8 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                 <tr>
                   <th>BRANCH NAME</th>
                   <th>BRANCH CODE</th>
+                  <th>DIRECT BRANCH LOGIN URL</th>
                   <th>LOCATION</th>
-                  <th>PHONE</th>
                   <th>MANAGER</th>
                   <th>STATUS</th>
                   <th>ACTIONS</th>
@@ -149,6 +149,9 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                   const isOwner = store.currentUser?.role === 'owner';
                   const manager = isOwner ? users.find(u => u.id === b.managerId) : (b.managerId === store.currentUser?.id ? store.currentUser : null);
                   const subLabel = idx === 0 ? 'Main' : 'Branch';
+                  const slug = (b.code || b.id).toLowerCase();
+                  const directUrl = `${window.location.origin}/?branch=${slug}`;
+
                   return `
                     <tr>
                       <td>
@@ -163,8 +166,18 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                         </div>
                       </td>
                       <td><span class="size-badge">${b.code}</span></td>
+                      <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                          <input type="text" readonly class="form-input" value="${directUrl}" style="font-size:11px; padding:3px 6px; font-family:monospace; width:220px;" id="branchUrlInput_${b.id}">
+                          <button class="btn btn-secondary btn-sm" onclick="copyBranchUrl('${b.id}', '${directUrl}')" title="Copy Branch Login URL" style="padding:4px 8px;">
+                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                          </button>
+                          <a href="${directUrl}" target="_blank" class="btn btn-secondary btn-sm" title="Open Branch Login URL" style="padding:4px 8px; display:inline-flex; align-items:center;">
+                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          </a>
+                        </div>
+                      </td>
                       <td>${b.location}</td>
-                      <td>${b.phone || 'N/A'}</td>
                       <td>${manager ? manager.name : '<span style="color:var(--text-faint);">Branch Admin</span>'}</td>
                       <td><span class="badge badge-success">• ACTIVE</span></td>
                       <td>

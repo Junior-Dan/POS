@@ -65,19 +65,28 @@ To test multi-role authorization and PIN-gated modals, use the pre-configured cr
 
 ## 🚀 How to Run
 
-No build step or server setup required — Cellar V1.0 runs client-side:
+Cellar has a Vite frontend and an Express API. Start both processes before opening
+the register—opening `index.html` directly will not connect to the POS API.
 
 ```bash
-# Open directly in browser (macOS):
-open index.html
+# Install dependencies (first time only)
+npm install
 
-# Or serve via standard HTTP server:
-python3 -m http.server 8080
+# Terminal 1: start the API at http://localhost:5001
+npm run server
+
+# Terminal 2: start the frontend at http://localhost:3000
+npm run dev
 ```
+
+Open `http://localhost:3000` and sign in with a demo PIN from the table above.
+For a presentation-safe production bundle, run `npm run build`; preview it with
+`npm run preview` while the API remains running on port 5001.
 
 ---
 
 ## 💾 Data Persistence & Reset
 
-- All data (catalogue, inventory movements, sales, shift logs, audit logs, expenses) is persisted locally in the browser's `localStorage` under `cellar_v1_store`.
-- To reset the store to initial demo state at any time, click **"🌱 Refresh Seed Data"** in the top header.
+- The shared POS data (catalogue, inventory movements, sales, shift logs, audit logs, and expenses) is stored in the SQLite database at `data/cellar_pos.db`.
+- The browser retains a small local backup only to keep the interface usable if the API is temporarily unavailable.
+- To return to the initial demo state, click **"🌱 Refresh Seed Data"** in the top header. This replaces the current POS records, so only use it when you are ready to reset the demo.

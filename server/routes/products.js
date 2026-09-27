@@ -263,12 +263,7 @@ router.put('/:id', (req, res) => {
 // DELETE ALL products
 router.delete('/all', (req, res) => {
   try {
-    if (db.data && db.data.products) {
-      db.data.products = [];
-      db.save();
-    } else {
-      db.prepare('DELETE FROM products').run();
-    }
+    db.prepare('DELETE FROM products').run();
     res.json({ message: "All products deleted successfully" });
   } catch (e) {
     res.status(500).json({ error: e.message });

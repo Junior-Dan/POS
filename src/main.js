@@ -357,7 +357,60 @@ function bindEvents() {
   window.loginEnteredPin = "";
   window._isSubmittingPin = false;
 
+  window.openInitialSetupModal = () => {
+    const err = document.getElementById('setupErrorMsg');
+    if (err) err.textContent = "";
+    window.closeModal('userLoginModal');
+    window.openModal('setupModal');
+  };
+
+  window.submitInitialSetup = async () => {
+    const name = document.getElementById('setupNameInput').value.trim();
+    const email = document.getElementById('setupEmailInput').value.trim();
+    const pin = document.getElementById('setupPinInput').value.trim();
+    const businessName = document.getElementById('setupBizNameInput').value.trim() || "Cisco Wines & Spirits";
+    const branchName = document.getElementById('setupBranchNameInput')?.value.trim() || "Nairobi CBD Main";
+    const branchCode = document.getElementById('setupBranchCodeInput')?.value.trim() || "cbd";
+    const err = document.getElementById('setupErrorMsg');
+
+    if (!name) {
+      if (err) err.textContent = "Please enter Owner Full Name!";
+      return;
+    }
+    if (!pin || pin.length < 4) {
+      if (err) err.textContent = "Please enter a 4-digit Security PIN!";
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, pin, businessName, branchName, branchCode })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to setup account");
+      }
+
+      await store.fetchUsers();
+      await store.fetchSettings();
+      store.currentUser = data.user;
+      store.saveLocalBackup();
+
+      window.closeModal('setupModal');
+      initApp();
+      alert(`Welcome, ${name}! Your Business Owner account has been created successfully.`);
+    } catch (e) {
+      if (err) err.textContent = e.message;
+    }
+  };
+
   window.openStaffLoginModal = (isMandatory = false) => {
+    if (!store.users || store.users.length === 0) {
+      window.openInitialSetupModal();
+      return;
+    }
     window._isSubmittingPin = false;
     const sel = document.getElementById('loginUserSelect');
     if (sel) {
@@ -1066,9 +1119,26 @@ function bindEvents() {
     window.openModal('branchModal');
   };
 
+  window.copyBranchUrl = (id, url) => {
+    try {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url);
+      } else {
+        const input = document.getElementById(`branchUrlInput_${id}`);
+        if (input) {
+          input.select();
+          document.execCommand('copy');
+        }
+      }
+      alert(`Copied Branch Login URL:\n${url}`);
+    } catch (e) {
+      prompt("Copy Branch Login URL:", url);
+    }
+  };
+
   window.submitSaveBranch = () => {
     const name = document.getElementById('branchNameInput').value.trim();
-    const code = document.getElementById('branchCodeInput').value.trim() || `BR-${Date.now().toString().slice(-4)}`;
+    const code = (document.getElementById('branchCodeInput').value.trim() || `BR-${Date.now().toString().slice(-4)}`).toLowerCase();
     const location = document.getElementById('branchLocationInput').value.trim();
     const phone = document.getElementById('branchPhoneInput').value.trim();
     const managerId = document.getElementById('branchManagerSelect').value;
@@ -1094,10 +1164,10 @@ function bindEvents() {
       store.logAudit("Created New Branch", name, "-", `Code: ${code}`, "Added Branch to Enterprise");
     }
 
-    store.save();
+    store.saveBranches();
     window.closeModal('branchModal');
     initApp();
-    alert("Branch configuration saved!");
+    alert(`Branch configuration saved! Dedicated URL: ${window.location.origin}/?branch=${code}`);
   };
 
   window.deleteBranch = (id) => {
@@ -1106,7 +1176,7 @@ function bindEvents() {
     if (confirm(`Deactivate/Delete branch "${b.name}"?`)) {
       store.branches = store.branches.filter(x => x.id !== id);
       store.logAudit("Deleted Branch", b.name, "-", "-", "Deactivated Branch");
-      store.save();
+      store.saveBranches();
       initApp();
     }
   };

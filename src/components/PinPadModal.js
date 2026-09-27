@@ -89,6 +89,56 @@ export function renderPinPadModal() {
             </select>
           </div>
         </details>
+
+        <div style="border-top:1px solid var(--border-soft); padding-top:10px; text-align:center;">
+          <button class="btn btn-secondary btn-sm" onclick="openInitialSetupModal()" style="font-size:11.5px;">+ Create New Owner Account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="setupModal">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header" style="background:var(--accent); color:#fff;">
+        <div class="modal-title" style="color:#fff;">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          <span>Setup New Business Account</span>
+        </div>
+        <button class="modal-close" style="color:#fff;" onclick="closeModal('setupModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div class="modal-body" style="gap:14px; padding:24px;">
+        <div style="text-align:center; margin-bottom:4px;">
+          <div style="font-size:16px; font-weight:800; color:var(--text);">Welcome to Cellar POS!</div>
+          <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">Create your Business Owner Account to start using the system</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Business / Store Name</label>
+          <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cisco Wines & Spirits" value="Cisco Wines & Spirits">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Owner Full Name</label>
+          <input type="text" class="form-input" id="setupNameInput" placeholder="e.g. David Kamau">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address (Optional)</label>
+          <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Initial Main Branch Name</label>
+            <input type="text" class="form-input" id="setupBranchNameInput" placeholder="e.g. Nairobi CBD Main" value="Nairobi CBD Main">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Branch Code / URL Slug</label>
+            <input type="text" class="form-input" id="setupBranchCodeInput" placeholder="e.g. cbd" value="cbd">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Create 4-Digit Security PIN</label>
+          <input type="password" maxlength="4" class="form-input" id="setupPinInput" placeholder="e.g. 0000" style="letter-spacing:4px; font-size:18px; text-align:center;">
+        </div>
+        <div id="setupErrorMsg" style="color:var(--red); font-size:12px; text-align:center; font-weight:700; min-height:16px;"></div>
+        <button class="btn btn-primary btn-lg" style="width:100%; font-weight:800;" onclick="submitInitialSetup()">Create Account & Start</button>
       </div>
     </div>
   </div>

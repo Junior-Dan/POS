@@ -372,16 +372,51 @@ export class CellarStore {
     }
   }
 
+  initActiveBranchFromUrl() {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const bQuery = params.get('branch');
+      if (bQuery && this.branches && this.branches.length > 0) {
+        const found = this.branches.find(b =>
+          (b.code && b.code.toLowerCase() === bQuery.toLowerCase()) ||
+          (b.id && b.id.toLowerCase() === bQuery.toLowerCase())
+        );
+        if (found) {
+          this.activeBranchId = found.id;
+        }
+      }
+    }
+  }
+
   async fetchSettings() {
     const s = await this.safeFetchJson('/api/settings');
     if (s) {
       if (s.businessProfile) this.businessProfile = s.businessProfile;
+      if (s.branches && Array.isArray(s.branches) && s.branches.length > 0) {
+        this.branches = s.branches;
+        this.initActiveBranchFromUrl();
+      }
       if (s.paymentSettings) this.paymentSettings = s.paymentSettings;
       if (s.receiptSettings) this.receiptSettings = s.receiptSettings;
       if (s.shiftSettings) this.shiftSettings = s.shiftSettings;
       if (s.securitySettings) this.securitySettings = s.securitySettings;
       if (s.systemPreferences) this.systemPreferences = s.systemPreferences;
       this.notify();
+    }
+  }
+
+  async saveBranches() {
+    try {
+      await fetch('/api/settings/branches', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.branches)
+      });
+      this.saveLocalBackup();
+      this.notify();
+      this.broadcastUpdate();
+    } catch (e) {
+      console.warn("Branch save notice:", e);
     }
   }
 

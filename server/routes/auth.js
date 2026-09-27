@@ -60,6 +60,60 @@ router.post('/verify-pin', (req, res) => {
   });
 });
 
+// POST Initial Business Setup (Create First Owner Account)
+router.post('/setup', (req, res) => {
+  const { name, email, pin, businessName, branchName, branchCode } = req.body;
+  if (!name || !pin) {
+    return res.status(400).json({ error: "Owner name and 4-digit PIN are required!" });
+  }
+
+  const id = `U1`;
+  try {
+    // Clean out previous users for fresh business setup
+    db.prepare('DELETE FROM users').run();
+
+    db.prepare('INSERT INTO users (id, name, role, pin, email, active) VALUES (?, ?, "owner", ?, ?, 1)')
+      .run(id, name, String(pin).trim(), email || null);
+    
+    const bizName = businessName || "Cisco Wines & Spirits";
+    const profile = {
+      name: bizName,
+      receiptName: bizName.toUpperCase(),
+      phone: "0722 000 111",
+      email: email || "owner@cellar.co.ke",
+      address: "Nairobi, Kenya",
+      kraPin: "P051234567S"
+    };
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("businessProfile", ?)')
+      .run(JSON.stringify(profile));
+
+    const initialBranches = [
+      {
+        id: "B1",
+        name: branchName || "Nairobi CBD Main",
+        code: (branchCode || "cbd").toLowerCase(),
+        location: "Nairobi CBD",
+        phone: "0722 000 111",
+        managerId: id,
+        hours: "08:00 AM - 10:00 PM",
+        status: "ACTIVE"
+      }
+    ];
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("branches", ?)')
+      .run(JSON.stringify(initialBranches));
+
+    db.prepare(`
+      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, 'owner', 'B1', 'Initial Setup', ?, '-', 'Owner Account Created', 'Business Account Initialized')
+    `).run(`AUD-${Date.now()}`, new Date().toISOString(), name, name);
+
+    const newUser = { id, name, role: 'owner', pin: String(pin).trim(), email };
+    res.status(201).json({ success: true, user: newUser });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET all users
 router.get('/users', (req, res) => {
   const users = db.prepare('SELECT id, name, role, pin, email, active FROM users').all();

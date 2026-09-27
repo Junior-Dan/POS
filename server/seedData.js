@@ -1,11 +1,8 @@
 import { db } from './db.js';
 
 export function seedDatabase() {
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  if (userCount > 0) {
-    console.log("Database already seeded. Skipping automatic re-seeding.");
-    return;
-  }
+  console.log("System DB active. Ready for user account setup & testing.");
+  return;
 
   console.log("Seeding fresh database state...");
 

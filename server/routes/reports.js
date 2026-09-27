@@ -2,61 +2,42 @@ import express from 'express';
 import { db } from '../db.js';
 
 const router = express.Router();
+const kenyaDate = value => new Date(value).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
+
+function completedSales(date) {
+  return db.prepare('SELECT * FROM sales WHERE refunded = 0 AND date(created_at) = ?').all(date || kenyaDate(new Date()));
+}
+
+function saleItemsFor(sales) {
+  const statement = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?');
+  return sales.flatMap(sale => statement.all(sale.id));
+}
 
 // GET Dashboard metrics calculated directly from database
 router.get('/dashboard', (req, res) => {
   try {
-    const { date } = req.query;
-    let dateFilter = `date(created_at) = date('now', 'localtime')`;
-    if (date) {
-      dateFilter = `date(created_at) = date('${date}')`;
-    }
-
-    // Gross Sales & Net Sales today
-    const salesStats = db.prepare(`
-      SELECT 
-        COUNT(id) as totalTransactions,
-        COALESCE(SUM(CASE WHEN refunded = 0 THEN total ELSE 0 END), 0) as grossSales,
-        COALESCE(SUM(CASE WHEN refunded = 1 THEN refund_amount ELSE 0 END), 0) as totalRefunds,
-        COALESCE(SUM(CASE WHEN payment_method = 'CASH' AND refunded = 0 THEN total ELSE 0 END), 0) as cashSales,
-        COALESCE(SUM(CASE WHEN payment_method = 'M-PESA' AND refunded = 0 THEN total ELSE 0 END), 0) as mpesaSales
-      FROM sales
-      WHERE ${dateFilter}
-    `).get();
-
-    const netSales = salesStats.grossSales;
-
-    // COGS for today
-    const cogsStat = db.prepare(`
-      SELECT COALESCE(SUM(si.cost_snapshot * si.qty), 0) as cogs
-      FROM sale_items si
-      JOIN sales s ON si.sale_id = s.id
-      WHERE ${dateFilter} AND s.refunded = 0
-    `).get();
-
-    const totalCogs = cogsStat.cogs;
-    const grossProfit = netSales - totalCogs;
-
-    // Low stock count
-    const lowStockCount = db.prepare(`
-      SELECT COUNT(id) as count FROM products WHERE current_stock <= min_stock AND active = 1
-    `).get().count;
-
-    // Out of stock count
-    const outOfStockCount = db.prepare(`
-      SELECT COUNT(id) as count FROM products WHERE current_stock = 0 AND active = 1
-    `).get().count;
+    const sales = completedSales(req.query.date);
+    const items = saleItemsFor(sales);
+    const grossSales = sales.reduce((total, sale) => total + Number(sale.total || 0), 0);
+    const totalCogs = items.reduce((total, item) => total + Number(item.cost_snapshot || 0) * Number(item.qty || 0), 0);
+    const cashSales = sales.filter(sale => sale.payment_method === 'CASH').reduce((total, sale) => total + Number(sale.total || 0), 0);
+    const mpesaSales = sales.filter(sale => sale.payment_method === 'M-PESA').reduce((total, sale) => total + Number(sale.total || 0), 0);
+    const refundedSales = db.prepare('SELECT refund_amount FROM sales WHERE refunded = 1 AND date(created_at) = ?').all(req.query.date || kenyaDate(new Date()));
+    const totalRefunds = refundedSales.reduce((total, sale) => total + Number(sale.refund_amount || 0), 0);
+    const activeProducts = db.prepare('SELECT current_stock, min_stock FROM products WHERE active = 1').all();
+    const lowStockCount = activeProducts.filter(product => Number(product.current_stock) <= Number(product.min_stock)).length;
+    const outOfStockCount = activeProducts.filter(product => Number(product.current_stock) === 0).length;
 
     res.json({
-      todayRevenue: netSales,
-      grossSales: salesStats.grossSales,
-      totalRefunds: salesStats.totalRefunds,
-      todayNetSales: netSales,
-      todayCashSales: salesStats.cashSales,
-      todayMpesaSales: salesStats.mpesaSales,
+      todayRevenue: grossSales,
+      grossSales,
+      totalRefunds,
+      todayNetSales: grossSales,
+      todayCashSales: cashSales,
+      todayMpesaSales: mpesaSales,
       todayCogs: totalCogs,
-      todayGrossProfit: grossProfit,
-      totalTransactions: salesStats.totalTransactions,
+      todayGrossProfit: grossSales - totalCogs,
+      totalTransactions: sales.length,
       lowStockCount,
       outOfStockCount
     });
@@ -68,19 +49,11 @@ router.get('/dashboard', (req, res) => {
 // GET Category Sales Breakdown
 router.get('/category-breakdown', (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT p.category, SUM(si.total) as totalSales
-      FROM sale_items si
-      JOIN sales s ON si.sale_id = s.id
-      JOIN products p ON si.product_id = p.id
-      WHERE s.refunded = 0
-      GROUP BY p.category
-      ORDER BY totalSales DESC
-    `).all();
-
+    const productById = new Map(db.prepare('SELECT id, category FROM products').all().map(product => [product.id, product]));
     const breakdown = {};
-    rows.forEach(r => {
-      breakdown[r.category] = r.totalSales;
+    saleItemsFor(db.prepare('SELECT id FROM sales WHERE refunded = 0').all()).forEach(item => {
+      const category = productById.get(item.product_id)?.category || 'Other';
+      breakdown[category] = (breakdown[category] || 0) + Number(item.total || 0);
     });
 
     res.json(breakdown);
@@ -96,18 +69,11 @@ router.get('/hourly', (req, res) => {
     const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    const todaySales = db.prepare(`
-      SELECT strftime('%H', created_at) as hourStr, total
-      FROM sales
-      WHERE date(created_at) = date('now', 'localtime') AND refunded = 0
-    `).all();
-
-
-    todaySales.forEach(s => {
-      const h = parseInt(s.hourStr, 10);
+    completedSales().forEach(sale => {
+      const h = new Date(sale.created_at).getHours();
       const idx = Math.floor(h / 2);
       if (idx >= 0 && idx < 12) {
-        data[idx] += s.total;
+        data[idx] += Number(sale.total || 0);
         orders[idx] += 1;
       }
     });
@@ -121,28 +87,22 @@ router.get('/hourly', (req, res) => {
 // GET Brand Profitability Matrix
 router.get('/brand-profitability', (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT 
-        p.brand,
-        SUM(si.qty) as units,
-        SUM(si.total) as revenue,
-        SUM(si.cost_snapshot * si.qty) as cogs
-      FROM sale_items si
-      JOIN sales s ON si.sale_id = s.id
-      JOIN products p ON si.product_id = p.id
-      WHERE s.refunded = 0
-      GROUP BY p.brand
-      ORDER BY revenue DESC
-    `).all();
+    const productById = new Map(db.prepare('SELECT id, brand FROM products').all().map(product => [product.id, product]));
+    const brands = new Map();
+    saleItemsFor(db.prepare('SELECT id FROM sales WHERE refunded = 0').all()).forEach(item => {
+      const brand = productById.get(item.product_id)?.brand || 'Other';
+      const current = brands.get(brand) || { brand, units: 0, revenue: 0, cogs: 0 };
+      current.units += Number(item.qty || 0);
+      current.revenue += Number(item.total || 0);
+      current.cogs += Number(item.cost_snapshot || 0) * Number(item.qty || 0);
+      brands.set(brand, current);
+    });
 
-    const matrix = rows.map(r => {
-      const margin = r.revenue - r.cogs;
-      const marginPct = r.revenue > 0 ? ((margin / r.revenue) * 100).toFixed(1) : 0;
+    const matrix = [...brands.values()].sort((left, right) => right.revenue - left.revenue).map(row => {
+      const margin = row.revenue - row.cogs;
+      const marginPct = row.revenue > 0 ? ((margin / row.revenue) * 100).toFixed(1) : 0;
       return {
-        brand: r.brand || 'Other',
-        units: r.units,
-        revenue: r.revenue,
-        cogs: r.cogs,
+        ...row,
         margin,
         marginPct
       };
