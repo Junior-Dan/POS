@@ -53,19 +53,23 @@ window.switchAuthTab = (tab) => {
   }
 };
 
+window.logoutUser = () => {
+  store.currentUser = null;
+  localStorage.removeItem('cellar_token');
+  sessionStorage.removeItem('cellar_session_auth');
+  sessionStorage.removeItem('cellar_authenticated_user');
+  initApp();
+};
+
 export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
 
   // If unauthenticated, render the standalone full-screen Auth Landing Page.
-  // Default to the LOGIN tab when a branch roster exists (an established
-  // business), otherwise the CREATE ACCOUNT tab for first-run owner setup.
+  // Main URL (no ?branch=) shows Create Account setup form only.
+  // Shared branch URL (?branch=code) shows Branch Log In screen only.
   if (!store.currentUser || !store.currentUser.id) {
-    const hasRoster = store.loginUsers && store.loginUsers.length > 0;
-    const tab = window.currentAuthTab || (hasRoster ? 'login' : 'setup');
-    root.innerHTML = renderAuthLandingScreen(tab);
-    // bindEvents defines the login/PIN handlers (window.submitLoginPin etc.);
-    // it must run here too since we return before the main binding below.
+    root.innerHTML = renderAuthLandingScreen();
     bindEvents();
     return;
   }
@@ -121,16 +125,6 @@ export function initApp() {
 
   bindEvents();
   switchTab(activeViewId);
-
-  // Auto-Lock Terminal on Launch: Require PIN Login if unauthenticated session
-  const isSessionAuth = sessionStorage.getItem('cellar_session_auth') === 'true';
-  if (!isSessionAuth) {
-    setTimeout(() => {
-      if (window.openStaffLoginModal) {
-        window.openStaffLoginModal(true);
-      }
-    }, 150);
-  }
 }
 
 function bindEvents() {
@@ -443,7 +437,31 @@ function bindEvents() {
       initApp();
       alert(`Welcome, ${name}! Your Business Owner account has been created successfully.`);
     } catch (e) {
-      if (err) err.textContent = e.message;
+      if (err) {
+        if (e.message && e.message.includes('already exists')) {
+          err.innerHTML = `
+            <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); border-radius:10px; padding:12px; margin-top:12px; text-align:center;">
+              <div style="color:#f87171; font-weight:800; font-size:13px; margin-bottom:8px;">⚠️ A business owner already exists for this system.</div>
+              <button type="button" class="btn btn-primary btn-sm" onclick="switchAuthMode('login')" style="font-weight:700; padding:6px 14px; font-size:12px;">🔑 Log In to Account with PIN</button>
+            </div>
+          `;
+        } else {
+          err.textContent = e.message;
+        }
+      }
+    }
+  };
+
+  window.switchAuthMode = (mode) => {
+    if (mode === 'setup') {
+      window.forceRegisterMode = true;
+    } else {
+      window.forceRegisterMode = false;
+    }
+    const root = document.getElementById('app-root');
+    if (root) {
+      root.innerHTML = renderAuthLandingScreen(mode);
+      bindEvents();
     }
   };
 

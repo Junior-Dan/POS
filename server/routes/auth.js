@@ -30,6 +30,12 @@ function legacyHash(pin) {
 export function verifyPin(pin, user) {
   if (!pin || !user) return false;
   const supplied = String(pin).trim();
+
+  // Direct PIN match (for accounts created with pin field)
+  if (user.pin && String(user.pin).trim() === supplied) {
+    return true;
+  }
+
   const stored = user.pin_hash;
   if (!stored) return false;
 
@@ -229,8 +235,8 @@ router.post('/setup', (req, res) => {
     // Owner has org-wide access: branch_id is intentionally NULL.
     db.prepare(`
       INSERT INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, email, phone, status, active, created_by)
-      VALUES (?, ?, NULL, ?, 'owner', '', ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
-    `).run(ownerId, orgId, name, pinHashed, email || null, phone || null);
+      VALUES (?, ?, NULL, ?, 'owner', ?, ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
+    `).run(ownerId, orgId, name, cleanPin, pinHashed, email || null, phone || null);
 
     // Create the initial branch (the app expects at least one branch to operate).
     const bName = branchName || 'Main Branch';

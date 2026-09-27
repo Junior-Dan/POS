@@ -81,8 +81,8 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
           <span class="user-name-text" id="userNameText">${user.name}</span>
           <span class="user-role-badge" id="userRoleBadge" style="text-transform:uppercase;">${user.role}</span>
         </div>
-        <button class="btn btn-secondary btn-sm" id="switchUserBtn" title="Switch User Role">
-          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3"/></svg>
+        <button class="btn btn-secondary btn-sm" id="logoutBtn" onclick="logoutUser()" title="Log out of account">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>
       </div>
     </div>

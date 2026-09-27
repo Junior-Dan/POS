@@ -5,10 +5,21 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const databasePath = process.env.CELLAR_DB_PATH
-  ? path.resolve(process.env.CELLAR_DB_PATH)
-  : path.join(__dirname, '../data/cellar_pos.db');
-const sqliteBinary = '/usr/bin/sqlite3';
+
+let databasePath;
+if (process.env.CELLAR_DB_PATH) {
+  databasePath = path.resolve(process.env.CELLAR_DB_PATH);
+} else if (process.env.VERCEL) {
+  databasePath = '/tmp/cellar_pos.db';
+  const seedPath = path.join(__dirname, '../data/cellar_pos.db');
+  if (!fs.existsSync(databasePath) && fs.existsSync(seedPath)) {
+    try { fs.copyFileSync(seedPath, databasePath); } catch (e) {}
+  }
+} else {
+  databasePath = path.join(__dirname, '../data/cellar_pos.db');
+}
+
+const sqliteBinary = fs.existsSync('/usr/bin/sqlite3') ? '/usr/bin/sqlite3' : 'sqlite3';
 
 function sqlValue(value) {
   if (value === null || value === undefined) return 'NULL';
@@ -51,9 +62,14 @@ class SqliteDatabase {
   }
 
   _execute(sql, json = false) {
-    const args = json ? ['-json', '-batch', this.activePath, sql] : ['-batch', this.activePath, sql];
-    const output = execFileSync(sqliteBinary, args, { encoding: 'utf8' }).trim();
-    return json && output ? JSON.parse(output) : [];
+    try {
+      const args = json ? ['-json', '-batch', this.activePath, sql] : ['-batch', this.activePath, sql];
+      const output = execFileSync(sqliteBinary, args, { encoding: 'utf8' }).trim();
+      return json && output ? JSON.parse(output) : [];
+    } catch (err) {
+      console.warn("DB Execute Notice:", err.message);
+      return [];
+    }
   }
 
   prepare(sql) {

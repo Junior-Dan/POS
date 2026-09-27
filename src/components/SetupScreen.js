@@ -1,9 +1,23 @@
 import { store } from '../store/CellarStore.js';
 
-export function renderAuthLandingScreen(activeTab = 'login') {
-  const isSetup = activeTab === 'setup';
-  // Prefer the branch-scoped roster resolved from the branch URL; fall back to
-  // the active branch only for display.
+export function renderAuthLandingScreen(overrideMode = null) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasBranchQuery = urlParams.has('branch');
+  const hasExistingOwner = store.users && store.users.some(u => u.role === 'owner' || u.active === 1);
+  
+  // Mode decision:
+  // If overrideMode is passed ('login' or 'setup'), honor it.
+  // Otherwise, if branch query exists OR an established owner exists, show Log In.
+  // Otherwise, show Create Account registration.
+  let isBranchLogin = false;
+  if (overrideMode === 'login') {
+    isBranchLogin = true;
+  } else if (overrideMode === 'setup') {
+    isBranchLogin = false;
+  } else {
+    isBranchLogin = hasBranchQuery || (hasExistingOwner && !window.forceRegisterMode);
+  }
+
   const activeBranch = store.loginBranch || store.getActiveBranch() || { name: 'Main Branch', code: 'cbd' };
   const userList = (store.loginUsers && store.loginUsers.length > 0) ? store.loginUsers : (store.users || []);
 
@@ -19,18 +33,8 @@ export function renderAuthLandingScreen(activeTab = 'login') {
           <p class="welcome-subtitle">Wines & Spirits Shop POS & Inventory Management System</p>
         </div>
 
-        <!-- Tab Selector -->
-        <div class="auth-tabs-row" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:20px; background:#0f0f12; padding:4px; border-radius:12px; border:1px solid rgba(255,255,255,0.08);">
-          <button class="auth-tab-btn ${!isSetup ? 'active' : ''}" type="button" onclick="switchAuthTab('login')" style="padding:10px; font-weight:700; font-size:13px; border-radius:8px; border:none; cursor:pointer; background:${!isSetup ? 'var(--accent)' : 'transparent'}; color:${!isSetup ? '#fff' : '#94a3b8'}; transition:all 0.2s;">
-            🔑 Log In to Account
-          </button>
-          <button class="auth-tab-btn ${isSetup ? 'active' : ''}" type="button" onclick="switchAuthTab('setup')" style="padding:10px; font-weight:700; font-size:13px; border-radius:8px; border:none; cursor:pointer; background:${isSetup ? 'var(--accent)' : 'transparent'}; color:${isSetup ? '#fff' : '#94a3b8'}; transition:all 0.2s;">
-            ➕ Create New Account
-          </button>
-        </div>
-
-        ${!isSetup ? `
-          <!-- LOG IN TAB -->
+        ${isBranchLogin ? `
+          <!-- LOG IN FORM -->
           <div class="auth-mode-content">
             <div style="text-align:center; margin-bottom:16px;">
               <div style="font-size:13px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
@@ -75,16 +79,22 @@ export function renderAuthLandingScreen(activeTab = 'login') {
 
             <div id="loginPinErrorMsg" style="color:#ef4444; font-size:12px; text-align:center; font-weight:700; min-height:16px; margin-top:12px;"></div>
 
-            <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:16px; padding-top:14px; text-align:center;">
-              <span style="font-size:12px; color:#94a3b8;">Need to register a new business account?</span>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthTab('setup')" style="margin-left:8px; font-size:11.5px;">Create Account</button>
+            <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:14px; padding-top:12px; text-align:center;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('setup')" style="font-size:11.5px; opacity:0.8;">Register New Business Account</button>
             </div>
           </div>
         ` : `
-          <!-- CREATE ACCOUNT TAB -->
+          <!-- CREATE ACCOUNT SETUP FORM -->
           <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
+            <div style="text-align:center; margin-bottom:16px;">
+              <div style="font-size:14px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
+                🚀 REGISTER BUSINESS OWNER ACCOUNT
+              </div>
+              <div style="font-size:12px; color:#94a3b8;">Set up your business, main branch, and owner security PIN</div>
+            </div>
+
             <div class="form-group">
-              <label class="form-label">Business / Store Name</label>
+              <label class="form-label">Business / Store Name *</label>
               <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cisco Wines & Spirits" value="${store.businessProfile?.name || 'Cisco Wines & Spirits'}" required>
             </div>
 
@@ -105,13 +115,13 @@ export function renderAuthLandingScreen(activeTab = 'login') {
                 <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke">
               </div>
               <div class="form-group">
-                <label class="form-label">Initial Main Branch Name</label>
+                <label class="form-label">Initial Main Branch Name *</label>
                 <input type="text" class="form-input" id="setupBranchNameInput" placeholder="e.g. Nairobi CBD Main" value="${activeBranch.name || 'Nairobi CBD Main'}" required>
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Branch Code / URL Slug</label>
+              <label class="form-label">Branch Code / URL Slug *</label>
               <input type="text" class="form-input" id="setupBranchCodeInput" placeholder="e.g. cbd" value="${activeBranch.code || 'cbd'}" required>
             </div>
 
@@ -133,10 +143,12 @@ export function renderAuthLandingScreen(activeTab = 'login') {
               <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
 
-            <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:12px; padding-top:12px; text-align:center;">
-              <span style="font-size:12px; color:#94a3b8;">Already have an account?</span>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthTab('login')" style="margin-left:8px; font-size:11.5px;">Log In with PIN</button>
-            </div>
+            ${hasExistingOwner ? `
+              <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:14px; padding-top:12px; text-align:center;">
+                <span style="font-size:12px; color:#94a3b8;">Already registered?</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('login')" style="margin-left:8px; font-size:11.5px;">Log In with PIN</button>
+              </div>
+            ` : ''}
           </form>
         `}
       </div>

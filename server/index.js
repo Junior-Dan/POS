@@ -52,10 +52,11 @@ app.use('/api/settings', settingRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/seed', seedRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Cellar POS Backend Express Server listening on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Cellar POS Backend Express Server listening on http://localhost:${PORT}`);
+  });
+}
 
-// Keepalive interval for Node process
-setInterval(() => {}, 60000);
+export default app;
 
