@@ -41,7 +41,7 @@ import { renderResetPinModal } from './components/ResetPinModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 let activeViewId = 'dashboard';
-window.currentAuthTab = 'login';
+window.currentAuthTab = 'setup'; // Default view on http://localhost:3001/ is Create Account
 
 window.switchAuthTab = (tab) => {
   window.currentAuthTab = tab;
@@ -55,14 +55,9 @@ export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
 
-  // If no users exist, default auth tab to setup
-  if (!store.users || store.users.length === 0) {
-    window.currentAuthTab = 'setup';
-  }
-
-  // If unauthenticated or no current user, render standalone full-screen Auth Landing Page (dashboard hidden)
+  // If unauthenticated or no current user, render standalone full-screen Auth Landing Page (dashboard hidden, default to setup)
   if (!store.currentUser || !store.currentUser.id) {
-    root.innerHTML = renderAuthLandingScreen(window.currentAuthTab || 'login');
+    root.innerHTML = renderAuthLandingScreen(window.currentAuthTab || 'setup');
     return;
   }
 
@@ -418,6 +413,10 @@ function bindEvents() {
       await store.fetchSettings();
       store.currentUser = data.user;
       store.saveLocalBackup();
+
+      if (branchCode && window.history) {
+        window.history.pushState(null, '', `/?branch=${encodeURIComponent(branchCode)}`);
+      }
 
       window.closeModal('setupModal');
       initApp();
@@ -1073,6 +1072,10 @@ function bindEvents() {
   // --- BRANCH & ENTERPRISE HANDLERS ---
   window.switchActiveBranch = (branchId) => {
     store.setActiveBranch(branchId);
+    const branch = store.getActiveBranch();
+    if (branch && (branch.code || branch.id) && window.history) {
+      window.history.pushState(null, '', `/?branch=${encodeURIComponent(branch.code || branch.id)}`);
+    }
     initApp();
   };
 
