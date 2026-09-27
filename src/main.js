@@ -38,17 +38,31 @@ import { renderCustomerModal } from './components/CustomerModal.js';
 import { renderBranchModal } from './components/BranchModal.js';
 import { renderStaffModal } from './components/StaffModal.js';
 import { renderResetPinModal } from './components/ResetPinModal.js';
-import { renderSetupScreen } from './components/SetupScreen.js';
+import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 let activeViewId = 'dashboard';
+window.currentAuthTab = 'login';
+
+window.switchAuthTab = (tab) => {
+  window.currentAuthTab = tab;
+  const root = document.getElementById('app-root');
+  if (root) {
+    root.innerHTML = renderAuthLandingScreen(tab);
+  }
+};
 
 export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
 
-  // If no users exist, render standalone full-screen Welcome Setup Landing Page (dashboard hidden)
+  // If no users exist, default auth tab to setup
   if (!store.users || store.users.length === 0) {
-    root.innerHTML = renderSetupScreen();
+    window.currentAuthTab = 'setup';
+  }
+
+  // If unauthenticated or no current user, render standalone full-screen Auth Landing Page (dashboard hidden)
+  if (!store.currentUser || !store.currentUser.id) {
+    root.innerHTML = renderAuthLandingScreen(window.currentAuthTab || 'login');
     return;
   }
 
