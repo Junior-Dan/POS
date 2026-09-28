@@ -256,19 +256,19 @@ router.post('/setup', (req, res) => {
   try {
     const bizName = businessName || 'Cellar Wines & Spirits';
 
-    db.prepare('INSERT INTO organizations (id, name, owner_id) VALUES (?, ?, ?)')
+    db.prepare('INSERT OR REPLACE INTO organizations (id, name, owner_id) VALUES (?, ?, ?)')
       .run(orgId, bizName, ownerId);
 
     // Owner has org-wide access: branch_id is intentionally NULL.
     db.prepare(`
-      INSERT INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, email, phone, status, active, created_by)
+      INSERT OR REPLACE INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, email, phone, status, active, created_by)
       VALUES (?, ?, NULL, ?, 'owner', ?, ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
     `).run(ownerId, orgId, name, cleanPin, pinHashed, email || null, phone || null);
 
     // Create the initial branch (the app expects at least one branch to operate).
     const bName = branchName || 'Main Branch';
     db.prepare(`
-      INSERT INTO branches (id, organization_id, name, code, location, phone, status)
+      INSERT OR REPLACE INTO branches (id, organization_id, name, code, location, phone, status)
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
     `).run(bId, orgId, bName, bCode, 'Head Office', phone || '');
 
@@ -429,6 +429,7 @@ router.post('/logout', (req, res) => {
 //    The branch code identifies the branch; it does NOT authenticate anyone.
 // ---------------------------------------------------------------------------
 router.get('/branch-info', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const code = (req.query.code || req.query.branch || '').toLowerCase();
 
   let branch = null;

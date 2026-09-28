@@ -9,14 +9,12 @@ export function renderAuthLandingScreen(overrideMode = null) {
   // the seeded INITIAL_USERS fallback — that would make a fresh install show
   // Login (with fake demo staff) instead of the Register Owner form.
   const rosterLoaded = store.rosterLoaded === true;
-  let hasExistingOwner;
-  if (rosterLoaded) {
-    hasExistingOwner = (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner');
-  } else {
-    // First paint (roster still loading): fall back to the cached hint.
-    try { hasExistingOwner = localStorage.getItem('cellar_owner_exists') === '1'; }
-    catch (e) { hasExistingOwner = false; }
-  }
+  let cachedOwnerExists = false;
+  try { cachedOwnerExists = localStorage.getItem('cellar_owner_exists') === '1'; } catch (e) {}
+
+  const hasExistingOwner = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
+    (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner') ||
+    cachedOwnerExists;
 
   // Mode decision:
   // 1. If accessing via a branch link (?branch=code), ALWAYS show Branch Staff Login. Never show Register.
@@ -63,7 +61,18 @@ export function renderAuthLandingScreen(overrideMode = null) {
             </div>
 
             ${(() => {
-              const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
+              let activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
+              if (activeRoster.length === 0 && store.currentUser && store.currentUser.name) {
+                activeRoster = [
+                  {
+                    id: store.currentUser.id || 'U-OWNER-1',
+                    name: store.currentUser.name,
+                    role: store.currentUser.role || 'owner',
+                    status: 'ACTIVE',
+                    active: 1
+                  }
+                ];
+              }
               if (activeRoster.length === 0) {
                 if (!rosterLoaded) {
                   return `

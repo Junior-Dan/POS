@@ -450,7 +450,13 @@ function bindEvents() {
         try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       }
 
+      try { localStorage.setItem('cellar_owner_exists', '1'); } catch (e) {}
+      window.forceRegisterMode = false;
+
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      if (!store.loginUsers || store.loginUsers.length === 0) {
+        store.loginUsers = [store.currentUser];
+      }
       if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
       await store.fetchBranchLogin();
       await store.loadAuthenticatedData();

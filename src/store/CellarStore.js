@@ -317,19 +317,20 @@ export class CellarStore {
       const params = new URLSearchParams(window.location.search);
       code = params.get('branch') || '';
     }
-    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}`);
+    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}&_t=${Date.now()}`, { cache: 'no-store' });
     if (data && data.branch) {
       this.loginBranch = data.branch;
       this.loginUsers = Array.isArray(data.users) ? data.users : [];
       this.rosterLoaded = true;
-      // Cache whether an owner exists so the very first paint of the auth
-      // landing can pick Login vs Register correctly (before this async
-      // roster load resolves), avoiding a Register→Login flash for returning
-      // owners. The real decision still uses the loaded roster once available.
       try {
-        const ownerExists = this.loginUsers.some(u => (u.role || '').toLowerCase() === 'owner');
+        const ownerExists = this.loginUsers.some(u => (u.role || '').toLowerCase() === 'owner') ||
+          (this.currentUser && (this.currentUser.role || '').toLowerCase() === 'owner') ||
+          localStorage.getItem('cellar_owner_exists') === '1';
         localStorage.setItem('cellar_owner_exists', ownerExists ? '1' : '0');
       } catch (e) {}
+      this.notify();
+    } else {
+      this.rosterLoaded = true;
       this.notify();
     }
   }
