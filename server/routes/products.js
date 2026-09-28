@@ -25,6 +25,10 @@ router.get('/', (req, res) => {
     const params = [];
     const conditions = [];
 
+    // Tenant isolation: only this organization's products.
+    conditions.push('p.organization_id = ?');
+    params.push(req.authUser.organizationId);
+
     if (activeOnly !== 'false') {
       conditions.push('p.active = 1');
     }
@@ -90,11 +94,11 @@ router.get('/lookup/:query', (req, res) => {
   const { query } = req.params;
   try {
     const product = db.prepare(`
-      SELECT p.*, s.name as supplier_name 
-      FROM products p 
+      SELECT p.*, s.name as supplier_name
+      FROM products p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      WHERE p.barcode = ? OR p.sku = ? OR p.id = ?
-    `).get(query, query, query);
+      WHERE p.organization_id = ? AND (p.barcode = ? OR p.sku = ? OR p.id = ?)
+    `).get(req.authUser.organizationId, query, query, query);
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
@@ -137,13 +141,16 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: "Name, category, and price are required" });
   }
 
-  // Check unique barcode / SKU
+  const orgId = req.authUser.organizationId;
+
+  // Uniqueness is enforced PER ORGANIZATION (two businesses may legitimately
+  // stock the same real-world barcode/SKU).
   if (p.barcode) {
-    const exists = db.prepare('SELECT id FROM products WHERE barcode = ?').get(p.barcode);
+    const exists = db.prepare('SELECT id FROM products WHERE organization_id = ? AND barcode = ?').get(orgId, p.barcode);
     if (exists) return res.status(400).json({ error: `Barcode '${p.barcode}' is already assigned to another product!` });
   }
   if (p.sku) {
-    const exists = db.prepare('SELECT id FROM products WHERE sku = ?').get(p.sku);
+    const exists = db.prepare('SELECT id FROM products WHERE organization_id = ? AND sku = ?').get(orgId, p.sku);
     if (exists) return res.status(400).json({ error: `SKU '${p.sku}' is already assigned to another product!` });
   }
 
@@ -155,11 +162,11 @@ router.post('/', (req, res) => {
   try {
     const stmt = db.prepare(`
       INSERT INTO products (
-        id, brand, name, category, product_type, unit, abv, size, case_units,
+        id, organization_id, brand, name, category, product_type, unit, abv, size, case_units,
         barcode, sku, cost_price, selling_price, wholesale_price, min_price,
         tax_rate, current_stock, min_stock, reorder_level, supplier_id, high_value, active
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, 1
       )
@@ -167,6 +174,7 @@ router.post('/', (req, res) => {
 
     stmt.run(
       id,
+      orgId,
       p.brand || '',
       p.name,
       p.category,
@@ -192,16 +200,16 @@ router.post('/', (req, res) => {
     // Record initial stock movement
     if (stock > 0) {
       db.prepare(`
-        INSERT INTO stock_movements (id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-        VALUES (?, ?, ?, 'OPENING_STOCK', ?, 0, ?, 'NEW_PRODUCT', ?, 'Product Created Initial Stock')
-      `).run(`MOV-${Date.now()}`, id, `${p.brand || ''} ${p.name}`.trim(), stock, stock, p.userName || 'System');
+        INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
+        VALUES (?, ?, ?, ?, 'OPENING_STOCK', ?, 0, ?, 'NEW_PRODUCT', ?, 'Product Created Initial Stock')
+      `).run(`MOV-${Date.now()}`, orgId, id, `${p.brand || ''} ${p.name}`.trim(), stock, stock, p.userName || 'System');
     }
 
     // Audit log
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, 'manager', 'B1', 'Create Product', ?, '-', ?, 'New product registered')
-    `).run(`AUD-${Date.now()}`, new Date().toISOString(), p.userName || 'Manager', p.name, `Price: KSh ${sellingPrice}, Stock: ${stock}`);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, ?, 'manager', ?, 'Create Product', ?, '-', ?, 'New product registered')
+    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), p.userName || 'Manager', req.authUser.branchId || '-', p.name, `Price: KSh ${sellingPrice}, Stock: ${stock}`);
 
     res.status(201).json({ id, ...p, cost: costPrice, price: sellingPrice, stock });
   } catch (e) {
@@ -214,8 +222,9 @@ router.put('/:id', (req, res) => {
   const { id } = req.params;
   const p = req.body;
 
+  const orgId = req.authUser.organizationId;
   try {
-    const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT * FROM products WHERE id = ? AND organization_id = ?').get(id, orgId);
     if (!existing) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -246,20 +255,20 @@ router.put('/:id', (req, res) => {
           high_value = COALESCE(?, high_value),
           active = COALESCE(?, active),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND organization_id = ?
     `).run(
       p.brand, p.name, p.category, p.productType, p.unit, p.abv, p.size,
       p.caseUnits, p.barcode, p.sku, costPrice, sellingPrice, p.wholesalePrice,
       p.minPrice, stock, p.reorder || p.reorderLevel, p.supplierId, p.highValue ? 1 : 0,
-      p.active !== undefined ? (p.active ? 1 : 0) : existing.active, id
+      p.active !== undefined ? (p.active ? 1 : 0) : existing.active, id, orgId
     );
 
     // Audit log
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, 'manager', 'B1', 'Update Product', ?, ?, ?, 'Product details updated')
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, ?, 'manager', ?, 'Update Product', ?, ?, ?, 'Product details updated')
     `).run(
-      `AUD-${Date.now()}`, new Date().toISOString(), p.userName || 'Manager', existing.name,
+      `AUD-${Date.now()}`, orgId, new Date().toISOString(), p.userName || 'Manager', req.authUser.branchId || '-', existing.name,
       `Price: ${existing.selling_price}, Stock: ${existing.current_stock}`,
       `Price: ${sellingPrice}, Stock: ${stock}`
     );
@@ -270,10 +279,10 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// DELETE ALL products
+// DELETE ALL products (only this organization's)
 router.delete('/all', (req, res) => {
   try {
-    db.prepare('DELETE FROM products').run();
+    db.prepare('DELETE FROM products WHERE organization_id = ?').run(req.authUser.organizationId);
     res.json({ message: "All products deleted successfully" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -283,16 +292,17 @@ router.delete('/all', (req, res) => {
 // DELETE (soft-deactivate) product
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
+  const orgId = req.authUser.organizationId;
   try {
-    const existing = db.prepare('SELECT name FROM products WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(id, orgId);
     if (!existing) return res.status(404).json({ error: "Product not found" });
 
-    db.prepare('UPDATE products SET active = 0 WHERE id = ?').run(id);
+    db.prepare('UPDATE products SET active = 0 WHERE id = ? AND organization_id = ?').run(id, orgId);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, 'Manager', 'manager', 'B1', 'Deactivate Product', ?, 'Active', 'Inactive', 'Product deactivated')
-    `).run(`AUD-${Date.now()}`, new Date().toISOString(), existing.name);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, 'Manager', 'manager', ?, 'Deactivate Product', ?, 'Active', 'Inactive', 'Product deactivated')
+    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.branchId || '-', existing.name);
 
     res.json({ message: "Product deactivated successfully" });
   } catch (e) {
@@ -300,10 +310,11 @@ router.delete('/:id', (req, res) => {
   }
 });
 
-// Categories Endpoints
+// Categories Endpoints (organization-scoped)
 router.get('/categories/all', (req, res) => {
   try {
-    const categories = db.prepare('SELECT * FROM categories WHERE active = 1 ORDER BY name ASC').all();
+    const orgId = req.authUser.organizationId;
+    const categories = db.prepare('SELECT * FROM categories WHERE active = 1 AND (organization_id = ? OR organization_id IS NULL) ORDER BY name ASC').all(orgId);
     res.json(categories);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -315,9 +326,10 @@ router.post('/categories/create', (req, res) => {
   if (!name) return res.status(400).json({ error: "Category name is required" });
 
   const id = `CAT-${Date.now()}`;
+  const orgId = req.authUser.organizationId;
   try {
-    db.prepare('INSERT INTO categories (id, name, description, active) VALUES (?, ?, ?, 1)').run(id, name, description || null);
-    res.status(201).json({ id, name, description });
+    db.prepare('INSERT INTO categories (id, organization_id, name, description, active) VALUES (?, ?, ?, ?, 1)').run(id, orgId, name, description || null);
+    res.status(201).json({ id, organizationId: orgId, name, description });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

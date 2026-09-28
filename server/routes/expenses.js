@@ -9,7 +9,7 @@ router.use(requireRole('owner', 'manager'));
 // GET expenses list
 router.get('/', (req, res) => {
   try {
-    const expenses = db.prepare('SELECT * FROM expenses ORDER BY created_at DESC').all();
+    const expenses = db.prepare('SELECT * FROM expenses WHERE organization_id = ? ORDER BY created_at DESC').all(req.authUser.organizationId);
     res.json(expenses.map(e => ({
       id: e.id,
       category: e.category,
@@ -34,18 +34,19 @@ router.post('/', (req, res) => {
 
   const id = `EXP-${Date.now()}`;
   const amt = parseFloat(amount);
-  const userName = user || 'Manager';
+  const userName = user || req.authUser.name || 'Manager';
+  const orgId = req.authUser.organizationId;
 
   try {
     db.prepare(`
-      INSERT INTO expenses (id, category, amount, description, user_name, receipt_ref, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(id, category, amt, description || null, userName, receiptRef || null);
+      INSERT INTO expenses (id, organization_id, category, amount, description, user_name, receipt_ref, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(id, orgId, category, amt, description || null, userName, receiptRef || null);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, CURRENT_TIMESTAMP, ?, 'manager', 'B1', 'Log Expense', ?, '-', ?, ?)
-    `).run(`AUD-${Date.now()}`, userName, category, `KSh ${amt}`, description || 'Shop operational expense');
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Log Expense', ?, '-', ?, ?)
+    `).run(`AUD-${Date.now()}`, orgId, userName, req.authUser.role, req.authUser.branchId || '-', category, `KSh ${amt}`, description || 'Shop operational expense');
 
     res.status(201).json({
       id,

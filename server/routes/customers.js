@@ -8,7 +8,7 @@ router.use(authenticateSession); // any authenticated staff (POS needs customer 
 // GET all customers
 router.get('/', (req, res) => {
   try {
-    const customers = db.prepare('SELECT * FROM customers ORDER BY total_spend DESC').all();
+    const customers = db.prepare('SELECT * FROM customers WHERE organization_id = ? ORDER BY total_spend DESC').all(req.authUser.organizationId);
     res.json(customers.map(c => ({
       id: c.id,
       name: c.name,
@@ -31,9 +31,9 @@ router.post('/', (req, res) => {
   const id = `C-${Date.now()}`;
   try {
     db.prepare(`
-      INSERT INTO customers (id, name, phone, email, visits, total_spend)
-      VALUES (?, ?, ?, ?, 0, 0)
-    `).run(id, name, phone || 'N/A', email || '-');
+      INSERT INTO customers (id, organization_id, name, phone, email, visits, total_spend)
+      VALUES (?, ?, ?, ?, ?, 0, 0)
+    `).run(id, req.authUser.organizationId, name, phone || 'N/A', email || '-');
 
     res.status(201).json({ id, name, phone, email, visits: 0, totalSpend: 0 });
   } catch (e) {
@@ -45,7 +45,7 @@ router.post('/', (req, res) => {
 router.get('/:id/sales', (req, res) => {
   const { id } = req.params;
   try {
-    const sales = db.prepare('SELECT * FROM sales WHERE customer_id = ? ORDER BY created_at DESC').all(id);
+    const sales = db.prepare('SELECT * FROM sales WHERE customer_id = ? AND organization_id = ? ORDER BY created_at DESC').all(id, req.authUser.organizationId);
     res.json(sales);
   } catch (e) {
     res.status(500).json({ error: e.message });

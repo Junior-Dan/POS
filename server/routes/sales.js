@@ -11,8 +11,8 @@ router.get('/', (req, res) => {
   try {
     const { startDate, endDate, cashierId, paymentMethod, customerId, branchId: requestedBranch } = req.query;
 
-    let sql = `SELECT * FROM sales WHERE 1=1`;
-    const params = [];
+    let sql = `SELECT * FROM sales WHERE organization_id = ?`;
+    const params = [req.authUser.organizationId];
 
     // Enforce branch isolation for non-owners
     const branchId = (req.authUser && req.authUser.role !== 'owner') ? req.authUser.branchId : (requestedBranch || null);
@@ -92,7 +92,7 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const { id } = req.params;
   try {
-    const sale = db.prepare('SELECT * FROM sales WHERE id = ? OR receipt_no = ?').get(id, id);
+    const sale = db.prepare('SELECT * FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, req.authUser.organizationId);
     if (!sale) {
       return res.status(404).json({ error: "Sale transaction not found" });
     }
@@ -156,11 +156,13 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: "Invalid total transaction amount." });
   }
 
+  const orgId = req.authUser.organizationId;
+
   // Execute sale creation in an atomic database transaction
   const processSaleTransaction = db.transaction(() => {
-    // 1. Validate Stock for all items
+    // 1. Validate Stock for all items (scoped to this organization's catalogue)
     for (const item of items) {
-      const product = db.prepare('SELECT id, name, current_stock, cost_price, active FROM products WHERE id = ?').get(item.id || item.productId);
+      const product = db.prepare('SELECT id, name, current_stock, cost_price, active FROM products WHERE id = ? AND organization_id = ?').get(item.id || item.productId, orgId);
       if (!product) {
         throw new Error(`Product '${item.name || item.id}' not found in database.`);
       }
@@ -188,14 +190,15 @@ router.post('/', (req, res) => {
     // 3. Insert Sale Record
     db.prepare(`
       INSERT INTO sales (
-        id, receipt_no, branch_id, cashier_id, cashier_name, customer_id, customer_name,
+        id, organization_id, receipt_no, branch_id, cashier_id, cashier_name, customer_id, customer_name,
         subtotal, discount, tax, total, payment_method, mpesa_code, status, shift_id, created_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, CURRENT_TIMESTAMP
       )
     `).run(
       saleId,
+      orgId,
       receiptNo,
       effectiveBranch,
       cashierId,
@@ -214,27 +217,28 @@ router.post('/', (req, res) => {
     // 4. Create Sale Items, Deduct Stock & Record Inventory Movement
     for (const item of items) {
       const pId = item.id || item.productId;
-      const product = db.prepare('SELECT current_stock, cost_price, name FROM products WHERE id = ?').get(pId);
+      const product = db.prepare('SELECT current_stock, cost_price, name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
       const unitPrice = parseFloat(item.price || item.unitPrice || 0);
       const costSnapshot = parseFloat(product.cost_price || 0);
       const itemTotal = unitPrice * item.qty;
 
       // Insert Sale Item
       db.prepare(`
-        INSERT INTO sale_items (id, sale_id, product_id, product_name, qty, unit_price, cost_snapshot, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(`SI-${Date.now()}-${Math.floor(Math.random()*1000)}`, saleId, pId, product.name, item.qty, unitPrice, costSnapshot, itemTotal);
+        INSERT INTO sale_items (id, organization_id, sale_id, product_id, product_name, qty, unit_price, cost_snapshot, total)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(`SI-${Date.now()}-${Math.floor(Math.random()*1000)}`, orgId, saleId, pId, product.name, item.qty, unitPrice, costSnapshot, itemTotal);
 
       // Deduct Inventory Stock
       const newStock = product.current_stock - item.qty;
-      db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newStock, pId);
+      db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(newStock, pId, orgId);
 
       // Record Stock Movement
       db.prepare(`
-        INSERT INTO stock_movements (id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-        VALUES (?, ?, ?, 'SALE', ?, ?, ?, ?, ?, 'POS Sale Completed')
+        INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
+        VALUES (?, ?, ?, ?, 'SALE', ?, ?, ?, ?, ?, 'POS Sale Completed')
       `).run(
         `MOV-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+        orgId,
         pId,
         product.name,
         item.qty,
@@ -247,24 +251,24 @@ router.post('/', (req, res) => {
 
     // 5. Record Payment Entry
     db.prepare(`
-      INSERT INTO payments (id, sale_id, method, amount, reference_code, status)
-      VALUES (?, ?, ?, ?, ?, 'SUCCESS')
-    `).run(`PAY-${Date.now()}`, saleId, paymentMethod || 'CASH', parseFloat(total), mpesaCode || null);
+      INSERT INTO payments (id, organization_id, sale_id, method, amount, reference_code, status)
+      VALUES (?, ?, ?, ?, ?, ?, 'SUCCESS')
+    `).run(`PAY-${Date.now()}`, orgId, saleId, paymentMethod || 'CASH', parseFloat(total), mpesaCode || null);
 
     // 6. Update Customer Spend if non-walk-in
     if (customerId && customerId !== 'C1') {
       db.prepare(`
-        UPDATE customers 
-        SET visits = visits + 1, total_spend = total_spend + ? 
-        WHERE id = ?
-      `).run(parseFloat(total), customerId);
+        UPDATE customers
+        SET visits = visits + 1, total_spend = total_spend + ?
+        WHERE id = ? AND organization_id = ?
+      `).run(parseFloat(total), customerId, orgId);
     }
 
     // 7. Record Audit Log
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, CURRENT_TIMESTAMP, ?, 'cashier', 'B1', 'POS Sale Completed', ?, '-', ?, 'Completed checkout transaction')
-    `).run(`AUD-${Date.now()}`, cashierName, receiptNo, `KSh ${total} via ${paymentMethod}`);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, 'cashier', ?, 'POS Sale Completed', ?, '-', ?, 'Completed checkout transaction')
+    `).run(`AUD-${Date.now()}`, orgId, cashierName, effectiveBranch, receiptNo, `KSh ${total} via ${paymentMethod}`);
 
     const etimsCuNum = `CU-${Math.floor(10000000 + Math.random() * 90000000)}`;
     const etimsControlCode = `${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}`;
@@ -308,22 +312,29 @@ router.post('/:id/refund', (req, res) => {
     return res.status(400).json({ error: "Manager/Owner PIN authentication required for refunds!" });
   }
 
+  const orgId = req.authUser.organizationId;
+
   // Verify Manager/Owner PIN against secure hashes (no plaintext comparison).
-  const manager = findUserByPin(managerPin, ['owner', 'manager']);
+  const manager = findUserByPin(managerPin, ['owner', 'manager'], orgId);
 
   if (!manager) {
     return res.status(403).json({ error: "Invalid Manager PIN or insufficient permissions for refund." });
   }
 
+  // Tenant isolation: the approver must belong to THIS organization.
+  if (manager.organization_id && manager.organization_id !== orgId) {
+    return res.status(403).json({ error: "Refund approver is outside your organization." });
+  }
+
   // Branch isolation: the approving manager must belong to the sale's branch
   // (owners are organization-wide and may approve any branch).
-  const saleForBranch = db.prepare('SELECT branch_id FROM sales WHERE id = ? OR receipt_no = ?').get(id, id);
+  const saleForBranch = db.prepare('SELECT branch_id FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, orgId);
   if (saleForBranch && manager.role.toLowerCase() !== 'owner' && manager.branch_id !== saleForBranch.branch_id) {
     return res.status(403).json({ error: "Refund approver does not belong to this branch." });
   }
 
   const processRefundTransaction = db.transaction(() => {
-    const sale = db.prepare('SELECT * FROM sales WHERE id = ? OR receipt_no = ?').get(id, id);
+    const sale = db.prepare('SELECT * FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, orgId);
     if (!sale) {
       throw new Error("Sale transaction not found.");
     }
@@ -343,16 +354,17 @@ router.post('/:id/refund', (req, res) => {
 
     // Restore Inventory Stock and record movements
     for (const item of items) {
-      const product = db.prepare('SELECT current_stock, name FROM products WHERE id = ?').get(item.product_id);
+      const product = db.prepare('SELECT current_stock, name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
       if (product) {
         const newStock = product.current_stock + item.qty;
-        db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newStock, item.product_id);
+        db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(newStock, item.product_id, orgId);
 
         db.prepare(`
-          INSERT INTO stock_movements (id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-          VALUES (?, ?, ?, 'RETURN', ?, ?, ?, ?, ?, ?)
+          INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
+          VALUES (?, ?, ?, ?, 'RETURN', ?, ?, ?, ?, ?, ?)
         `).run(
           `MOV-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+          orgId,
           item.product_id,
           product.name,
           item.qty,
@@ -367,12 +379,14 @@ router.post('/:id/refund', (req, res) => {
 
     // Audit Log
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, CURRENT_TIMESTAMP, ?, ?, 'B1', 'Sale Refunded', ?, ?, 'REFUNDED', ?)
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Sale Refunded', ?, ?, 'REFUNDED', ?)
     `).run(
       `AUD-${Date.now()}`,
+      orgId,
       manager.name,
       manager.role,
+      sale.branch_id || '-',
       sale.receipt_no,
       `Original Total: KSh ${sale.total}`,
       reason || 'Customer Refund'

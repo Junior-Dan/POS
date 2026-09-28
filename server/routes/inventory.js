@@ -12,8 +12,8 @@ router.use(requireRole('owner', 'manager', 'inventory_officer'));
 router.get('/movements', (req, res) => {
   try {
     const { productId, type } = req.query;
-    let sql = `SELECT * FROM stock_movements WHERE 1=1`;
-    const params = [];
+    let sql = `SELECT * FROM stock_movements WHERE organization_id = ?`;
+    const params = [req.authUser.organizationId];
 
     if (productId) {
       sql += ` AND product_id = ?`;
@@ -57,15 +57,16 @@ router.post('/adjust', (req, res) => {
     return res.status(400).json({ error: "Product ID, valid non-negative stock quantity, and reason are required." });
   }
 
+  const orgId = req.authUser.organizationId;
   if (managerPin) {
-    const mgr = findUserByPin(managerPin, ['owner', 'manager']);
-    if (!mgr) {
+    const mgr = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+    if (!mgr || (mgr.organization_id && mgr.organization_id !== orgId)) {
       return res.status(403).json({ error: "Invalid Manager/Owner PIN for stock adjustment." });
     }
   }
 
   const processAdjustment = db.transaction(() => {
-    const product = db.prepare('SELECT id, name, current_stock FROM products WHERE id = ?').get(productId);
+    const product = db.prepare('SELECT id, name, current_stock FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
     if (!product) {
       throw new Error("Product not found.");
     }
@@ -74,18 +75,18 @@ router.post('/adjust', (req, res) => {
     const targetStock = parseInt(newStock, 10);
     const diff = targetStock - prevStock;
 
-    db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetStock, productId);
+    db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(targetStock, productId, orgId);
 
     const movId = `MOV-${Date.now()}`;
     db.prepare(`
-      INSERT INTO stock_movements (id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-      VALUES (?, ?, ?, 'STOCK_ADJUSTMENT', ?, ?, ?, 'MANUAL-ADJ', ?, ?)
-    `).run(movId, productId, product.name, diff, prevStock, targetStock, userName || 'Manager', reason);
+      INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
+      VALUES (?, ?, ?, ?, 'STOCK_ADJUSTMENT', ?, ?, ?, 'MANUAL-ADJ', ?, ?)
+    `).run(movId, orgId, productId, product.name, diff, prevStock, targetStock, userName || req.authUser.name || 'Manager', reason);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, CURRENT_TIMESTAMP, ?, 'manager', 'B1', 'Stock Adjustment', ?, ?, ?, ?)
-    `).run(`AUD-${Date.now()}`, userName || 'Manager', product.name, `Qty: ${prevStock}`, `Qty: ${targetStock}`, reason);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Stock Adjustment', ?, ?, ?, ?)
+    `).run(`AUD-${Date.now()}`, orgId, userName || req.authUser.name || 'Manager', req.authUser.role, req.authUser.branchId || '-', product.name, `Qty: ${prevStock}`, `Qty: ${targetStock}`, reason);
 
     return { productId, previousStock: prevStock, newStock: targetStock, diff };
   });
@@ -106,15 +107,16 @@ router.post('/damage', (req, res) => {
     return res.status(400).json({ error: "Product ID, positive damaged quantity, and reason are required." });
   }
 
+  const orgId = req.authUser.organizationId;
   if (managerPin) {
-    const mgr = findUserByPin(managerPin, ['owner', 'manager']);
-    if (!mgr) {
+    const mgr = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+    if (!mgr || (mgr.organization_id && mgr.organization_id !== orgId)) {
       return res.status(403).json({ error: "Invalid Manager PIN." });
     }
   }
 
   const processDamage = db.transaction(() => {
-    const product = db.prepare('SELECT id, name, current_stock FROM products WHERE id = ?').get(productId);
+    const product = db.prepare('SELECT id, name, current_stock FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
     if (!product) {
       throw new Error("Product not found.");
     }
@@ -127,17 +129,17 @@ router.post('/damage', (req, res) => {
     const prevStock = product.current_stock;
     const newStock = prevStock - qty;
 
-    db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newStock, productId);
+    db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(newStock, productId, orgId);
 
     db.prepare(`
-      INSERT INTO stock_movements (id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-      VALUES (?, ?, ?, 'DAMAGE', ?, ?, ?, 'DAMAGE-LOG', ?, ?)
-    `).run(`MOV-${Date.now()}`, productId, product.name, -qty, prevStock, newStock, userName || 'Manager', `Damaged: ${reason}`);
+      INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
+      VALUES (?, ?, ?, ?, 'DAMAGE', ?, ?, ?, 'DAMAGE-LOG', ?, ?)
+    `).run(`MOV-${Date.now()}`, orgId, productId, product.name, -qty, prevStock, newStock, userName || req.authUser.name || 'Manager', `Damaged: ${reason}`);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, CURRENT_TIMESTAMP, ?, 'manager', 'B1', 'Record Damage', ?, ?, ?, ?)
-    `).run(`AUD-${Date.now()}`, userName || 'Manager', product.name, `Stock: ${prevStock}`, `Stock: ${newStock}`, `Logged ${qty} damaged: ${reason}`);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Record Damage', ?, ?, ?, ?)
+    `).run(`AUD-${Date.now()}`, orgId, userName || req.authUser.name || 'Manager', req.authUser.role, req.authUser.branchId || '-', product.name, `Stock: ${prevStock}`, `Stock: ${newStock}`, `Logged ${qty} damaged: ${reason}`);
 
     return { productId, qtyDamaged: qty, previousStock: prevStock, newStock };
   });

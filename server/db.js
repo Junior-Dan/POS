@@ -313,5 +313,68 @@ export function initDb() {
     }
   }
 
+  // Multi-tenant migration: guarantee organization_id on every data table and
+  // backfill any pre-existing single-org rows. Runs on Turso AND local. Gated by
+  // a version marker so the (slow, per-statement) ALTERs run at most once.
+  runTenantMigration();
+
   console.log(db.isTurso ? `Turso Cloud database engine active: ${db.tursoUrl}` : `SQLite database engine active: ${databasePath}`);
+}
+
+const TENANT_TABLES = [
+  'products', 'suppliers', 'customers', 'shifts', 'sales', 'sale_items',
+  'stock_movements', 'cash_movements', 'purchases', 'purchase_items',
+  'expenses', 'audit_logs', 'payments', 'categories'
+];
+
+function runTenantMigration() {
+  const MIGRATION_VERSION = '4';
+  let current = null;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
+    current = row ? row.value : null;
+  } catch (e) {}
+  if (current === MIGRATION_VERSION) return;
+
+  // Add organization_id where missing (harmless "duplicate column" errors are
+  // swallowed for tables/DBs that already have it).
+  for (const t of TENANT_TABLES) {
+    try { db.exec(`ALTER TABLE ${t} ADD COLUMN organization_id TEXT`); } catch (e) {}
+  }
+
+  // Backfill existing rows to the current (single) organization, if one exists.
+  let orgId = null;
+  try {
+    const org = db.prepare('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').get();
+    orgId = org ? org.id : null;
+  } catch (e) {}
+  if (orgId) {
+    const safeOrg = String(orgId).replaceAll("'", "''");
+    for (const t of TENANT_TABLES) {
+      try { db.exec(`UPDATE ${t} SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
+    }
+    try { db.exec(`UPDATE users SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
+    try { db.exec(`UPDATE branches SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
+
+    // Migrate legacy GLOBAL settings keys (from the single-tenant era) into this
+    // organization's namespace ("<orgId>::<key>") so the existing business keeps
+    // its profile, branches list and configuration after the upgrade.
+    const LEGACY_SETTING_KEYS = [
+      'businessProfile', 'branches', 'paymentSettings', 'receiptSettings',
+      'shiftSettings', 'securitySettings', 'systemPreferences'
+    ];
+    for (const k of LEGACY_SETTING_KEYS) {
+      try {
+        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(k);
+        if (row && row.value !== undefined && row.value !== null) {
+          db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`${orgId}::${k}`, row.value);
+          db.prepare('DELETE FROM settings WHERE key = ?').run(k);
+        }
+      } catch (e) {}
+    }
+  }
+
+  try {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('__schema_v', ?)").run(MIGRATION_VERSION);
+  } catch (e) {}
 }

@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession } from './auth.js';
+import { settingKey } from '../tenant.js';
 
 const router = express.Router();
 router.use(authenticateSession);
@@ -13,16 +14,20 @@ router.use((req, res, next) => {
   next();
 });
 
-// GET all settings
+// GET all settings for THIS organization (keys stored namespaced as
+// "<orgId>::<name>"; the prefix is stripped before returning).
 router.get('/', (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM settings').all();
+    const orgId = req.authUser.organizationId;
+    const prefix = `${orgId}::`;
+    const rows = db.prepare('SELECT * FROM settings WHERE key LIKE ?').all(`${prefix}%`);
     const settings = {};
     rows.forEach(r => {
+      const name = r.key.startsWith(prefix) ? r.key.slice(prefix.length) : r.key;
       try {
-        settings[r.key] = JSON.parse(r.value);
+        settings[name] = JSON.parse(r.value);
       } catch (e) {
-        settings[r.key] = r.value;
+        settings[name] = r.value;
       }
     });
     res.json(settings);
@@ -31,20 +36,21 @@ router.get('/', (req, res) => {
   }
 });
 
-// PUT update a specific settings section
+// PUT update a specific settings section for THIS organization.
 router.put('/:key', (req, res) => {
   const { key } = req.params;
   const value = req.body;
+  const orgId = req.authUser.organizationId;
 
   try {
     const strVal = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, strVal);
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(settingKey(orgId, key), strVal);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, CURRENT_TIMESTAMP, 'Manager', 'manager', 'B1', 'Update Settings', ?, '-', 'Updated', 'Configuration settings updated')
-    `).run(`AUD-${Date.now()}`, key);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Update Settings', ?, '-', 'Updated', 'Configuration settings updated')
+    `).run(`AUD-${Date.now()}`, orgId, req.authUser.name, req.authUser.role, req.authUser.branchId || '-', key);
 
     res.json({ success: true, key, value });
   } catch (e) {

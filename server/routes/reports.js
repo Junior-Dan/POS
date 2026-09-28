@@ -8,8 +8,8 @@ router.use(authenticateSession);
 router.use(requireRole('owner', 'manager'));
 const kenyaDate = value => new Date(value).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
 
-function completedSales(date) {
-  return db.prepare('SELECT * FROM sales WHERE refunded = 0 AND date(created_at) = ?').all(date || kenyaDate(new Date()));
+function completedSales(date, orgId) {
+  return db.prepare('SELECT * FROM sales WHERE refunded = 0 AND organization_id = ? AND date(created_at) = ?').all(orgId, date || kenyaDate(new Date()));
 }
 
 function saleItemsFor(sales) {
@@ -20,15 +20,16 @@ function saleItemsFor(sales) {
 // GET Dashboard metrics calculated directly from database
 router.get('/dashboard', (req, res) => {
   try {
-    const sales = completedSales(req.query.date);
+    const orgId = req.authUser.organizationId;
+    const sales = completedSales(req.query.date, orgId);
     const items = saleItemsFor(sales);
     const grossSales = sales.reduce((total, sale) => total + Number(sale.total || 0), 0);
     const totalCogs = items.reduce((total, item) => total + Number(item.cost_snapshot || 0) * Number(item.qty || 0), 0);
     const cashSales = sales.filter(sale => sale.payment_method === 'CASH').reduce((total, sale) => total + Number(sale.total || 0), 0);
     const mpesaSales = sales.filter(sale => sale.payment_method === 'M-PESA').reduce((total, sale) => total + Number(sale.total || 0), 0);
-    const refundedSales = db.prepare('SELECT refund_amount FROM sales WHERE refunded = 1 AND date(created_at) = ?').all(req.query.date || kenyaDate(new Date()));
+    const refundedSales = db.prepare('SELECT refund_amount FROM sales WHERE refunded = 1 AND organization_id = ? AND date(created_at) = ?').all(orgId, req.query.date || kenyaDate(new Date()));
     const totalRefunds = refundedSales.reduce((total, sale) => total + Number(sale.refund_amount || 0), 0);
-    const activeProducts = db.prepare('SELECT current_stock, min_stock FROM products WHERE active = 1').all();
+    const activeProducts = db.prepare('SELECT current_stock, min_stock FROM products WHERE active = 1 AND organization_id = ?').all(orgId);
     const lowStockCount = activeProducts.filter(product => Number(product.current_stock) <= Number(product.min_stock)).length;
     const outOfStockCount = activeProducts.filter(product => Number(product.current_stock) === 0).length;
 
@@ -53,9 +54,10 @@ router.get('/dashboard', (req, res) => {
 // GET Category Sales Breakdown
 router.get('/category-breakdown', (req, res) => {
   try {
-    const productById = new Map(db.prepare('SELECT id, category FROM products').all().map(product => [product.id, product]));
+    const orgId = req.authUser.organizationId;
+    const productById = new Map(db.prepare('SELECT id, category FROM products WHERE organization_id = ?').all(orgId).map(product => [product.id, product]));
     const breakdown = {};
-    saleItemsFor(db.prepare('SELECT id FROM sales WHERE refunded = 0').all()).forEach(item => {
+    saleItemsFor(db.prepare('SELECT id FROM sales WHERE refunded = 0 AND organization_id = ?').all(orgId)).forEach(item => {
       const category = productById.get(item.product_id)?.category || 'Other';
       breakdown[category] = (breakdown[category] || 0) + Number(item.total || 0);
     });
@@ -73,7 +75,7 @@ router.get('/hourly', (req, res) => {
     const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    completedSales().forEach(sale => {
+    completedSales(undefined, req.authUser.organizationId).forEach(sale => {
       const h = new Date(sale.created_at).getHours();
       const idx = Math.floor(h / 2);
       if (idx >= 0 && idx < 12) {
@@ -91,9 +93,10 @@ router.get('/hourly', (req, res) => {
 // GET Brand Profitability Matrix
 router.get('/brand-profitability', (req, res) => {
   try {
-    const productById = new Map(db.prepare('SELECT id, brand FROM products').all().map(product => [product.id, product]));
+    const orgId = req.authUser.organizationId;
+    const productById = new Map(db.prepare('SELECT id, brand FROM products WHERE organization_id = ?').all(orgId).map(product => [product.id, product]));
     const brands = new Map();
-    saleItemsFor(db.prepare('SELECT id FROM sales WHERE refunded = 0').all()).forEach(item => {
+    saleItemsFor(db.prepare('SELECT id FROM sales WHERE refunded = 0 AND organization_id = ?').all(orgId)).forEach(item => {
       const brand = productById.get(item.product_id)?.brand || 'Other';
       const current = brands.get(brand) || { brand, units: 0, revenue: 0, cogs: 0 };
       current.units += Number(item.qty || 0);

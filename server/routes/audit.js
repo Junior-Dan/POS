@@ -9,7 +9,7 @@ router.use(requireRole('owner', 'manager'));
 // GET audit logs
 router.get('/', (req, res) => {
   try {
-    const logs = db.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200').all();
+    const logs = db.prepare('SELECT * FROM audit_logs WHERE organization_id = ? ORDER BY timestamp DESC LIMIT 200').all(req.authUser.organizationId);
     res.json(logs.map(l => ({
       id: l.id,
       timestamp: l.timestamp,

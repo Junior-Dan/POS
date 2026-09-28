@@ -45,13 +45,15 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
+    organization_id TEXT,
+    name TEXT NOT NULL,
     description TEXT,
     active INTEGER DEFAULT 1
   )`,
 
   `CREATE TABLE IF NOT EXISTS suppliers (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     name TEXT NOT NULL,
     contact_person TEXT,
     phone TEXT,
@@ -62,6 +64,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     brand TEXT,
     name TEXT NOT NULL,
     category TEXT NOT NULL,
@@ -70,8 +73,8 @@ export const SCHEMA_STATEMENTS = [
     abv REAL DEFAULT 0,
     size TEXT,
     case_units INTEGER DEFAULT 12,
-    barcode TEXT UNIQUE,
-    sku TEXT UNIQUE,
+    barcode TEXT,
+    sku TEXT,
     cost_price REAL NOT NULL DEFAULT 0,
     selling_price REAL NOT NULL DEFAULT 0,
     wholesale_price REAL DEFAULT 0,
@@ -90,6 +93,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS customers (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     name TEXT NOT NULL,
     phone TEXT,
     email TEXT,
@@ -100,6 +104,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS shifts (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     branch_id TEXT DEFAULT 'B1',
     cashier_id TEXT NOT NULL,
     cashier_name TEXT NOT NULL,
@@ -115,6 +120,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS sales (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     receipt_no TEXT UNIQUE NOT NULL,
     branch_id TEXT DEFAULT 'B1',
     cashier_id TEXT NOT NULL,
@@ -137,6 +143,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS sale_items (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     sale_id TEXT NOT NULL,
     product_id TEXT NOT NULL,
     product_name TEXT NOT NULL,
@@ -148,6 +155,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS stock_movements (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     product_id TEXT NOT NULL,
     product_name TEXT NOT NULL,
@@ -162,6 +170,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS cash_movements (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     shift_id TEXT,
     type TEXT NOT NULL,
     amount REAL NOT NULL,
@@ -172,6 +181,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS purchases (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     po_number TEXT UNIQUE NOT NULL,
     branch_id TEXT DEFAULT 'B1',
     supplier_id TEXT NOT NULL,
@@ -186,6 +196,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS purchase_items (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     purchase_id TEXT NOT NULL,
     product_id TEXT NOT NULL,
     product_name TEXT NOT NULL,
@@ -197,6 +208,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS expenses (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     category TEXT NOT NULL,
     amount REAL NOT NULL,
     description TEXT,
@@ -207,6 +219,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     user_name TEXT NOT NULL,
     role TEXT,
@@ -225,6 +238,7 @@ export const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
+    organization_id TEXT,
     sale_id TEXT NOT NULL,
     method TEXT NOT NULL,
     amount REAL NOT NULL,

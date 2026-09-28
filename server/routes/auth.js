@@ -1,15 +1,69 @@
 import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
+import { getOrgSetting, setOrgSetting, uniqueBranchCode } from '../tenant.js';
 
 const router = express.Router();
 
-// Active Session Tokens Store (Token => Session Payload)
+// Legacy in-memory session cache. Kept only so any pre-existing opaque tokens
+// keep working; NEW sessions are stateless JWTs (see below).
 export const activeSessions = new Map();
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hour token lifetime
 const LEGACY_SALT = 'cellar_pos_secure_salt_v2';
+
+// ---------------------------------------------------------------------------
+// STATELESS SESSION TOKENS (JWT)
+// On serverless (Vercel), each request may land on a different function
+// instance, so an in-memory session Map cannot be shared and a DB session row
+// may not have committed yet on a slow/intermittent database. A signed JWT
+// carries the identity itself, so ANY instance can validate it with zero shared
+// state — making login + staff/PIN management work seamlessly across instances
+// and organizations. The secret is stable across all instances (same code /
+// env), which is what makes cross-instance validation possible.
+// ---------------------------------------------------------------------------
+function resolveJwtSecret() {
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim() !== '') {
+    return process.env.JWT_SECRET;
+  }
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    throw new Error('CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!');
+  }
+  console.warn('⚠️ WARNING: JWT_SECRET environment variable is missing. Using local development fallback key.');
+  return 'cellar-pos-shared-session-secret-dev-v1';
+}
+const JWT_SECRET = resolveJwtSecret();
+const JWT_EXPIRY = '12h';
+
+function signSession(user, orgId, branchId) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      organizationId: orgId || user.organization_id || null,
+      branchId: branchId !== undefined ? branchId : (user.branch_id || null),
+      role: (user.role || 'cashier').toLowerCase()
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRY }
+  );
+}
+
+function verifySessionToken(token) {
+  try {
+    const p = jwt.verify(token, JWT_SECRET);
+    return {
+      userId: p.userId,
+      organizationId: p.organizationId || null,
+      branchId: p.branchId || null,
+      role: p.role || 'cashier',
+      expiresAt: (p.exp ? p.exp * 1000 : Date.now() + SESSION_TTL_MS)
+    };
+  } catch (e) {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // SECURE PIN HASHING
@@ -53,12 +107,17 @@ export function verifyPin(pin, user) {
   }
 }
 
-// Scan active users (optionally filtered by role) for one whose PIN matches.
+// Scan active users (optionally filtered by role and organization) for one whose PIN matches.
 // Used only for elevated-action PIN prompts (refunds, stock adjustments).
-export function findUserByPin(pin, roles) {
+export function findUserByPin(pin, roles, organizationId = null) {
   if (!pin) return null;
   const allowed = roles ? roles.map(r => r.toLowerCase()) : null;
-  const list = db.prepare('SELECT * FROM users WHERE active = 1').all();
+  let list;
+  if (organizationId) {
+    list = db.prepare('SELECT * FROM users WHERE active = 1 AND (organization_id = ? OR organization_id IS NULL)').all(organizationId);
+  } else {
+    list = db.prepare('SELECT * FROM users WHERE active = 1').all();
+  }
   return list.find(u =>
     (!allowed || allowed.includes((u.role || '').toLowerCase())) && verifyPin(pin, u)
   ) || null;
@@ -135,7 +194,8 @@ function extractToken(req) {
 }
 
 // Validates the session token and attaches the *server-trusted* user identity
-// to req.authUser. No fallback: an invalid/absent token is rejected.
+// to req.authUser. Primary path is stateless JWT verification (works on any
+// instance); falls back to the legacy in-memory/DB session for old tokens.
 export function authenticateSession(req, res, next) {
   const token = extractToken(req);
 
@@ -143,33 +203,39 @@ export function authenticateSession(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: a valid session token is required.' });
   }
 
-  let session = activeSessions.get(token);
+  // 1) Stateless JWT — no shared state needed, works across all instances.
+  let session = verifySessionToken(token);
+
+  // 2) Legacy fallback: opaque tokens issued before the JWT switch.
   if (!session) {
-    try {
-      const dbSession = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);
-      if (dbSession) {
-        const expiresAt = new Date(dbSession.expires_at).getTime();
-        if (Date.now() <= expiresAt) {
-          session = {
-            userId: dbSession.user_id,
-            organizationId: dbSession.organization_id,
-            branchId: dbSession.branch_id,
-            role: dbSession.role,
-            expiresAt
-          };
-          activeSessions.set(token, session);
-        } else {
-          db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    session = activeSessions.get(token);
+    if (!session) {
+      try {
+        const dbSession = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);
+        if (dbSession) {
+          const expiresAt = new Date(dbSession.expires_at).getTime();
+          if (Date.now() <= expiresAt) {
+            session = {
+              userId: dbSession.user_id,
+              organizationId: dbSession.organization_id,
+              branchId: dbSession.branch_id,
+              role: dbSession.role,
+              expiresAt
+            };
+            activeSessions.set(token, session);
+          } else {
+            db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+          }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
   }
 
   if (!session) {
-    return res.status(401).json({ error: 'Unauthorized: a valid session token is required.' });
+    return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
   }
 
-  if (Date.now() > session.expiresAt) {
+  if (session.expiresAt && Date.now() > session.expiresAt) {
     activeSessions.delete(token);
     try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
@@ -217,10 +283,10 @@ export function canAccessBranch(authUser, branchId) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. REGISTER OWNER ACCOUNT & CREATE ORGANIZATION
-//    Only permitted when no organization/owner exists yet (prevents wiping an
-//    established business). Subsequent owners/branches are created from the
-//    authenticated Owner Dashboard.
+// 1. REGISTER A NEW ORGANIZATION + ITS OWNER
+//    Multi-tenant: every call creates a BRAND NEW organization with its own
+//    owner, first branch, and isolated settings. Many businesses can register
+//    on the same deployment; each is fully partitioned by organization_id.
 // ---------------------------------------------------------------------------
 router.post('/setup', (req, res) => {
   const { name, email, phone, pin, confirmPin, businessName, branchName, branchCode } = req.body;
@@ -236,20 +302,11 @@ router.post('/setup', (req, res) => {
     return res.status(400).json({ error: 'PIN must be at least 4 digits.' });
   }
 
-  if (req.body.reset || req.body.force) {
-    db.prepare('DELETE FROM users').run();
-    db.prepare('DELETE FROM organizations').run();
-    db.prepare('DELETE FROM branches').run();
-  } else {
-    const existingOwner = db.prepare("SELECT id FROM users WHERE role = 'owner' AND active = 1").get();
-    if (existingOwner) {
-      return res.status(409).json({ error: 'A business owner already exists. Please log in instead.' });
-    }
-  }
-
-  const ownerId = 'U-OWNER-1';
-  const orgId = 'ORG-1';
-  const bCode = (branchCode || 'cbd').toLowerCase();
+  // Unique identifiers per organization so many businesses coexist safely.
+  const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const orgId = `ORG-${stamp}`;
+  const ownerId = `U-OWNER-${stamp}`;
+  const bCode = uniqueBranchCode(branchCode || businessName || 'store');
   const bId = `BR-${bCode}`;
   const pinHashed = hashPin(cleanPin);
 
@@ -262,8 +319,8 @@ router.post('/setup', (req, res) => {
     // Owner has org-wide access: branch_id is intentionally NULL.
     db.prepare(`
       INSERT OR REPLACE INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, email, phone, status, active, created_by)
-      VALUES (?, ?, NULL, ?, 'owner', ?, ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
-    `).run(ownerId, orgId, name, cleanPin, pinHashed, email || null, phone || null);
+      VALUES (?, ?, NULL, ?, 'owner', '', ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
+    `).run(ownerId, orgId, name, pinHashed, email || null, phone || null);
 
     // Create the initial branch (the app expects at least one branch to operate).
     const bName = branchName || 'Main Branch';
@@ -280,33 +337,18 @@ router.post('/setup', (req, res) => {
       address: 'Kenya',
       kraPin: 'P051234567S'
     };
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('businessProfile', ?)")
-      .run(JSON.stringify(profile));
-
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('branches', ?)")
-      .run(JSON.stringify([{ id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }]));
+    setOrgSetting(orgId, 'businessProfile', profile);
+    setOrgSetting(orgId, 'branches', [
+      { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
+    ]);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, 'owner', ?, 'Register Owner', ?, '-', 'Owner Account Created', 'Business & Initial Branch Created')
-    `).run(`AUD-${Date.now()}`, new Date().toISOString(), name, bId, bizName);
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, ?, 'owner', ?, 'Register Owner', ?, '-', 'Owner Account Created', 'Business & Initial Branch Created')
+    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), name, bId, bizName);
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + SESSION_TTL_MS;
-    activeSessions.set(token, {
-      userId: ownerId,
-      organizationId: orgId,
-      branchId: null,
-      role: 'owner',
-      expiresAt
-    });
-
-    try {
-      db.prepare(`
-        INSERT OR REPLACE INTO sessions (token, user_id, organization_id, branch_id, role, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(token, ownerId, orgId, null, 'owner', new Date(expiresAt).toISOString());
-    } catch (e) {}
+    // Stateless JWT session — valid on any serverless instance immediately.
+    const token = signSession({ id: ownerId, role: 'owner' }, orgId, null);
 
     res.status(201).json({
       success: true,
@@ -366,25 +408,12 @@ router.post('/login', (req, res) => {
 
   clearFailures(key);
 
-  const token = crypto.randomBytes(32).toString('hex');
   const orgId = user.organization_id || 'ORG-1';
   const branchId = user.branch_id || null;
-  const expiresAt = Date.now() + SESSION_TTL_MS;
 
-  activeSessions.set(token, {
-    userId: user.id,
-    organizationId: orgId,
-    branchId,
-    role: user.role.toLowerCase(),
-    expiresAt
-  });
-
-  try {
-    db.prepare(`
-      INSERT OR REPLACE INTO sessions (token, user_id, organization_id, branch_id, role, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(token, user.id, orgId, branchId, user.role.toLowerCase(), new Date(expiresAt).toISOString());
-  } catch (e) {}
+  // Stateless JWT session — valid on any serverless instance immediately,
+  // with no dependency on a shared in-memory Map or a committed DB row.
+  const token = signSession(user, orgId, branchId);
 
   res.json({
     success: true,
@@ -437,48 +466,61 @@ router.get('/branch-info', (req, res) => {
     branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
   }
 
+  // Multi-tenant safety: with no branch code (main URL) or an unknown code, we
+  // must NOT fall back to some other organization's branch — that would leak a
+  // different business's staff onto this terminal. Return an empty terminal so
+  // the frontend offers Business Registration / asks for a valid branch link.
   if (!branch) {
-    const s = db.prepare("SELECT value FROM settings WHERE key = 'branches'").get();
-    if (s && s.value) {
-      try {
-        const branches = JSON.parse(s.value);
-        const b = branches.find(x => (x.code && x.code.toLowerCase() === code) || (x.id && x.id.toLowerCase() === code)) || branches[0];
-        if (b) branch = { id: b.id, name: b.name, code: b.code || b.id, location: b.location, phone: b.phone, organization_id: b.organizationId };
-      } catch (e) {}
-    }
+    return res.json({ branch: null, users: [] });
   }
 
-  if (!branch) {
-    branch = db.prepare("SELECT * FROM branches WHERE status = 'ACTIVE' ORDER BY created_at ASC LIMIT 1").get();
-  }
-
-  if (!branch) {
-    branch = { id: 'B1', name: 'Main Branch', code: 'cbd', location: 'Nairobi CBD Main' };
-  }
-
-  // Active branch users + the organization owner (owners are org-wide and may
-  // authenticate at any of their branch terminals). PINs are never exposed.
+  // Active branch users + THIS organization's owner (owners are org-wide and
+  // may authenticate at any of their own branch terminals). Scoped by
+  // organization so one org's staff/owner never appear on another org's branch
+  // login — essential when the deployment serves many organizations. PINs are
+  // never exposed.
+  const branchOrgId = branch.organization_id || branch.organizationId || null;
   let branchUsers = [];
   try {
-    branchUsers = db.prepare(`
-      SELECT id, name, role, email, phone, branch_id, status, active
-      FROM users
-      WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
-        AND (branch_id = ? OR branch_id IS NULL OR LOWER(role) = 'owner')
-      ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
-    `).all(branch.id);
+    if (branchOrgId) {
+      branchUsers = db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+          AND organization_id = ?
+          AND (branch_id = ? OR LOWER(role) = 'owner')
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all(branchOrgId, branch.id);
+    } else {
+      // Legacy single-org data with no organization_id recorded.
+      branchUsers = db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+          AND (branch_id = ? OR branch_id IS NULL OR LOWER(role) = 'owner')
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all(branch.id);
+    }
   } catch (e) {
     branchUsers = [];
   }
 
-  // Fallback: If no staff accounts are bound to this branch yet, include active Owner account(s)
+  // Fallback: if no staff are bound to this branch yet, include the owner(s) of
+  // THIS organization so the terminal is never left with an empty login list.
   if (branchUsers.length === 0) {
     try {
-      branchUsers = db.prepare(`
-        SELECT id, name, role, email, phone, branch_id, status, active
-        FROM users
-        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED' AND LOWER(role) = 'owner'
-      `).all();
+      branchUsers = branchOrgId
+        ? db.prepare(`
+            SELECT id, name, role, email, phone, branch_id, status, active
+            FROM users
+            WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+              AND LOWER(role) = 'owner' AND organization_id = ?
+          `).all(branchOrgId)
+        : db.prepare(`
+            SELECT id, name, role, email, phone, branch_id, status, active
+            FROM users
+            WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED' AND LOWER(role) = 'owner'
+          `).all();
     } catch (e) {}
   }
 
@@ -510,30 +552,26 @@ router.post('/branches', authenticateSession, requireRole('owner'), (req, res) =
   const { name, location, phone, code } = req.body;
   if (!name) return res.status(400).json({ error: 'Branch name is required.' });
 
-  const orgId = req.authUser.organizationId || 'ORG-1';
-  const generatedCode = (code ? code : `${name.substring(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`).toLowerCase();
+  const orgId = req.authUser.organizationId;
+  // Globally-unique code so the branch's share URL is unambiguous across orgs.
+  const generatedCode = uniqueBranchCode(code || name);
   const branchId = `BR-${generatedCode}`;
 
   try {
-    const existing = db.prepare('SELECT id FROM branches WHERE LOWER(code) = ?').get(generatedCode);
-    if (existing) return res.status(409).json({ error: 'A branch with that code already exists.' });
-
     db.prepare(`
       INSERT INTO branches (id, organization_id, name, code, location, phone, status)
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
     `).run(branchId, orgId, name, generatedCode, location || '', phone || '');
 
-    // Keep the legacy settings.branches array in sync for the frontend.
-    const s = db.prepare('SELECT value FROM settings WHERE key = "branches"').get();
-    let currentBranches = [];
-    if (s && s.value) { try { currentBranches = JSON.parse(s.value); } catch (e) {} }
+    // Keep this org's settings.branches array in sync for the frontend.
+    const currentBranches = getOrgSetting(orgId, 'branches') || [];
     currentBranches.push({ id: branchId, organizationId: orgId, name, code: generatedCode, location: location || '', phone: phone || '', status: 'ACTIVE' });
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("branches", ?)').run(JSON.stringify(currentBranches));
+    setOrgSetting(orgId, 'branches', currentBranches);
 
     db.prepare(`
-      INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, 'owner', ?, 'Create Branch', ?, '-', ?, 'New branch created')
-    `).run(`AUD-${Date.now()}`, new Date().toISOString(), req.authUser.name, branchId, name, generatedCode.toUpperCase());
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, ?, 'owner', ?, 'Create Branch', ?, '-', ?, 'New branch created')
+    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.name, branchId, name, generatedCode.toUpperCase());
 
     res.status(201).json({ success: true, branch: { id: branchId, organizationId: orgId, name, code: generatedCode, location, phone } });
   } catch (e) {
@@ -763,7 +801,7 @@ router.post('/verify-pin', authenticateSession, (req, res) => {
   if (!pin) return res.status(400).json({ error: 'PIN is required.' });
 
   const allowedRoles = (requiredRoles || ['owner', 'manager']).map(r => r.toLowerCase());
-  const user = findUserByPin(pin, allowedRoles);
+  const user = findUserByPin(pin, allowedRoles, req.authUser.organizationId);
   if (!user) {
     return res.status(403).json({ error: 'Invalid PIN or insufficient permissions.' });
   }
