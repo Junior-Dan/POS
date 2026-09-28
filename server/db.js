@@ -12,10 +12,6 @@ if (process.env.CELLAR_DB_PATH) {
   databasePath = path.resolve(process.env.CELLAR_DB_PATH);
 } else if (process.env.VERCEL) {
   databasePath = '/tmp/cellar_pos.db';
-  const seedPath = path.join(__dirname, '../data/cellar_pos.db');
-  if (!fs.existsSync(databasePath) && fs.existsSync(seedPath)) {
-    try { fs.copyFileSync(seedPath, databasePath); } catch (e) {}
-  }
 } else {
   databasePath = path.join(__dirname, '../data/cellar_pos.db');
 }

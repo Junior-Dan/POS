@@ -241,22 +241,27 @@ export function authenticateSession(req, res, next) {
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 
-  // Always re-read from DB so disabled/deleted accounts lose access immediately.
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId);
-  if (!user || user.active === 0 || user.status === 'INACTIVE' || user.status === 'DISABLED') {
-    activeSessions.delete(token);
-    try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
-    return res.status(403).json({ error: 'Account disabled or suspended. Access denied.' });
+  let dbUser = null;
+  try {
+    dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId);
+  } catch (e) {}
+
+  if (dbUser) {
+    if (dbUser.active === 0 || dbUser.status === 'INACTIVE' || dbUser.status === 'DISABLED') {
+      activeSessions.delete(token);
+      try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
+      return res.status(403).json({ error: 'Account disabled or suspended. Access denied.' });
+    }
   }
 
   req.authUser = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    phone: user.phone,
-    role: (user.role || 'cashier').toLowerCase(),
-    organizationId: user.organization_id || null,
-    branchId: user.branch_id || null,
+    id: dbUser ? dbUser.id : session.userId,
+    name: dbUser ? dbUser.name : (session.name || 'Authenticated User'),
+    email: dbUser ? dbUser.email : (session.email || null),
+    phone: dbUser ? dbUser.phone : null,
+    role: dbUser ? (dbUser.role || 'cashier').toLowerCase() : (session.role || 'cashier').toLowerCase(),
+    organizationId: dbUser ? (dbUser.organization_id || null) : (session.organizationId || null),
+    branchId: dbUser ? (dbUser.branch_id || null) : (session.branchId || null),
     token
   };
 
