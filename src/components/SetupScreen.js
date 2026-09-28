@@ -3,8 +3,21 @@ import { store } from '../store/CellarStore.js';
 export function renderAuthLandingScreen(overrideMode = null) {
   const urlParams = new URLSearchParams(window.location.search);
   const hasBranchQuery = urlParams.has('branch');
-  const hasExistingOwner = store.users && store.users.some(u => u.role === 'owner' || u.active === 1);
-  
+
+  // Whether a business owner already exists is a SERVER fact, derived from the
+  // branch roster (which always includes the org owner). Never infer it from
+  // the seeded INITIAL_USERS fallback — that would make a fresh install show
+  // Login (with fake demo staff) instead of the Register Owner form.
+  const rosterLoaded = store.rosterLoaded === true;
+  let hasExistingOwner;
+  if (rosterLoaded) {
+    hasExistingOwner = (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner');
+  } else {
+    // First paint (roster still loading): fall back to the cached hint.
+    try { hasExistingOwner = localStorage.getItem('cellar_owner_exists') === '1'; }
+    catch (e) { hasExistingOwner = false; }
+  }
+
   // Mode decision:
   // 1. If accessing via a branch link (?branch=code), ALWAYS show Branch Staff Login. Never show Register.
   // 2. Otherwise (main URL):
@@ -23,7 +36,9 @@ export function renderAuthLandingScreen(overrideMode = null) {
   }
 
   const activeBranch = store.loginBranch || store.getActiveBranch() || { name: 'Main Branch', code: 'cbd' };
-  const userList = (store.loginUsers && store.loginUsers.length > 0) ? store.loginUsers : (store.users || []);
+  // Login roster comes ONLY from the server (branch-info). Never fall back to
+  // the seeded demo users, which would expose fake accounts on the terminal.
+  const userList = Array.isArray(store.loginUsers) ? store.loginUsers : [];
 
   return `
     <div class="welcome-setup-container">
@@ -47,14 +62,26 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <div style="font-size:12px; color:#94a3b8;">Select your staff account and enter your 4-digit Security PIN</div>
             </div>
 
-            <div class="form-group" style="margin-bottom:16px;">
-              <label class="form-label" style="font-weight:700; color:#cbd5e1; font-size:12px; text-transform:uppercase;">Select Account</label>
-              <select class="form-select" id="loginUserSelect" style="background:#0f0f12; color:#fff; border:1.5px solid rgba(255,255,255,0.2); font-weight:700; font-size:13px; padding:10px; border-radius:8px;">
-                ${userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE').map(u => `
-                  <option value="${u.id}">${u.name} — ${u.role.toUpperCase()}</option>
-                `).join('')}
-              </select>
-            </div>
+            ${(() => {
+              const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
+              if (activeRoster.length === 0) {
+                return `
+                  <div style="text-align:center; padding:14px; margin-bottom:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
+                    <div style="font-size:12.5px; color:#94a3b8; font-weight:600;">
+                      ${rosterLoaded ? 'No active staff accounts are assigned to this terminal yet.' : 'Loading staff accounts…'}
+                    </div>
+                  </div>`;
+              }
+              return `
+                <div class="form-group" style="margin-bottom:16px;">
+                  <label class="form-label" style="font-weight:700; color:#cbd5e1; font-size:12px; text-transform:uppercase;">Select Account</label>
+                  <select class="form-select" id="loginUserSelect" style="background:#0f0f12; color:#fff; border:1.5px solid rgba(255,255,255,0.2); font-weight:700; font-size:13px; padding:10px; border-radius:8px;">
+                    ${activeRoster.map(u => `
+                      <option value="${u.id}">${u.name} — ${u.role.toUpperCase()}</option>
+                    `).join('')}
+                  </select>
+                </div>`;
+            })()}
 
             <div class="pin-display-container" style="justify-content:center; margin-bottom:18px;">
               <div class="pin-digit-box" id="loginPinBox0">-</div>
@@ -149,12 +176,10 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
 
-            ${hasExistingOwner ? `
-              <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:14px; padding-top:12px; text-align:center;">
-                <span style="font-size:12px; color:#94a3b8;">Already registered?</span>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('login')" style="margin-left:8px; font-size:11.5px;">Log In with PIN</button>
-              </div>
-            ` : ''}
+            <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:14px; padding-top:12px; text-align:center;">
+              <span style="font-size:12px; color:#94a3b8;">Already registered?</span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('login')" style="margin-left:8px; font-size:11.5px;">Log In with PIN</button>
+            </div>
           </form>
         `}
       </div>

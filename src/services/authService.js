@@ -1,11 +1,11 @@
-import { store } from '../store/CellarStore.js';
-import { INITIAL_USERS } from '../data/initialUsers.js';
-
 let pendingPinCallback = null;
+let pendingPinFailure = null;
 let currentPinInput = "";
 let isSubmittingAuthPin = false;
+// Roles allowed to approve the elevated action currently being prompted.
+let requiredApproverRoles = ['owner', 'manager'];
 
-export function requestManagerAuth(description, onSuccess, onFailure) {
+export function requestManagerAuth(description, onSuccess, onFailure, allowedRoles) {
   const descEl = document.getElementById('pinActionDescription');
   const errEl = document.getElementById('pinErrorMsg');
   if (descEl) descEl.textContent = description;
@@ -13,17 +13,16 @@ export function requestManagerAuth(description, onSuccess, onFailure) {
 
   currentPinInput = "";
   isSubmittingAuthPin = false;
+  requiredApproverRoles = (Array.isArray(allowedRoles) && allowedRoles.length)
+    ? allowedRoles.map(r => r.toLowerCase())
+    : ['owner', 'manager'];
   updatePinDots();
 
   pendingPinCallback = (user) => {
-    if (user.role === 'owner' || user.role === 'manager') {
-      closeModal('pinModal');
-      onSuccess(user);
-    } else {
-      if (errEl) errEl.textContent = "Unauthorized: Manager or Owner role required!";
-      if (onFailure) onFailure();
-    }
+    closeModal('pinModal');
+    onSuccess(user);
   };
+  pendingPinFailure = onFailure || null;
   openModal('pinModal');
 }
 
@@ -70,30 +69,45 @@ function normalizePin(pinVal) {
   return str;
 }
 
-export function submitPin() {
+export async function submitPin() {
   if (isSubmittingAuthPin) return;
   const errEl = document.getElementById('pinErrorMsg');
   if (!currentPinInput || currentPinInput.length < 4) return;
 
   isSubmittingAuthPin = true;
+  const pin = normalizePin(currentPinInput);
 
-  const rawUsers = (store.users && store.users.length > 0) ? store.users : INITIAL_USERS;
-  const userList = rawUsers.map(u => {
-    const p = u.pin || INITIAL_USERS.find(iu => iu.id === u.id || iu.name.toLowerCase() === u.name.toLowerCase())?.pin;
-    return { ...u, pin: p };
-  });
+  // Verify the approver PIN SERVER-SIDE against the Turso database (hashed
+  // PINs, real accounts, org-scoped) — never against the seeded demo users.
+  try {
+    const res = await fetch('/api/auth/verify-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, requiredRoles: requiredApproverRoles })
+    });
+    const data = await res.json().catch(() => ({}));
 
-  const normInput = normalizePin(currentPinInput);
-  const foundUser = userList.find(u => u.pin && normalizePin(u.pin) === normInput);
+    if (res.ok && data.success && data.user) {
+      isSubmittingAuthPin = false;
+      if (pendingPinCallback) pendingPinCallback(data.user);
+      return;
+    }
 
-  if (foundUser) {
     isSubmittingAuthPin = false;
-    if (pendingPinCallback) pendingPinCallback(foundUser);
-  } else {
-    isSubmittingAuthPin = false;
-    if (errEl) errEl.textContent = "Invalid PIN Entered!";
+    if (errEl) {
+      errEl.textContent = res.status === 401
+        ? 'Session expired. Please log in again.'
+        : (data.error || 'Invalid PIN or insufficient permissions.');
+    }
     currentPinInput = "";
     updatePinDots();
+    if (pendingPinFailure) pendingPinFailure();
+  } catch (e) {
+    isSubmittingAuthPin = false;
+    if (errEl) errEl.textContent = 'Could not verify PIN. Check your connection and try again.';
+    currentPinInput = "";
+    updatePinDots();
+    if (pendingPinFailure) pendingPinFailure();
   }
 }
 

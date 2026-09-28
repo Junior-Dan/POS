@@ -26,6 +26,19 @@ export function clearAuthToken() {
   try { localStorage.removeItem('cellar_token'); } catch (e) {}
 }
 
+// Read a JSON body without throwing on empty/non-JSON responses (proxy errors,
+// gateway pages, 204s). Returns {} for empty, {error:<snippet>} for non-JSON.
+export async function readJsonBody(res) {
+  let text = '';
+  try { text = await res.text(); } catch (e) { return {}; }
+  if (!text || !text.trim()) return {};
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { error: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) };
+  }
+}
+
 if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
   window._cellarFetchPatched = true;
   const _origFetch = window.fetch.bind(window);
@@ -57,6 +70,7 @@ export class CellarStore {
     // endpoint — used to render the "Who are you?" account picker).
     this.loginUsers = [];
     this.loginBranch = null;
+    this.rosterLoaded = false;
     this.sales = [];
     this.stockMovements = [];
     this.cashMovements = [];
@@ -307,6 +321,15 @@ export class CellarStore {
     if (data && data.branch) {
       this.loginBranch = data.branch;
       this.loginUsers = Array.isArray(data.users) ? data.users : [];
+      this.rosterLoaded = true;
+      // Cache whether an owner exists so the very first paint of the auth
+      // landing can pick Login vs Register correctly (before this async
+      // roster load resolves), avoiding a Register→Login flash for returning
+      // owners. The real decision still uses the loaded roster once available.
+      try {
+        const ownerExists = this.loginUsers.some(u => (u.role || '').toLowerCase() === 'owner');
+        localStorage.setItem('cellar_owner_exists', ownerExists ? '1' : '0');
+      } catch (e) {}
       this.notify();
     }
   }
@@ -935,8 +958,8 @@ export class CellarStore {
         branchId: this.activeBranchId
       })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to create purchase order");
+    const data = await readJsonBody(res);
+    if (!res.ok) throw new Error(data.error || `Failed to create purchase order (HTTP ${res.status}).`);
     await this.fetchPurchases();
     await this.fetchAuditLogs();
     return data.purchaseOrder;
@@ -951,8 +974,8 @@ export class CellarStore {
         userName: this.currentUser?.name || 'Inventory Officer'
       })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to receive purchase order");
+    const data = await readJsonBody(res);
+    if (!res.ok) throw new Error(data.error || `Failed to receive purchase order (HTTP ${res.status}).`);
     await this.fetchPurchases();
     await this.fetchProducts();
     await this.fetchInventoryMovements();
@@ -966,8 +989,8 @@ export class CellarStore {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settingsData)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to save settings");
+    const data = await readJsonBody(res);
+    if (!res.ok) throw new Error(data.error || `Failed to save settings (HTTP ${res.status}).`);
     await this.fetchSettings();
     await this.fetchAuditLogs();
     return data;

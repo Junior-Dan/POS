@@ -47,6 +47,75 @@ function bind(sql, params) {
   });
 }
 
+// A short-lived Node child performs the HTTP request so the DB layer stays
+// synchronous WITHOUT depending on a `curl` binary (Vercel's Node runtime does
+// not reliably ship curl, but process.execPath is always available).
+// Hard per-request timeout (ms) so a hung/unreachable host fails fast instead
+// of blocking the (synchronous) DB layer — critical on serverless, where a hung
+// fetch would otherwise stall the whole function until it times out.
+const TURSO_FETCH_TIMEOUT_MS = 8000;
+const TURSO_CHILD_SCRIPT = `
+  const [endpoint, token, body] = process.argv.slice(1);
+  fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body,
+    signal: AbortSignal.timeout(${TURSO_FETCH_TIMEOUT_MS})
+  }).then(r => r.text())
+    .then(t => { process.stdout.write(t); })
+    .catch(e => { process.stdout.write(JSON.stringify({ __fetchError: e.message })); });
+`;
+
+// Block the current thread briefly (synchronous DB layer can't await).
+function sleepSync(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (e) {}
+}
+
+// Run a Turso HTTP pipeline with retries. Transient network blips ("fetch
+// failed") and child spawn errors are retried a few times with backoff, so a
+// momentary connectivity hiccup no longer bubbles up as a hard failure (which,
+// at init time, would otherwise crash the whole serverless function).
+function runTursoPipeline(endpoint, token, payload, label) {
+  const maxAttempts = 2;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let output;
+    try {
+      output = execFileSync(process.execPath, ['-e', TURSO_CHILD_SCRIPT, endpoint, token, payload], {
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+        // Backstop in case the child itself hangs; slightly above the in-child
+        // fetch timeout so the child's own error message wins when possible.
+        timeout: TURSO_FETCH_TIMEOUT_MS + 2000,
+        killSignal: 'SIGKILL'
+      }).trim();
+    } catch (err) {
+      lastErr = new Error(`${label} failed (network/child): ${err.message}`);
+      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
+      throw lastErr;
+    }
+
+    if (!output) return null;
+
+    let res;
+    try {
+      res = JSON.parse(output);
+    } catch (e) {
+      // A non-JSON body is not transient — don't waste retries on it.
+      throw new Error(`${label} returned an unparseable response: ${output.slice(0, 200)}`);
+    }
+
+    if (res.__fetchError) {
+      lastErr = new Error(`${label} fetch error: ${res.__fetchError}`);
+      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
+      throw lastErr;
+    }
+
+    return res;
+  }
+  throw lastErr;
+}
+
 /**
  * Database adapter supporting local SQLite CLI and remote Turso libSQL cloud database.
  */
@@ -85,44 +154,9 @@ class SqliteDatabase {
       ]
     });
 
-    // Perform the HTTP request synchronously by running it in a short-lived
-    // Node child process. This keeps the whole DB layer synchronous (the app
-    // relies on it) WITHOUT depending on a `curl` binary — Vercel's serverless
-    // Node runtime does not reliably ship curl, but process.execPath (node) is
-    // always available.
-    const childScript = `
-      const [endpoint, token, body] = process.argv.slice(1);
-      fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body
-      }).then(r => r.text())
-        .then(t => { process.stdout.write(t); })
-        .catch(e => { process.stdout.write(JSON.stringify({ __fetchError: e.message })); });
-    `;
-
-    let output;
-    try {
-      output = execFileSync(process.execPath, ['-e', childScript, endpoint, this.tursoToken, payload], {
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024
-      }).trim();
-    } catch (err) {
-      throw new Error(`Turso request failed (network/child): ${err.message}`);
-    }
-
-    if (!output) return [];
-
-    let res;
-    try {
-      res = JSON.parse(output);
-    } catch (e) {
-      throw new Error(`Turso returned an unparseable response: ${output.slice(0, 200)}`);
-    }
-
-    if (res.__fetchError) {
-      throw new Error(`Turso fetch error: ${res.__fetchError}`);
-    }
+    // Synchronous HTTP pipeline with transient-failure retries.
+    const res = runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso request');
+    if (!res) return [];
 
     // Surface Turso-reported SQL/auth errors instead of silently returning [].
     const first = res.results?.[0];
@@ -190,21 +224,8 @@ class SqliteDatabase {
           { type: 'close' }
         ]
       });
-      const childScript = `
-        const [endpoint, token, body] = process.argv.slice(1);
-        fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body })
-          .then(r => r.text()).then(t => process.stdout.write(t))
-          .catch(e => process.stdout.write(JSON.stringify({ __fetchError: e.message })));
-      `;
-      let output;
-      try {
-        output = execFileSync(process.execPath, ['-e', childScript, endpoint, this.tursoToken, payload], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }).trim();
-      } catch (err) {
-        throw new Error(`Turso batch request failed: ${err.message}`);
-      }
-      if (output) {
-        let res; try { res = JSON.parse(output); } catch (e) { throw new Error(`Turso batch unparseable: ${output.slice(0, 200)}`); }
-        if (res.__fetchError) throw new Error(`Turso batch fetch error: ${res.__fetchError}`);
+      const res = runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso batch');
+      if (res) {
         const errored = (res.results || []).find(r => r?.type === 'error' || r?.error);
         if (errored) throw new Error(`Turso batch SQL error: ${errored.error?.message || errored.message}`);
       }

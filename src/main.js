@@ -41,6 +41,23 @@ import { renderResetPinModal } from './components/ResetPinModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 let activeViewId = 'dashboard';
+
+// Safely read a JSON body. Some responses (proxy 401s, gateway errors, empty
+// 204s, HTML error pages) have no/invalid JSON, which makes res.json() throw
+// "Unexpected end of JSON input" and masks the real HTTP error. This returns
+// {} for an empty body, or {error:<snippet>} for a non-JSON body, so callers
+// can surface a meaningful message using res.ok / res.status instead.
+async function readJsonSafe(res) {
+  let text = '';
+  try { text = await res.text(); } catch (e) { return {}; }
+  if (!text || !text.trim()) return {};
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { error: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) };
+  }
+}
+
 // Auth tab is chosen at render time: LOGIN when a branch roster exists,
 // otherwise CREATE ACCOUNT (first-run owner setup). null = auto-select.
 window.currentAuthTab = null;
@@ -423,9 +440,9 @@ function bindEvents() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone, email, pin, confirmPin, businessName, branchName, branchCode })
       });
-      const data = await res.json();
+      const data = await readJsonSafe(res);
       if (!res.ok) {
-        throw new Error(data.error || "Failed to setup account");
+        throw new Error(data.error || `Failed to set up account (HTTP ${res.status}).`);
       }
 
       if (data.token) {
@@ -628,9 +645,9 @@ function bindEvents() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin, userId: selectedUserId, branchCode })
       });
-      const data = await res.json();
+      const data = await readJsonSafe(res);
       if (!res.ok) {
-        throw new Error(data.error || "Invalid PIN! Access Denied.");
+        throw new Error(data.error || `Invalid PIN! Access Denied. (HTTP ${res.status})`);
       }
 
       if (data.token) {
@@ -1441,7 +1458,7 @@ function bindEvents() {
           },
           body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
         });
-        if (!res.ok) throw new Error((await res.json()).error || "Failed to update staff");
+        if (!res.ok) throw new Error((await readJsonSafe(res)).error || `Failed to update staff (HTTP ${res.status}).`);
         store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
       } else {
         if (!pin || pin.length < 4) return alert("Please enter a 4-digit Secret Security PIN!");
@@ -1453,7 +1470,7 @@ function bindEvents() {
           },
           body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
         });
-        if (!res.ok) throw new Error((await res.json()).error || "Failed to create staff");
+        if (!res.ok) throw new Error((await readJsonSafe(res)).error || `Failed to create staff (HTTP ${res.status}).`);
         store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
       }
 
@@ -1539,8 +1556,8 @@ function bindEvents() {
         },
         body: JSON.stringify({ userId, newPin, confirmPin })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to reset PIN");
+      const data = await readJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || `Failed to reset PIN (HTTP ${res.status}).`);
 
       await store.fetchUsers();
       window.closeModal('resetPinModal');
