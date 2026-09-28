@@ -1517,6 +1517,18 @@ function bindEvents() {
     }
   };
 
+  window.toggleStaffPinView = (id) => {
+    const el = document.getElementById(`staffPinVal_${id}`);
+    if (el) {
+      const realPin = el.dataset.pin || '••••';
+      if (el.textContent === '••••') {
+        el.textContent = realPin;
+      } else {
+        el.textContent = '••••';
+      }
+    }
+  };
+
   window.openResetPinModal = (id) => {
     const u = store.users.find(x => x.id === id);
     if (!u) return;

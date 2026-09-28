@@ -247,7 +247,16 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                       <td><span class="badge ${u.role === 'cashier' ? 'badge-info' : 'badge-primary'}" style="text-transform:uppercase;">${u.role.replace('_', ' ')}</span></td>
                       <td>${primBranch ? primBranch.name : 'Nairobi CBD Main'}</td>
                       <td>${addBranches.length ? addBranches.map(n => `<span class="size-badge">${n}</span>`).join(' ') : '<span style="color:var(--text-faint);">None</span>'}</td>
-                      <td><span style="font-family:monospace; letter-spacing:3px; color:var(--accent);">••••</span></td>
+                      <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                          <span id="staffPinVal_${u.id}" data-pin="${u.pin || u.pin_hash || '1234'}" style="font-family:monospace; letter-spacing:2px; font-size:13px; font-weight:800; color:var(--accent);">••••</span>
+                          ${isOwner ? `
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleStaffPinView('${u.id}')" title="Show/Hide Staff PIN" style="padding:3px 7px;">
+                              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                          ` : ''}
+                        </div>
+                      </td>
                       <td><span class="badge ${u.status === 'INACTIVE' ? 'badge-danger' : 'badge-success'}">${u.status || 'ACTIVE'}</span></td>
                       <td>
                         <div style="display:flex; gap:6px;">
