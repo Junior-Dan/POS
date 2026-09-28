@@ -460,14 +460,25 @@ router.get('/branch-info', (req, res) => {
   let branchUsers = [];
   try {
     branchUsers = db.prepare(`
-      SELECT id, name, role, email, phone, branch_id, status
+      SELECT id, name, role, email, phone, branch_id, status, active
       FROM users
-      WHERE active = 1 AND status != 'INACTIVE'
+      WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
         AND (branch_id = ? OR branch_id IS NULL OR LOWER(role) = 'owner')
       ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
     `).all(branch.id);
   } catch (e) {
     branchUsers = [];
+  }
+
+  // Fallback: If no staff accounts are bound to this branch yet, include active Owner account(s)
+  if (branchUsers.length === 0) {
+    try {
+      branchUsers = db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED' AND LOWER(role) = 'owner'
+      `).all();
+    } catch (e) {}
   }
 
   res.json({
@@ -481,10 +492,12 @@ router.get('/branch-info', (req, res) => {
     users: branchUsers.map(u => ({
       id: u.id,
       name: u.name,
-      role: u.role.toLowerCase(),
+      role: (u.role || 'cashier').toLowerCase(),
       email: u.email,
       phone: u.phone,
-      branchId: u.branch_id
+      branchId: u.branch_id,
+      status: u.status || 'ACTIVE',
+      active: u.active !== undefined ? u.active : 1
     }))
   });
 });

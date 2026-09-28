@@ -65,11 +65,45 @@ export function renderAuthLandingScreen(overrideMode = null) {
             ${(() => {
               const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
               if (activeRoster.length === 0) {
+                if (!rosterLoaded) {
+                  return `
+                    <div style="text-align:center; padding:14px; margin-bottom:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
+                      <div style="font-size:12.5px; color:#94a3b8; font-weight:600;">Loading staff accounts…</div>
+                    </div>`;
+                }
+
+                if (!hasExistingOwner) {
+                  return `
+                    <div style="text-align:center; padding:16px; margin-bottom:16px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); border-radius:10px;">
+                      <div style="font-size:13px; color:#f87171; font-weight:700; margin-bottom:4px;">
+                        ⚠️ No Business Owner Account Found
+                      </div>
+                      <div style="font-size:12px; color:#cbd5e1; margin-bottom:12px;">
+                        This system has not been registered yet. Please set up your business owner account.
+                      </div>
+                      <button type="button" class="btn btn-primary btn-sm" onclick="switchAuthMode('setup')" style="font-weight:700; font-size:12px; width:100%;">
+                        🚀 Register Business Owner Account
+                      </button>
+                    </div>`;
+                }
+
                 return `
-                  <div style="text-align:center; padding:14px; margin-bottom:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
-                    <div style="font-size:12.5px; color:#94a3b8; font-weight:600;">
-                      ${rosterLoaded ? 'No active staff accounts are assigned to this terminal yet.' : 'Loading staff accounts…'}
+                  <div style="text-align:center; padding:16px; margin-bottom:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
+                    <div style="font-size:12.5px; color:#f87171; font-weight:700; margin-bottom:4px;">
+                      No active staff accounts are assigned to this terminal yet.
                     </div>
+                    <div style="font-size:11.5px; color:#94a3b8; margin-bottom:10px;">
+                      Ask your store owner to assign staff to this branch in Settings → Staff Management.
+                    </div>
+                    ${hasBranchQuery ? `
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="window.location.href='/'" style="font-size:11.5px; font-weight:600;">
+                        🏠 Go to Main Store Login
+                      </button>
+                    ` : `
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('setup')" style="font-size:11.5px; font-weight:600;">
+                        Register New Business Account
+                      </button>
+                    `}
                   </div>`;
               }
               return `
