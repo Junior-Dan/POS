@@ -139,13 +139,39 @@ function extractToken(req) {
 export function authenticateSession(req, res, next) {
   const token = extractToken(req);
 
-  if (!token || !activeSessions.has(token)) {
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized: a valid session token is required.' });
   }
 
-  const session = activeSessions.get(token);
+  let session = activeSessions.get(token);
+  if (!session) {
+    try {
+      const dbSession = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);
+      if (dbSession) {
+        const expiresAt = new Date(dbSession.expires_at).getTime();
+        if (Date.now() <= expiresAt) {
+          session = {
+            userId: dbSession.user_id,
+            organizationId: dbSession.organization_id,
+            branchId: dbSession.branch_id,
+            role: dbSession.role,
+            expiresAt
+          };
+          activeSessions.set(token, session);
+        } else {
+          db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized: a valid session token is required.' });
+  }
+
   if (Date.now() > session.expiresAt) {
     activeSessions.delete(token);
+    try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 
@@ -153,6 +179,7 @@ export function authenticateSession(req, res, next) {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId);
   if (!user || user.active === 0 || user.status === 'INACTIVE' || user.status === 'DISABLED') {
     activeSessions.delete(token);
+    try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
     return res.status(403).json({ error: 'Account disabled or suspended. Access denied.' });
   }
 
@@ -265,13 +292,21 @@ router.post('/setup', (req, res) => {
     `).run(`AUD-${Date.now()}`, new Date().toISOString(), name, bId, bizName);
 
     const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + SESSION_TTL_MS;
     activeSessions.set(token, {
       userId: ownerId,
       organizationId: orgId,
       branchId: null,
       role: 'owner',
-      expiresAt: Date.now() + SESSION_TTL_MS
+      expiresAt
     });
+
+    try {
+      db.prepare(`
+        INSERT OR REPLACE INTO sessions (token, user_id, organization_id, branch_id, role, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(token, ownerId, orgId, null, 'owner', new Date(expiresAt).toISOString());
+    } catch (e) {}
 
     res.status(201).json({
       success: true,
@@ -334,14 +369,22 @@ router.post('/login', (req, res) => {
   const token = crypto.randomBytes(32).toString('hex');
   const orgId = user.organization_id || 'ORG-1';
   const branchId = user.branch_id || null;
+  const expiresAt = Date.now() + SESSION_TTL_MS;
 
   activeSessions.set(token, {
     userId: user.id,
     organizationId: orgId,
     branchId,
     role: user.role.toLowerCase(),
-    expiresAt: Date.now() + SESSION_TTL_MS
+    expiresAt
   });
+
+  try {
+    db.prepare(`
+      INSERT OR REPLACE INTO sessions (token, user_id, organization_id, branch_id, role, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(token, user.id, orgId, branchId, user.role.toLowerCase(), new Date(expiresAt).toISOString());
+  } catch (e) {}
 
   res.json({
     success: true,
@@ -360,11 +403,24 @@ router.post('/login', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. LOGOUT — invalidate the current session token.
+// 3. GET CURRENT AUTHENTICATED USER SESSION (Used by store.restoreSession)
+// ---------------------------------------------------------------------------
+router.get('/me', authenticateSession, (req, res) => {
+  res.json({
+    success: true,
+    user: req.authUser
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. LOGOUT — invalidate the current session token.
 // ---------------------------------------------------------------------------
 router.post('/logout', (req, res) => {
   const token = extractToken(req);
-  if (token) activeSessions.delete(token);
+  if (token) {
+    activeSessions.delete(token);
+    try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
+  }
   res.json({ success: true });
 });
 

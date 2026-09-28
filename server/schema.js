@@ -231,5 +231,15 @@ export const SCHEMA_STATEMENTS = [
     reference_code TEXT,
     status TEXT DEFAULT 'SUCCESS',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    organization_id TEXT,
+    branch_id TEXT,
+    role TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`
 ];
