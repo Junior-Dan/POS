@@ -253,10 +253,10 @@ router.post('/setup', (req, res) => {
       address: 'Kenya',
       kraPin: 'P051234567S'
     };
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("businessProfile", ?)')
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('businessProfile', ?)")
       .run(JSON.stringify(profile));
 
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("branches", ?)')
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('branches', ?)")
       .run(JSON.stringify([{ id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }]));
 
     db.prepare(`
