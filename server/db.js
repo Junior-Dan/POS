@@ -65,7 +65,8 @@ class SqliteDatabase {
   }
 
   get isTurso() {
-    return !!(this.tursoUrl && this.tursoToken);
+    const token = this.tursoToken;
+    return !!(this.tursoUrl && token && !token.includes('your_turso') && token.trim() !== '');
   }
 
   get activePath() {

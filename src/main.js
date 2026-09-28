@@ -128,6 +128,14 @@ export function initApp() {
 }
 
 function bindEvents() {
+  // Clear PIN pad state when switching selected user account in login dropdown
+  const loginSelect = document.getElementById('loginUserSelect');
+  if (loginSelect) {
+    loginSelect.addEventListener('change', () => {
+      window.clearLoginPin();
+    });
+  }
+
   // Navigation tabs
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -667,8 +675,14 @@ function bindEvents() {
   if (!window._keypadKeyboardListenerAttached) {
     window._keypadKeyboardListenerAttached = true;
     window.addEventListener('keydown', (e) => {
+      const isAuthLanding = !!document.querySelector('.welcome-setup-container');
       const modal = document.getElementById('userLoginModal');
-      if (modal && modal.classList.contains('active')) {
+      const isModalActive = modal && modal.classList.contains('active');
+
+      if (isAuthLanding || isModalActive) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+          return;
+        }
         if (e.key >= '0' && e.key <= '9') {
           e.preventDefault();
           window.pressLoginPin(e.key);
