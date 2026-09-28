@@ -6,16 +6,20 @@ export function renderAuthLandingScreen(overrideMode = null) {
   const hasExistingOwner = store.users && store.users.some(u => u.role === 'owner' || u.active === 1);
   
   // Mode decision:
-  // If overrideMode is passed ('login' or 'setup'), honor it.
-  // Otherwise, if branch query exists OR an established owner exists, show Log In.
-  // Otherwise, show Create Account registration.
+  // 1. If accessing via a branch link (?branch=code), ALWAYS show Branch Staff Login. Never show Register.
+  // 2. Otherwise (main URL):
+  //    - If overrideMode is set ('login' or 'setup'), respect it.
+  //    - If an owner account exists in DB, default to Login.
+  //    - If no owner exists yet, default to Create Account registration.
   let isBranchLogin = false;
-  if (overrideMode === 'login') {
+  if (hasBranchQuery) {
+    isBranchLogin = true;
+  } else if (overrideMode === 'login') {
     isBranchLogin = true;
   } else if (overrideMode === 'setup') {
     isBranchLogin = false;
   } else {
-    isBranchLogin = hasBranchQuery || (hasExistingOwner && !window.forceRegisterMode);
+    isBranchLogin = hasExistingOwner && !window.forceRegisterMode;
   }
 
   const activeBranch = store.loginBranch || store.getActiveBranch() || { name: 'Main Branch', code: 'cbd' };
@@ -30,7 +34,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
             <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:28px; height:28px;"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </div>
           <h1 class="welcome-title">${store.businessProfile?.name || 'Cellar POS'}</h1>
-          <p class="welcome-subtitle">Wines & Spirits Shop POS & Inventory Management System</p>
+          <p class="welcome-subtitle">Wines & Spirits Shop POS & Management System</p>
         </div>
 
         ${isBranchLogin ? `
@@ -38,13 +42,13 @@ export function renderAuthLandingScreen(overrideMode = null) {
           <div class="auth-mode-content">
             <div style="text-align:center; margin-bottom:16px;">
               <div style="font-size:13px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
-                📍 ${activeBranch.name.toUpperCase()} TERMINAL
+                📍 ${hasBranchQuery ? `${(store.loginBranch?.name || activeBranch.name).toUpperCase()} TERMINAL` : 'STAFF & OWNER LOG IN'}
               </div>
               <div style="font-size:12px; color:#94a3b8;">Select your staff account and enter your 4-digit Security PIN</div>
             </div>
 
             <div class="form-group" style="margin-bottom:16px;">
-              <label class="form-label" style="font-weight:700; color:#cbd5e1; font-size:12px; text-transform:uppercase;">Who are you?</label>
+              <label class="form-label" style="font-weight:700; color:#cbd5e1; font-size:12px; text-transform:uppercase;">Select Account</label>
               <select class="form-select" id="loginUserSelect" style="background:#0f0f12; color:#fff; border:1.5px solid rgba(255,255,255,0.2); font-weight:700; font-size:13px; padding:10px; border-radius:8px;">
                 ${userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE').map(u => `
                   <option value="${u.id}">${u.name} — ${u.role.toUpperCase()}</option>
@@ -79,9 +83,11 @@ export function renderAuthLandingScreen(overrideMode = null) {
 
             <div id="loginPinErrorMsg" style="color:#ef4444; font-size:12px; text-align:center; font-weight:700; min-height:16px; margin-top:12px;"></div>
 
-            <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:14px; padding-top:12px; text-align:center;">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('setup')" style="font-size:11.5px; opacity:0.8;">Register New Business Account</button>
-            </div>
+            ${!hasBranchQuery ? `
+              <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:14px; padding-top:12px; text-align:center;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="switchAuthMode('setup')" style="font-size:11.5px; opacity:0.8;">Register New Business Account</button>
+              </div>
+            ` : ''}
           </div>
         ` : `
           <!-- CREATE ACCOUNT SETUP FORM -->
@@ -155,3 +161,4 @@ export function renderAuthLandingScreen(overrideMode = null) {
     </div>
   `;
 }
+

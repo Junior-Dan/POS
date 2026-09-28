@@ -429,13 +429,13 @@ function bindEvents() {
       await store.loadAuthenticatedData();
       store.saveLocalBackup();
 
-      if (branchCode && window.history) {
-        window.history.pushState(null, '', `/?branch=${encodeURIComponent(branchCode)}`);
-      }
+      // Build the shareable login URL from the resolved branch code (works
+      // both locally, e.g. http://localhost:3001, and on the deployed
+      // Vercel domain — window.location.origin adapts automatically).
+      const resolvedCode = (data.branch && data.branch.code) ? data.branch.code : branchCode;
 
       window.closeModal('setupModal');
-      initApp();
-      alert(`Welcome, ${name}! Your Business Owner account has been created successfully.`);
+      window.showSetupSuccess(name, resolvedCode);
     } catch (e) {
       if (err) {
         if (e.message && e.message.includes('already exists')) {
@@ -463,6 +463,52 @@ function bindEvents() {
       root.innerHTML = renderAuthLandingScreen(mode);
       bindEvents();
     }
+  };
+
+  // Post-registration success screen: shows the owner the shareable login URL
+  // for their branch (used by the owner and staff to log in), with copy +
+  // continue-to-dashboard actions. The URL is derived from the live origin so
+  // it is correct on localhost and on the deployed Vercel domain alike.
+  window.showSetupSuccess = (ownerName, branchCode) => {
+    const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}`;
+    const root = document.getElementById('app-root');
+    if (!root) return;
+    root.innerHTML = `
+      <div class="welcome-setup-container">
+        <div class="welcome-setup-card">
+          <div class="welcome-setup-header">
+            <div class="welcome-logo-badge" style="background:rgba(34,197,94,0.15);">
+              <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" style="width:28px; height:28px;"><path d="M20 6 9 17l-5-5"/></svg>
+            </div>
+            <h1 class="welcome-title">Welcome, ${ownerName}!</h1>
+            <p class="welcome-subtitle">Your business owner account is ready.</p>
+          </div>
+
+          <div style="background:#0f0f12; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:16px; margin-bottom:16px;">
+            <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">🔗 Your Login URL</div>
+            <div style="font-size:12px; color:#94a3b8; margin-bottom:10px;">Bookmark this link. You and your staff use it to log in with your Security PINs — the branch code identifies the terminal, it is not a password.</div>
+            <div style="display:flex; gap:8px; align-items:stretch;">
+              <input type="text" id="setupLoginUrlInput" readonly value="${loginUrl}" style="flex:1; background:#000; color:#e2e8f0; border:1.5px solid rgba(255,255,255,0.2); border-radius:8px; padding:10px; font-size:12px; font-weight:600;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyBranchUrl('setup', '${loginUrl}')" style="white-space:nowrap; font-weight:700;">Copy</button>
+            </div>
+          </div>
+
+          <button type="button" class="welcome-submit-btn" onclick="window.enterDashboardAfterSetup()">
+            <span>Continue to Owner Dashboard</span>
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <div style="text-align:center; margin-top:12px;">
+            <a href="${loginUrl}" target="_blank" style="font-size:12px; color:#94a3b8;">Open login page in a new tab ↗</a>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.enterDashboardAfterSetup = () => {
+    activeViewId = 'dashboard';
+    initApp();
   };
 
   window.openStaffLoginModal = (isMandatory = false) => {
