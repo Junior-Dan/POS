@@ -8,6 +8,24 @@ import { INITIAL_BRANCHES } from '../data/initialBranches.js';
 // backend can enforce authentication, role and branch isolation. Runs once at
 // module load, before the store issues its first fetch.
 // ---------------------------------------------------------------------------
+// In-memory auth token: the single source of truth that survives even when
+// localStorage is unavailable (Safari private mode, disabled storage) or has
+// not yet been (re)written. localStorage is treated as a best-effort cache.
+export function setAuthToken(token) {
+  if (typeof window !== 'undefined') window._cellarAuthToken = token || null;
+  try { if (token) localStorage.setItem('cellar_token', token); } catch (e) {}
+}
+export function getAuthToken() {
+  let token = null;
+  try { token = localStorage.getItem('cellar_token'); } catch (e) {}
+  if (!token && typeof window !== 'undefined') token = window._cellarAuthToken || null;
+  return token;
+}
+export function clearAuthToken() {
+  if (typeof window !== 'undefined') window._cellarAuthToken = null;
+  try { localStorage.removeItem('cellar_token'); } catch (e) {}
+}
+
 if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
   window._cellarFetchPatched = true;
   const _origFetch = window.fetch.bind(window);
@@ -15,7 +33,7 @@ if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
     try {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
       if (url.includes('/api/')) {
-        const token = localStorage.getItem('cellar_token');
+        const token = getAuthToken();
         if (token) {
           const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined) || {});
           if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
@@ -295,16 +313,21 @@ export class CellarStore {
 
   // Restore a persisted session (page reload) from the stored token.
   async restoreSession() {
-    const token = (typeof localStorage !== 'undefined') ? localStorage.getItem('cellar_token') : null;
+    const token = getAuthToken();
     if (!token) return false;
+    // Keep the in-memory token authoritative even if it only lived in storage.
+    setAuthToken(token);
     const data = await this.safeFetchJson('/api/auth/me');
     if (data && data.user && data.user.id) {
-      this.currentUser = data.user;
+      // Preserve the token on currentUser so staff-management guards always
+      // have a fallback even if localStorage is later cleared.
+      this.currentUser = { ...data.user, token: data.user.token || token };
       try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       return true;
     }
     // Token invalid/expired — clear it.
-    try { localStorage.removeItem('cellar_token'); sessionStorage.removeItem('cellar_session_auth'); } catch (e) {}
+    clearAuthToken();
+    try { sessionStorage.removeItem('cellar_session_auth'); } catch (e) {}
     this.currentUser = null;
     return false;
   }

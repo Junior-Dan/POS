@@ -1,4 +1,4 @@
-import { store } from './store/CellarStore.js';
+import { store, setAuthToken, getAuthToken, clearAuthToken } from './store/CellarStore.js';
 import { INITIAL_USERS } from './data/initialUsers.js';
 import { renderSidebar } from './components/Sidebar.js';
 import { renderTopbar } from './components/Topbar.js';
@@ -55,9 +55,11 @@ window.switchAuthTab = (tab) => {
 
 window.logoutUser = () => {
   store.currentUser = null;
-  localStorage.removeItem('cellar_token');
-  sessionStorage.removeItem('cellar_session_auth');
-  sessionStorage.removeItem('cellar_authenticated_user');
+  clearAuthToken();
+  try {
+    sessionStorage.removeItem('cellar_session_auth');
+    sessionStorage.removeItem('cellar_authenticated_user');
+  } catch (e) {}
   initApp();
 };
 
@@ -427,11 +429,11 @@ function bindEvents() {
       }
 
       if (data.token) {
-        localStorage.setItem('cellar_token', data.token);
-        sessionStorage.setItem('cellar_session_auth', 'true');
+        setAuthToken(data.token);
+        try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       }
 
-      store.currentUser = data.user;
+      store.currentUser = { ...data.user, token: data.token || getAuthToken() };
       if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
       await store.fetchBranchLogin();
       await store.loadAuthenticatedData();
@@ -632,12 +634,14 @@ function bindEvents() {
       }
 
       if (data.token) {
-        localStorage.setItem('cellar_token', data.token);
-        sessionStorage.setItem('cellar_session_auth', 'true');
+        setAuthToken(data.token);
+        try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       }
 
-      store.currentUser = data.user;
-      sessionStorage.setItem('cellar_authenticated_user', data.user.id);
+      // Stamp the token onto currentUser so staff-management guards always have
+      // a fallback even if localStorage is unavailable (e.g. private browsing).
+      store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
       // Bind the active branch to the authenticated user (non-owners).
       if (data.user.branchId) {
@@ -704,8 +708,8 @@ function bindEvents() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {}
+    clearAuthToken();
     try {
-      localStorage.removeItem('cellar_token');
       sessionStorage.removeItem('cellar_session_auth');
       sessionStorage.removeItem('cellar_authenticated_user');
     } catch (e) {}
@@ -1419,7 +1423,7 @@ function bindEvents() {
       return alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
     }
 
-    const token = localStorage.getItem('cellar_token') || store.currentUser?.token || '';
+    const token = getAuthToken() || store.currentUser?.token || '';
     if (!token) {
       alert("Session expired. Please log in with your PIN to perform staff management.");
       window.logoutUser();
@@ -1470,7 +1474,7 @@ function bindEvents() {
       return alert("Access Denied: Only the Business Owner can deactivate Manager or Owner accounts!");
     }
 
-    const token = localStorage.getItem('cellar_token') || store.currentUser?.token || '';
+    const token = getAuthToken() || store.currentUser?.token || '';
     if (!token) {
       alert("Session expired. Please log in with your PIN to perform staff management.");
       window.logoutUser();
@@ -1519,7 +1523,7 @@ function bindEvents() {
     if (!newPin || newPin.length < 4) return alert("Please enter a 4-digit new PIN!");
     if (confirmPin && newPin !== confirmPin) return alert("New PIN and Confirm PIN do not match!");
 
-    const token = localStorage.getItem('cellar_token') || store.currentUser?.token || '';
+    const token = getAuthToken() || store.currentUser?.token || '';
     if (!token) {
       alert("Session expired. Please log in with your PIN to reset staff PINs.");
       window.logoutUser();
