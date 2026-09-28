@@ -1391,7 +1391,8 @@ function bindEvents() {
 
     const primSelect = document.getElementById('staffPrimaryBranchSelect');
     if (primSelect) {
-      primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}" ${b.id === u.primaryBranchId ? 'selected' : ''}>${b.name}</option>`).join('');
+      const currentBranch = u.branchId || u.primaryBranchId;
+      primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}" ${b.id === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
     }
 
     const addSelect = document.getElementById('staffAdditionalBranchesSelect');
