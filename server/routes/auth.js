@@ -437,7 +437,7 @@ router.get('/branch-info', (req, res) => {
   }
 
   if (!branch) {
-    const s = db.prepare('SELECT value FROM settings WHERE key = "branches"').get();
+    const s = db.prepare("SELECT value FROM settings WHERE key = 'branches'").get();
     if (s && s.value) {
       try {
         const branches = JSON.parse(s.value);
