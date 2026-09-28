@@ -1418,12 +1418,22 @@ function bindEvents() {
       return alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
     }
 
+    const token = localStorage.getItem('cellar_token') || store.currentUser?.token || '';
+    if (!token) {
+      alert("Session expired. Please log in with your PIN to perform staff management.");
+      window.logoutUser();
+      return;
+    }
+
     const editId = document.getElementById('staffEditId').value;
     try {
       if (editId) {
         const res = await fetch(`/api/auth/users/${editId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to update staff");
@@ -1432,7 +1442,10 @@ function bindEvents() {
         if (!pin || pin.length < 4) return alert("Please enter a 4-digit Secret Security PIN!");
         const res = await fetch('/api/auth/users', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to create staff");
@@ -1455,11 +1468,22 @@ function bindEvents() {
     if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
       return alert("Access Denied: Only the Business Owner can deactivate Manager or Owner accounts!");
     }
+
+    const token = localStorage.getItem('cellar_token') || store.currentUser?.token || '';
+    if (!token) {
+      alert("Session expired. Please log in with your PIN to perform staff management.");
+      window.logoutUser();
+      return;
+    }
+
     if (confirm(`Deactivate staff account "${u.name}"?`)) {
       try {
         await fetch(`/api/auth/users/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ status: "INACTIVE", active: 0 })
         });
         store.logAudit("Deactivated Staff Account", u.name, "-", "-", "Account Deactivated");
@@ -1494,10 +1518,20 @@ function bindEvents() {
     if (!newPin || newPin.length < 4) return alert("Please enter a 4-digit new PIN!");
     if (confirmPin && newPin !== confirmPin) return alert("New PIN and Confirm PIN do not match!");
 
+    const token = localStorage.getItem('cellar_token') || store.currentUser?.token || '';
+    if (!token) {
+      alert("Session expired. Please log in with your PIN to reset staff PINs.");
+      window.logoutUser();
+      return;
+    }
+
     try {
       const res = await fetch('/api/auth/reset-pin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ userId, newPin, confirmPin })
       });
       const data = await res.json();
