@@ -646,11 +646,26 @@ router.post('/users', authenticateSession, (req, res) => {
     return res.status(403).json({ error: 'You do not have permission to create staff accounts.' });
   }
 
-  // Validate the branch belongs to the creator's organization.
-  const branch = db.prepare('SELECT * FROM branches WHERE id = ?').get(targetBranch);
-  if (!branch || (branch.organization_id && branch.organization_id !== orgId)) {
-    return res.status(400).json({ error: 'Invalid branch for this organization.' });
+  // Validate and resolve the target branch for the creator's organization.
+  let branch = null;
+  if (targetBranch) {
+    branch = db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(targetBranch, String(targetBranch).toLowerCase(), orgId);
   }
+  if (!branch) {
+    // Fall back to the organization's primary branch
+    branch = db.prepare('SELECT * FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(orgId);
+  }
+  if (!branch) {
+    // Auto-create a main branch for this organization if missing
+    const defaultCode = uniqueBranchCode('main');
+    const defaultId = `BR-${defaultCode}`;
+    db.prepare(`
+      INSERT INTO branches (id, organization_id, name, code, location, status)
+      VALUES (?, ?, 'Main Branch', ?, 'Head Office', 'ACTIVE')
+    `).run(defaultId, orgId, defaultCode);
+    branch = { id: defaultId, organization_id: orgId, code: defaultCode, name: 'Main Branch' };
+  }
+  targetBranch = branch.id;
 
   const userId = `U${Date.now()}`;
   const pinHashed = hashPin(cleanPin);
@@ -719,8 +734,8 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
 
     let newBranch = existing.branch_id;
     if (primaryBranchId && req.authUser.role === 'owner') {
-      const b = db.prepare('SELECT * FROM branches WHERE id = ?').get(primaryBranchId);
-      if (b && (!b.organization_id || b.organization_id === req.authUser.organizationId)) newBranch = primaryBranchId;
+      const b = db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(primaryBranchId, String(primaryBranchId).toLowerCase(), req.authUser.organizationId);
+      if (b) newBranch = b.id;
     }
 
     let newPinHash = existing.pin_hash;

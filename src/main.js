@@ -1418,13 +1418,17 @@ function bindEvents() {
 
     const primSelect = document.getElementById('staffPrimaryBranchSelect');
     if (primSelect) {
-      const currentBranch = u.branchId || u.primaryBranchId;
-      primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}" ${b.id === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
+      const currentBranch = u ? (u.branchId || u.primaryBranchId) : null;
+      const availableBranches = (store.branches && store.branches.length > 0)
+        ? store.branches
+        : [store.loginBranch || { id: store.activeBranchId || 'B1', name: 'Main Branch' }];
+      primSelect.innerHTML = availableBranches.map(b => `<option value="${b.id || b.code}" ${b.id === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
     }
 
     const addSelect = document.getElementById('staffAdditionalBranchesSelect');
     if (addSelect) {
-      addSelect.innerHTML = store.branches.map(b => `<option value="${b.id}" ${(u.additionalBranchIds || []).includes(b.id) ? 'selected' : ''}>${b.name}</option>`).join('');
+      const availableBranches = (store.branches && store.branches.length > 0) ? store.branches : [];
+      addSelect.innerHTML = availableBranches.map(b => `<option value="${b.id || b.code}" ${(u?.additionalBranchIds || []).includes(b.id) ? 'selected' : ''}>${b.name}</option>`).join('');
     }
 
     window.openModal('staffModal');
