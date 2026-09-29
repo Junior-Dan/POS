@@ -43,34 +43,42 @@ function bind(sql, params) {
   });
 }
 
-// A short-lived Node child performs the HTTP request so the DB layer stays
-// synchronous WITHOUT depending on a `curl` binary (Vercel's Node runtime does
-// not reliably ship curl, but process.execPath is always available).
-// Hard per-request timeout (ms) so a hung/unreachable host fails fast instead
-// of blocking the (synchronous) DB layer — critical on serverless, where a hung
-// fetch would otherwise stall the whole function until it times out.
-const TURSO_FETCH_TIMEOUT_MS = 8000;
+const FETCH_TIMEOUT_MS = 8000;
+
+// Turso Child Script runner
 const TURSO_CHILD_SCRIPT = `
   const [endpoint, token, body] = process.argv.slice(1);
   fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
     body,
-    signal: AbortSignal.timeout(${TURSO_FETCH_TIMEOUT_MS})
+    signal: AbortSignal.timeout(${FETCH_TIMEOUT_MS})
   }).then(r => r.text())
     .then(t => { process.stdout.write(t); })
     .catch(e => { process.stdout.write(JSON.stringify({ __fetchError: e.message })); });
 `;
 
-// Block the current thread briefly (synchronous DB layer can't await).
+// Supabase Child Script runner
+const SUPABASE_CHILD_SCRIPT = `
+  const [endpoint, key, query] = process.argv.slice(1);
+  fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': key,
+      'Authorization': 'Bearer ' + key
+    },
+    body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(${FETCH_TIMEOUT_MS})
+  }).then(r => r.text())
+    .then(t => { process.stdout.write(t); })
+    .catch(e => { process.stdout.write(JSON.stringify({ __fetchError: e.message })); });
+`;
+
 function sleepSync(ms) {
   try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (e) {}
 }
 
-// Run a Turso HTTP pipeline with retries. Transient network blips ("fetch
-// failed") and child spawn errors are retried a few times with backoff, so a
-// momentary connectivity hiccup no longer bubbles up as a hard failure (which,
-// at init time, would otherwise crash the whole serverless function).
 function runTursoPipeline(endpoint, token, payload, label) {
   const maxAttempts = 2;
   let lastErr;
@@ -80,9 +88,7 @@ function runTursoPipeline(endpoint, token, payload, label) {
       output = execFileSync(process.execPath, ['-e', TURSO_CHILD_SCRIPT, endpoint, token, payload], {
         encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
-        // Backstop in case the child itself hangs; slightly above the in-child
-        // fetch timeout so the child's own error message wins when possible.
-        timeout: TURSO_FETCH_TIMEOUT_MS + 2000,
+        timeout: FETCH_TIMEOUT_MS + 2000,
         killSignal: 'SIGKILL'
       }).trim();
     } catch (err) {
@@ -97,7 +103,6 @@ function runTursoPipeline(endpoint, token, payload, label) {
     try {
       res = JSON.parse(output);
     } catch (e) {
-      // A non-JSON body is not transient — don't waste retries on it.
       throw new Error(`${label} returned an unparseable response: ${output.slice(0, 200)}`);
     }
 
@@ -112,13 +117,68 @@ function runTursoPipeline(endpoint, token, payload, label) {
   throw lastErr;
 }
 
+function runSupabaseQuery(endpoint, key, query, label) {
+  const maxAttempts = 2;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let output;
+    try {
+      output = execFileSync(process.execPath, ['-e', SUPABASE_CHILD_SCRIPT, endpoint, key, query], {
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+        timeout: FETCH_TIMEOUT_MS + 2000,
+        killSignal: 'SIGKILL'
+      }).trim();
+    } catch (err) {
+      lastErr = new Error(`${label} failed (network/child): ${err.message}`);
+      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
+      throw lastErr;
+    }
+
+    if (!output) return [];
+
+    let res;
+    try {
+      res = JSON.parse(output);
+    } catch (e) {
+      throw new Error(`${label} returned non-JSON output: ${output.slice(0, 200)}`);
+    }
+
+    if (res && res.__fetchError) {
+      lastErr = new Error(`${label} fetch error: ${res.__fetchError}`);
+      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
+      throw lastErr;
+    }
+
+    if (res && res.error) {
+      throw new Error(`Supabase SQL error: ${res.error}`);
+    }
+
+    return Array.isArray(res) ? res : (res ? [res] : []);
+  }
+  throw lastErr;
+}
+
 /**
- * Database adapter supporting local SQLite CLI and remote Turso libSQL cloud database.
+ * Database adapter supporting local SQLite CLI, remote Turso libSQL, and Supabase PostgreSQL.
  */
-class SqliteDatabase {
+class DatabaseAdapter {
   constructor(filePath) {
     this.filePath = filePath;
     this.transactionFile = null;
+  }
+
+  get supabaseUrl() {
+    return (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
+  }
+
+  get supabaseKey() {
+    return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  }
+
+  get isSupabase() {
+    const key = this.supabaseKey;
+    return !!(this.supabaseUrl && key && key.trim() !== '' && !key.includes('your_secret'));
   }
 
   get tursoUrl() {
@@ -138,6 +198,27 @@ class SqliteDatabase {
     return this.transactionFile || this.filePath;
   }
 
+  _executeSupabase(sql, json = false) {
+    // Adapt SQLite-specific syntax for PostgreSQL compatibility
+    let pgSql = sql;
+
+    // Convert SQLite PRAGMA statements (ignore on Postgres)
+    if (pgSql.trim().toUpperCase().startsWith('PRAGMA')) {
+      return [];
+    }
+
+    // Convert SQLite INSERT OR REPLACE into PostgreSQL ON CONFLICT
+    if (pgSql.includes('INSERT OR REPLACE INTO settings')) {
+      pgSql = pgSql.replace('INSERT OR REPLACE INTO settings (key, value) VALUES', 'INSERT INTO settings (key, value) VALUES')
+        + ' ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value';
+    } else if (pgSql.includes('INSERT OR REPLACE INTO')) {
+      pgSql = pgSql.replace('INSERT OR REPLACE INTO', 'INSERT INTO');
+    }
+
+    const endpoint = `${this.supabaseUrl}/rest/v1/rpc/exec_sql`;
+    return runSupabaseQuery(endpoint, this.supabaseKey, pgSql, 'Supabase request');
+  }
+
   _executeTurso(sql, json = false) {
     const endpoint = this.tursoUrl
       .replace(/^libsql:\/\//, 'https://')
@@ -150,11 +231,9 @@ class SqliteDatabase {
       ]
     });
 
-    // Synchronous HTTP pipeline with transient-failure retries.
     const res = runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso request');
     if (!res) return [];
 
-    // Surface Turso-reported SQL/auth errors instead of silently returning [].
     const first = res.results?.[0];
     if (first?.type === 'error' || first?.error) {
       const msg = first.error?.message || first.message || 'unknown Turso error';
@@ -187,6 +266,9 @@ class SqliteDatabase {
   }
 
   _execute(sql, json = false) {
+    if (this.isSupabase) {
+      return this._executeSupabase(sql, json);
+    }
     if (this.isTurso) {
       return this._executeTurso(sql, json);
     }
@@ -208,10 +290,14 @@ class SqliteDatabase {
     this._execute(sql);
   }
 
-  // Run many statements. On Turso they are sent in ONE HTTP pipeline request
-  // (fast cold starts); locally they run as a single batched script.
   execBatch(statements) {
     if (!Array.isArray(statements) || statements.length === 0) return;
+    if (this.isSupabase) {
+      for (const stmt of statements) {
+        try { this._execute(stmt); } catch (e) { console.warn("Supabase batch item notice:", e.message); }
+      }
+      return;
+    }
     if (this.isTurso) {
       const endpoint = this.tursoUrl.replace(/^libsql:\/\//, 'https://').replace(/\/$/, '') + '/v2/pipeline';
       const payload = JSON.stringify({
@@ -227,19 +313,18 @@ class SqliteDatabase {
       }
       return;
     }
-    // Local SQLite CLI: run all statements in one invocation.
     this._execute(statements.map(s => s.trim().replace(/;+$/, '')).join(';\n') + ';');
   }
 
   pragma(value) {
-    if (!this.isTurso) {
+    if (!this.isTurso && !this.isSupabase) {
       this._execute(`PRAGMA ${value}`);
     }
   }
 
   transaction(fn) {
     return (...args) => {
-      if (this.isTurso) {
+      if (this.isTurso || this.isSupabase) {
         return fn(...args);
       }
       if (this.transactionFile) return fn(...args);
@@ -263,58 +348,61 @@ class SqliteDatabase {
   }
 }
 
-export const db = new SqliteDatabase(databasePath);
+export const db = new DatabaseAdapter(databasePath);
 
 export function initDb() {
-  // On Turso the database is remote and always reachable; locally it must be a
-  // real file (unless CELLAR_DB_PATH points elsewhere or we are on Vercel /tmp).
-  if (!db.isTurso && !fs.existsSync(databasePath)) {
-    // On a fresh environment (e.g. Vercel /tmp with no seed) create an empty
-    // file so the schema can be initialised below.
+  if (db.isSupabase) {
+    console.log(`Supabase Cloud PostgreSQL database engine active: ${db.supabaseUrl}`);
+    // Attempt schema batch creation
+    try {
+      db.execBatch(SCHEMA_STATEMENTS);
+    } catch (e) {
+      console.warn("Supabase schema init notice:", e.message);
+    }
+    runTenantMigration();
+    return;
+  }
+
+  if (db.isTurso) {
+    console.log(`Turso Cloud database engine active: ${db.tursoUrl}`);
+    db.execBatch(SCHEMA_STATEMENTS);
+    runTenantMigration();
+    return;
+  }
+
+  if (!fs.existsSync(databasePath)) {
     try { fs.writeFileSync(databasePath, ''); } catch (e) {
       throw new Error(`SQLite database is missing and could not be created: ${databasePath}`);
     }
   }
-  if (!db.isTurso) {
-    db.exec('PRAGMA foreign_keys = ON; PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;');
-  }
-
-  // Create the full schema (idempotent). Sent as one batched request so a
-  // Turso cold start pays a single HTTP round-trip rather than one per table.
+  db.exec('PRAGMA foreign_keys = ON; PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;');
   db.execBatch(SCHEMA_STATEMENTS);
 
-  // Migration helper for adding missing columns to users table safely
-  if (!db.isTurso) {
-    const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
-    if (!userColumns.includes('organization_id')) {
-      try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT;'); } catch (e) {}
-    }
-    if (!userColumns.includes('branch_id')) {
-      try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT;'); } catch (e) {}
-    }
-    if (!userColumns.includes('phone')) {
-      try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT;'); } catch (e) {}
-    }
-    if (!userColumns.includes('status')) {
-      try { db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE';"); } catch (e) {}
-    }
-    if (!userColumns.includes('created_by')) {
-      try { db.exec('ALTER TABLE users ADD COLUMN created_by TEXT;'); } catch (e) {}
-    }
-    if (!userColumns.includes('pin_hash')) {
-      try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT;'); } catch (e) {}
-    }
-    if (!userColumns.includes('updated_at')) {
-      try { db.exec('ALTER TABLE users ADD COLUMN updated_at DATETIME;'); } catch (e) {}
-    }
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!userColumns.includes('organization_id')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('branch_id')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('phone')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('status')) {
+    try { db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE';"); } catch (e) {}
+  }
+  if (!userColumns.includes('created_by')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN created_by TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('pin_hash')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT;'); } catch (e) {}
+  }
+  if (!userColumns.includes('updated_at')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN updated_at DATETIME;'); } catch (e) {}
   }
 
-  // Multi-tenant migration: guarantee organization_id on every data table and
-  // backfill any pre-existing single-org rows. Runs on Turso AND local. Gated by
-  // a version marker so the (slow, per-statement) ALTERs run at most once.
   runTenantMigration();
-
-  console.log(db.isTurso ? `Turso Cloud database engine active: ${db.tursoUrl}` : `SQLite database engine active: ${databasePath}`);
+  console.log(`SQLite database engine active: ${databasePath}`);
 }
 
 const TENANT_TABLES = [
@@ -332,13 +420,10 @@ function runTenantMigration() {
   } catch (e) {}
   if (current === MIGRATION_VERSION) return;
 
-  // Add organization_id where missing (harmless "duplicate column" errors are
-  // swallowed for tables/DBs that already have it).
   for (const t of TENANT_TABLES) {
     try { db.exec(`ALTER TABLE ${t} ADD COLUMN organization_id TEXT`); } catch (e) {}
   }
 
-  // Backfill existing rows to the current (single) organization, if one exists.
   let orgId = null;
   try {
     const org = db.prepare('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').get();
@@ -352,9 +437,6 @@ function runTenantMigration() {
     try { db.exec(`UPDATE users SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
     try { db.exec(`UPDATE branches SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
 
-    // Migrate legacy GLOBAL settings keys (from the single-tenant era) into this
-    // organization's namespace ("<orgId>::<key>") so the existing business keeps
-    // its profile, branches list and configuration after the upgrade.
     const LEGACY_SETTING_KEYS = [
       'businessProfile', 'branches', 'paymentSettings', 'receiptSettings',
       'shiftSettings', 'securitySettings', 'systemPreferences'
