@@ -59,8 +59,8 @@ export function renderDashboardView() {
           </div>
           <span class="section-subtitle">Hourly sales stream · <span id="dashKenyaClock">${formatKenyaClock()}</span> EAT</span>
         </div>
-        <div style="height: 240px; position:relative; padding-top:10px;">
-          <canvas id="chartHourlySales"></canvas>
+        <div style="height: 240px; position:relative; padding-top:10px;" dir="ltr">
+          <canvas id="chartHourlySales" dir="ltr"></canvas>
         </div>
       </div>
 
@@ -261,6 +261,10 @@ export function initDashboardCharts() {
   const ctxC = document.getElementById('chartCategorySales');
   if (!ctxH || !ctxC) return;
 
+  // Chart.js inherits text direction from the canvas; force LTR so the hourly
+  // time axis is never mirrored by an RTL browser/OS locale.
+  try { ctxH.setAttribute('dir', 'ltr'); ctxH.style.direction = 'ltr'; } catch (e) {}
+
   try {
     const traffic = store.getHourlySalesTraffic();
     const catMap = store.getCategorySalesBreakdown();
@@ -320,6 +324,9 @@ export function initDashboardCharts() {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          // Force left-to-right so the time axis always reads earliest hour on
+          // the left → latest on the right, even if the browser/OS locale is RTL.
+          rtl: false,
           animation: {
             duration: 600,
             easing: 'easeOutQuart'
@@ -346,6 +353,7 @@ export function initDashboardCharts() {
           },
           scales: {
             x: {
+              reverse: false,
               grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
               ticks: {
                 color: '#94a3b8',
