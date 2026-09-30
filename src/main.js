@@ -795,9 +795,7 @@ function bindEvents() {
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
-      if (data.user.branchId) {
-        store.activeBranchId = data.user.branchId;
-      }
+      store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
 
       const roleMap = {
         owner: 'dashboard',
@@ -856,9 +854,7 @@ function bindEvents() {
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
-      if (data.user.branchId) {
-        store.activeBranchId = data.user.branchId;
-      }
+      store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
 
       const roleMap = {
         owner: 'dashboard',
@@ -915,9 +911,7 @@ function bindEvents() {
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
       // Bind the active branch to the authenticated user (non-owners).
-      if (data.user.branchId) {
-        store.activeBranchId = data.user.branchId;
-      }
+      store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
 
       // Role-based view redirection (Requirement #6)
       const roleMap = {

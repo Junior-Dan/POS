@@ -337,6 +337,9 @@ export class CellarStore {
       // Preserve the token on currentUser so staff-management guards always
       // have a fallback even if localStorage is later cleared.
       this.currentUser = { ...data.user, token: data.user.token || token };
+      // Owners view all branches; staff are scoped to their own branch.
+      this.activeBranchId = data.user.branchId ||
+        ((data.user.role || '').toLowerCase() === 'owner' ? 'ALL' : this.activeBranchId);
       try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       return true;
     }
@@ -1109,10 +1112,12 @@ export class CellarStore {
       return true;
     }
 
+    // Everyone can see the Dashboard (their org's live data). Other views stay
+    // role-scoped.
     const roleMap = {
       manager: ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'settings'],
-      cashier: ['pos', 'sales', 'shift', 'customers'],
-      inventory_officer: ['products', 'inventory', 'suppliers', 'purchases']
+      cashier: ['dashboard', 'pos', 'sales', 'shift', 'customers'],
+      inventory_officer: ['dashboard', 'products', 'inventory', 'suppliers', 'purchases']
     };
 
     const allowedViews = roleMap[user.role] || [];

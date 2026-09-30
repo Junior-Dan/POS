@@ -418,8 +418,28 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Account is disabled or the login credentials are invalid.' });
   }
 
-  // Find the candidate matching the password / PIN
-  let user = candidates.find(u => u.status !== 'INACTIVE' && u.status !== 'DISABLED' && verifyPin(secret, u));
+  // Among all PIN-matching candidates (an email/name can unfortunately be on
+  // more than one account), prefer the account for the selected branch first,
+  // then the highest-privilege role (owner > manager > inventory > cashier), so
+  // logging in lands on the user's primary account — not a stray duplicate.
+  const matching = candidates.filter(u => u.status !== 'INACTIVE' && u.status !== 'DISABLED' && verifyPin(secret, u));
+
+  let preferredBranchId = null;
+  if (branchCode) {
+    const code = String(branchCode).toLowerCase();
+    const br = db.prepare('SELECT id FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
+    preferredBranchId = br ? br.id : null;
+  }
+  const roleRank = { owner: 0, manager: 1, inventory_officer: 2, cashier: 3 };
+  matching.sort((a, b) => {
+    const aBr = preferredBranchId && a.branch_id === preferredBranchId ? 0 : 1;
+    const bBr = preferredBranchId && b.branch_id === preferredBranchId ? 0 : 1;
+    if (aBr !== bBr) return aBr - bBr;
+    const ar = roleRank[(a.role || '').toLowerCase()] ?? 9;
+    const br = roleRank[(b.role || '').toLowerCase()] ?? 9;
+    return ar - br;
+  });
+  let user = matching[0];
 
   if (!user) {
     recordFailure(key);
