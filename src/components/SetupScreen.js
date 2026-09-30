@@ -42,11 +42,9 @@ export function renderAuthLandingScreen(overrideMode = null) {
         <div class="welcome-auth-pane">
           <div class="welcome-brand-header">
             <div class="welcome-logo-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:24px; height:24px;">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
+              <img src="/logo.jpeg" alt="Celler POS Logo" class="sys-logo-img" />
             </div>
-            <span class="welcome-brand-name">${store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS'}</span>
+            <span class="welcome-brand-name">${store.loginBranch?.businessName || store.businessProfile?.name || 'Celler POS'}</span>
           </div>
 
           <div class="auth-pane-body">
@@ -60,7 +58,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cisco Wines & Spirits" value="${store.businessProfile?.name || 'Cisco Wines & Spirits'}" required>
+                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Celler POS" value="${store.businessProfile?.name || 'Celler POS'}" required>
                 </div>
 
                 <div class="form-row">
@@ -76,7 +74,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
 
                 <div class="form-group">
                   <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke" required>
+                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@celler.co.ke" required>
                 </div>
 
                 <div class="form-row">
@@ -105,7 +103,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
             ` : isBranchLogin ? `
               <!-- SHARED UNIQUE BRANCH TERMINAL LOGIN (CUSTOM BUSINESS NAME + EMAIL & PASSWORD / PIN) -->
               <div class="auth-header-section">
-                <h1 class="welcome-title">${store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS'}</h1>
+                <h1 class="welcome-title">${store.loginBranch?.businessName || store.businessProfile?.name || 'Celler POS'}</h1>
                 <p class="welcome-subtitle">
                   📍 ${(store.loginBranch?.name || activeBranch.name).toUpperCase()} TERMINAL (${(store.loginBranch?.code || activeBranch.code).toUpperCase()})
                 </p>
@@ -182,7 +180,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
           </div>
 
           <div class="welcome-footer-bar">
-            <span>Copyright © 2026 ${store.businessProfile?.name || 'Cellar POS Enterprises LTD'}.</span>
+            <span>Copyright © 2026 ${store.businessProfile?.name || 'Celler POS Enterprises LTD'}.</span>
             <a href="#" onclick="event.preventDefault();" class="footer-link">Privacy Policy</a>
           </div>
         </div>

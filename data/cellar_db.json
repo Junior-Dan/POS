@@ -26,9 +26,9 @@
   "expenses": [],
   "purchases": [],
   "settings": [
-    { "key": "businessProfile", "value": "{\"name\":\"Cisco Wines & Spirits\",\"phone\":\"0722 000 111\",\"email\":\"info@ciscowines.co.ke\",\"address\":\"Kenyatta Avenue, Nairobi CBD\",\"kraPin\":\"P051234567S\",\"regNo\":\"CPR/2024/99182\",\"receiptName\":\"CISCO WINES & SPIRITS\",\"receiptPhone\":\"0722 000 111\",\"receiptAddress\":\"Kenyatta Avenue, Nairobi CBD\"}" },
+    { "key": "businessProfile", "value": "{\"name\":\"Celler POS\",\"phone\":\"0722 000 111\",\"email\":\"info@celler.co.ke\",\"address\":\"Kenyatta Avenue, Nairobi CBD\",\"kraPin\":\"P051234567S\",\"regNo\":\"CPR/2024/99182\",\"receiptName\":\"CELLER POS\",\"receiptPhone\":\"0722 000 111\",\"receiptAddress\":\"Kenyatta Avenue, Nairobi CBD\"}" },
     { "key": "paymentSettings", "value": "{\"cashEnabled\":true,\"mpesaEnabled\":true,\"cardEnabled\":true,\"bankEnabled\":true,\"creditEnabled\":false}" },
-    { "key": "receiptSettings", "value": "{\"showLogo\":true,\"showCashierName\":true,\"showTaxBreakdown\":true,\"printCopies\":1,\"headerText\":\"CISCO WINES & SPIRITS\",\"footerText\":\"Thank you for shopping at Cisco Wines! Quality Wines & Spirits.\"}" },
+    { "key": "receiptSettings", "value": "{\"showLogo\":true,\"showCashierName\":true,\"showTaxBreakdown\":true,\"printCopies\":1,\"headerText\":\"CELLER POS\",\"footerText\":\"Thank you for shopping at Celler POS! Quality Wines & Spirits.\"}" },
     { "key": "shiftSettings", "value": "{\"defaultFloat\":5000,\"requireCashDeclaration\":true,\"maxVarianceThreshold\":1000,\"requireManagerVarianceApproval\":true}" },
     { "key": "securitySettings", "value": "{\"sessionTimeoutMinutes\":30,\"autoLogoutOnIdle\":false,\"requirePinForRefunds\":true,\"requirePinForPriceOverride\":true,\"requirePinForStockAdjustments\":true,\"maxDiscountPercentWithoutAuth\":5}" },
     { "key": "systemPreferences", "value": "{\"currencySymbol\":\"KSh\",\"taxRate\":16,\"dateFormat\":\"DD/MM/YYYY\",\"theme\":\"dark\"}" }

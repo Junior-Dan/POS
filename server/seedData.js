@@ -150,13 +150,13 @@ export function seedDatabase() {
 
   const defaultSettings = [
     { key: "businessProfile", value: JSON.stringify({
-      name: "Cisco Wines & Spirits",
+      name: "Celler POS",
       phone: "0722 000 111",
-      email: "info@ciscowines.co.ke",
+      email: "info@celler.co.ke",
       address: "Kenyatta Avenue, Nairobi CBD",
       kraPin: "P051234567S",
       regNo: "CPR/2024/99182",
-      receiptName: "CISCO WINES & SPIRITS",
+      receiptName: "CELLER POS",
       receiptPhone: "0722 000 111",
       receiptAddress: "Kenyatta Avenue, Nairobi CBD"
     })},
@@ -172,8 +172,8 @@ export function seedDatabase() {
       showCashierName: true,
       showTaxBreakdown: true,
       printCopies: 1,
-      headerText: "CISCO WINES & SPIRITS",
-      footerText: "Thank you for shopping at Cisco Wines! Quality Wines & Spirits."
+      headerText: "CELLER POS",
+      footerText: "Thank you for shopping at Celler POS! Quality Wines & Spirits."
     })},
     { key: "shiftSettings", value: JSON.stringify({
       defaultFloat: 5000,

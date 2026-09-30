@@ -565,7 +565,7 @@ router.get('/branch-info', (req, res) => {
     branchUsers = only; // may be empty if the ref doesn't match this branch/org
   }
 
-  let orgName = 'Cellar POS';
+  let orgName = 'Celler POS';
   if (branchOrgId) {
     try {
       const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(branchOrgId);

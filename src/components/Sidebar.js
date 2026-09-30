@@ -3,7 +3,7 @@ import { store } from '../store/CellarStore.js';
 export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
-  const bizName = store.businessProfile?.name || "Cisco Wines & Spirits";
+  const bizName = store.businessProfile?.name || "Celler POS";
   const activeBranch = store.getActiveBranch();
 
   // Branch selector options based on user role and assigned branches
@@ -46,8 +46,11 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="brand-box">
+        <div class="brand-logo-wrap">
+          <img src="/logo.jpeg" alt="Celler POS Logo" class="brand-logo-img" />
+        </div>
         <div class="brand-info-wrap">
-          <div class="brand-title">CELLAR POS</div>
+          <div class="brand-title">CELLER POS</div>
         </div>
       </div>
       <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">

@@ -56,7 +56,7 @@ setImmediate(() => { try { ensureDbReady(); } catch (e) {} });
 
 // API Health Check (never requires the DB).
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', dbReady, message: 'Cellar POS API Engine is running cleanly.' });
+  res.json({ status: 'ok', dbReady, message: 'Celler POS API Engine is running cleanly.' });
 });
 
 // Gate all data/auth routes on the DB being ready; self-heals on later requests.
@@ -95,7 +95,7 @@ app.use('/api', (err, _req, res, next) => {
 
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
-    console.log(`Cellar POS Backend Express Server listening on http://localhost:${PORT}`);
+    console.log(`Celler POS Backend Express Server listening on http://localhost:${PORT}`);
   });
 }
 

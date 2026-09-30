@@ -533,7 +533,7 @@ function bindEvents() {
     const email = document.getElementById('setupEmailInput')?.value.trim() || "";
     const password = document.getElementById('setupPasswordInput')?.value.trim() || document.getElementById('setupPinInput')?.value.trim() || "";
     const confirmPassword = document.getElementById('setupConfirmPasswordInput')?.value.trim() || document.getElementById('setupConfirmPinInput')?.value.trim() || "";
-    const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Cisco Wines & Spirits";
+    const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Celler POS";
     const err = document.getElementById('setupErrorMsg');
 
     if (!name) {
@@ -1720,7 +1720,7 @@ function bindEvents() {
       branchCode = branchId.replace(/^BR-/i, '');
     }
     if (!branchCode) branchCode = store.getActiveBranch()?.code || 'main';
-    const bizName = store.businessProfile?.name || 'Cellar POS';
+    const bizName = store.businessProfile?.name || 'Celler POS';
 
     // Personal invite link: locked to THIS staff account via ?staff=<id>. The
     // login page opened from this link shows only their account — nobody else's.
@@ -1956,8 +1956,8 @@ function bindEvents() {
       showCashierName,
       showTaxBreakdown: true,
       printCopies,
-      headerText: headerText || "CISCO WINES & SPIRITS",
-      footerText: footerText || "Thank you for shopping at Cisco Wines!"
+      headerText: headerText || "CELLER POS",
+      footerText: footerText || "Thank you for shopping at Celler POS!"
     };
 
     store.logAudit("Updated Receipt Settings", "POS Receipt", "-", `Header: ${headerText}`, "Receipt Settings Saved");

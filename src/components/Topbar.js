@@ -2,7 +2,7 @@ import { store } from '../store/CellarStore.js';
 
 export function renderTopbar(currentUser = store.currentUser) {
   const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
-  const bizName = store.businessProfile?.name || "Cisco Wines & Spirits";
+  const bizName = store.businessProfile?.name || "Celler POS";
   const userInitials = (user.name || "David Kamau").split(' ').map(n => n[0]).join('');
   
   const currentDateObj = store.getSelectedDateObj();
@@ -123,7 +123,7 @@ export function renderTopbar(currentUser = store.currentUser) {
 
       <!-- Interactive Branch Switcher Dropdown (Company Name Top, Tiny Branch Below - Image 1 & 3) -->
       <div class="topbar-branch-badge" id="topbarBranchContainer" title="Click to switch branch">
-        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color:var(--accent); flex-shrink:0;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        <img src="/logo.jpeg" class="topbar-logo-img" alt="Celler POS" />
         
         <div class="topbar-branch-text-wrap">
           <span class="topbar-company-name">${bizName}</span>

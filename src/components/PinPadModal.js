@@ -108,12 +108,12 @@ export function renderPinPadModal() {
       </div>
       <div class="modal-body" style="gap:14px; padding:24px;">
         <div style="text-align:center; margin-bottom:4px;">
-          <div style="font-size:16px; font-weight:800; color:var(--text);">Welcome to Cellar POS!</div>
+          <div style="font-size:16px; font-weight:800; color:var(--text);">Welcome to Celler POS!</div>
           <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">Create your Business Owner Account to start using the system</div>
         </div>
         <div class="form-group">
           <label class="form-label">Business / Store Name</label>
-          <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cisco Wines & Spirits" value="Cisco Wines & Spirits" required>
+          <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Celler POS" value="Celler POS" required>
         </div>
         <div class="form-group">
           <label class="form-label">Owner Full Name</label>
@@ -121,7 +121,7 @@ export function renderPinPadModal() {
         </div>
         <div class="form-group">
           <label class="form-label">Email Address</label>
-          <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke" required>
+          <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@celler.co.ke" required>
         </div>
         <div class="form-group">
           <label class="form-label">Phone Number</label>
