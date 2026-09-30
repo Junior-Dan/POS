@@ -608,20 +608,22 @@ export class CellarStore {
 
   async updateProductActive(id, active) {
     const prod = this.products.find(p => p.id === id);
-    if (!prod) return;
-    prod.active = active;
-    try {
-      await fetch(`/api/products/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: active ? 1 : 0 })
-      });
-    } catch (e) {
-      console.warn("Product active status save notice:", e);
-    }
+    if (prod) prod.active = active;
     this.saveLocalBackup();
     this.notify();
     this.broadcastUpdate();
+
+    // Persist; throw on failure so the caller can revert the optimistic UI.
+    const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: active ? 1 : 0 })
+    });
+    if (!res.ok) {
+      const data = await readJsonBody(res);
+      throw new Error(data.error || `Failed to update status (HTTP ${res.status}).`);
+    }
+    return true;
   }
 
   // --- API MUTATION METHODS ---

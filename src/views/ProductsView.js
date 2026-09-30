@@ -118,11 +118,24 @@ window.editProductPrice = function(id) {
   });
 };
 
-window.toggleProductActive = async function(id) {
+window.toggleProductActive = function(id) {
   const p = store.products.find(x => x.id === id);
   if (!p) return;
   const newStatus = !p.active;
-  await store.updateProductActive(id, newStatus);
-  store.logAudit("Toggled Product Status", p.name, !newStatus, newStatus, "Owner/Manager update");
+
+  // Optimistic: flip the status and re-render IMMEDIATELY so the button reacts
+  // instantly. Persist to the (cloud) server in the background; revert if it
+  // fails so the UI never lies about the saved state.
+  p.active = newStatus;
   if (window.initApp) window.initApp();
+
+  Promise.resolve(store.updateProductActive(id, newStatus))
+    .then(() => {
+      store.logAudit("Toggled Product Status", p.name, !newStatus, newStatus, "Owner/Manager update");
+    })
+    .catch((err) => {
+      p.active = !newStatus; // revert
+      if (window.initApp) window.initApp();
+      alert("Could not update product status: " + (err && err.message ? err.message : 'server error'));
+    });
 };
