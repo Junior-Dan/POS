@@ -22,12 +22,12 @@ export function renderAuthLandingScreen(overrideMode = null) {
     isBranchLogin = true;
   } else if (overrideMode === 'setup') {
     isRegisterSetup = true;
-  } else if (overrideMode === 'login' && hasExistingOwner) {
-    isBranchLogin = false; // Main email login
+  } else if (overrideMode === 'login') {
+    isRegisterSetup = false; // Main email login
   } else if (!hasExistingOwner) {
     isRegisterSetup = true;
   } else {
-    isBranchLogin = false; // Main email login
+    isRegisterSetup = false; // Main email login
   }
 
   const activeBranch = store.loginBranch || store.getActiveBranch() || { name: 'Main Branch', code: 'cbd' };
