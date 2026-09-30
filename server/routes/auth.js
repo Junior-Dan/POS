@@ -465,13 +465,18 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Incorrect email, password, or security PIN entered.' });
   }
 
-  // Branch binding: a non-owner may only authenticate against their own branch.
+  // Branch binding: verify the account belongs to the terminal's organization.
   if (branchCode) {
     const code = String(branchCode).toLowerCase();
     const branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
-    if (branch && user.role.toLowerCase() !== 'owner' && user.branch_id && user.branch_id !== branch.id) {
-      recordFailure(key);
-      return res.status(403).json({ error: 'This account does not belong to the selected branch terminal.' });
+    if (branch) {
+      const userOrg = user.organization_id || null;
+      const branchOrg = branch.organization_id || null;
+
+      if (userOrg && branchOrg && userOrg !== branchOrg) {
+        recordFailure(key);
+        return res.status(403).json({ error: 'This account belongs to a different business organization.' });
+      }
     }
   }
 

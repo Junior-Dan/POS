@@ -837,6 +837,9 @@ function bindEvents() {
       return;
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const branchCode = urlParams.get('branch') || store.loginBranch?.code || null;
+
     window._isSubmittingMainLogin = true;
     if (errDiv) errDiv.textContent = 'Authenticating...';
 
@@ -844,7 +847,7 @@ function bindEvents() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username: email, password, pin: password })
+        body: JSON.stringify({ email, username: email, password, pin: password, branchCode })
       });
 
       const data = await readJsonSafe(res);
