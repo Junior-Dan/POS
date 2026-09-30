@@ -46,10 +46,23 @@ router.get('/', (req, res) => {
 
     const sales = db.prepare(sql).all(...params);
 
-    const getItems = db.prepare(`SELECT * FROM sale_items WHERE sale_id = ?`);
+    // Fetch ALL line items for these sales in ONE query (avoid an N+1 storm that
+    // would block the synchronous DB layer once there are many sales).
+    const itemsBySale = {};
+    const ids = sales.map(s => s.id);
+    if (ids.length) {
+      const placeholders = ids.map(() => '?').join(',');
+      const allItems = db.prepare(
+        `SELECT * FROM sale_items WHERE organization_id = ? AND sale_id IN (${placeholders})`
+      ).all(req.authUser.organizationId, ...ids);
+      for (const i of allItems) {
+        if (!itemsBySale[i.sale_id]) itemsBySale[i.sale_id] = [];
+        itemsBySale[i.sale_id].push(i);
+      }
+    }
 
     const result = sales.map(s => {
-      const items = getItems.all(s.id).map(i => ({
+      const items = (itemsBySale[s.id] || []).map(i => ({
         id: i.product_id,
         productId: i.product_id,
         name: i.product_name,

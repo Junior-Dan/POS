@@ -203,10 +203,16 @@ export class CellarStore {
       }
     });
 
+    // Live-sync polling. The backend DB layer is synchronous (each query blocks
+    // the server's event loop), so polling too aggressively serializes behind
+    // user actions like saving staff. Poll gently and ONLY when logged in and the
+    // tab is visible.
     if (!this.pollingInterval) {
       this.pollingInterval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        if (!this.currentUser || !this.currentUser.id) return;
         this.syncLiveState();
-      }, 3000);
+      }, 20000);
     }
   }
 
@@ -325,11 +331,16 @@ export class CellarStore {
   // Public branch roster for the login screen (no auth token required).
   async fetchBranchLogin() {
     let code = '';
+    let staff = '';
     if (typeof window !== 'undefined' && window.location) {
       const params = new URLSearchParams(window.location.search);
       code = params.get('branch') || '';
+      staff = params.get('staff') || params.get('u') || '';
     }
-    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}&_t=${Date.now()}`, { cache: 'no-store' });
+    // A personal invite link (?staff=…) restricts the terminal to that one account.
+    this.loginStaffRef = staff || null;
+    const staffQ = staff ? `&staff=${encodeURIComponent(staff)}` : '';
+    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}${staffQ}&_t=${Date.now()}`, { cache: 'no-store' });
     if (data && data.branch) {
       this.loginBranch = data.branch;
       this.loginUsers = Array.isArray(data.users) ? data.users : [];

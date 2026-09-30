@@ -1722,7 +1722,11 @@ function bindEvents() {
     if (!branchCode) branchCode = store.getActiveBranch()?.code || 'main';
     const bizName = store.businessProfile?.name || 'Cellar POS';
 
-    const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}`;
+    // Personal invite link: locked to THIS staff account via ?staff=<id>. The
+    // login page opened from this link shows only their account — nobody else's.
+    const staffRef = user.id || user.email || '';
+    const staffQ = staffRef ? `&staff=${encodeURIComponent(staffRef)}` : '';
+    const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}${staffQ}`;
     const pass = suppliedPin || user.pin || '••••';
 
     const urlInput = document.getElementById('shareStaffUrlInput');

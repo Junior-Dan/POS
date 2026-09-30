@@ -342,6 +342,14 @@ router.post('/setup', (req, res) => {
       VALUES (?, ?, NULL, ?, 'owner', '', ?, ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
     `).run(ownerId, orgId, name, passwordHashed, passwordHashed, email || null, phone || null);
 
+    // Create the initial branch NOW (one-time) so later staff creation is fast
+    // (no per-staff branch auto-creation round-trips).
+    const bName = branchName || 'Main Branch';
+    db.prepare(`
+      INSERT INTO branches (id, organization_id, name, code, location, phone, status)
+      VALUES (?, ?, ?, ?, 'Head Office', ?, 'ACTIVE')
+    `).run(bId, orgId, bName, bCode, phone || '');
+
     const profile = {
       name: bizName,
       receiptName: bizName.toUpperCase(),
@@ -351,12 +359,6 @@ router.post('/setup', (req, res) => {
       kraPin: 'P051234567S'
     };
     setOrgSetting(orgId, 'businessProfile', profile);
-    setOrgSetting(orgId, 'branches', []);
-
-    db.prepare(`
-      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, ?, 'owner', NULL, 'Register Owner', ?, '-', 'Owner Account Created', 'Business Account Created (No Initial Branch)')
-    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), name, bizName);
 
     // Stateless JWT session — valid on any serverless instance immediately.
     const token = signSession({ id: ownerId, role: 'owner' }, orgId, null);
@@ -365,10 +367,21 @@ router.post('/setup', (req, res) => {
       success: true,
       token,
       user: { id: ownerId, organizationId: orgId, branchId: null, name, role: 'owner', email, phone, status: 'ACTIVE' },
-      branch: null
+      branch: { id: bId, code: bCode, name: bName }
     });
+
+    // Non-critical writes AFTER the response (client isn't blocked on them).
+    try {
+      setOrgSetting(orgId, 'branches', [
+        { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
+      ]);
+      db.prepare(`
+        INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+        VALUES (?, ?, ?, ?, 'owner', ?, 'Register Owner', ?, '-', 'Owner Account Created', 'Business & Initial Branch Created')
+      `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), name, bId, bizName);
+    } catch (e) { /* best-effort */ }
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    if (!res.headersSent) res.status(500).json({ error: e.message });
   }
 });
 
@@ -540,6 +553,18 @@ router.get('/branch-info', (req, res) => {
     } catch (e) {}
   }
 
+  // Personal staff invite link (?staff=<id|email>): restrict the terminal to
+  // ONLY that one account so the link the owner shared opens that staff member's
+  // login and nobody else's. The account must still belong to this branch/org.
+  const staffRef = (req.query.staff || req.query.u || '').toString().trim().toLowerCase();
+  if (staffRef) {
+    const only = branchUsers.filter(u =>
+      String(u.id).toLowerCase() === staffRef ||
+      (u.email && String(u.email).toLowerCase() === staffRef)
+    );
+    branchUsers = only; // may be empty if the ref doesn't match this branch/org
+  }
+
   let orgName = 'Cellar POS';
   if (branchOrgId) {
     try {
@@ -652,6 +677,8 @@ router.post('/users', authenticateSession, (req, res) => {
     if (targetRole === 'owner') {
       return res.status(403).json({ error: 'Cannot create another Owner account.' });
     }
+    // Honor the branch the owner picked (if any).
+    targetBranch = primaryBranchId || branchId || undefined;
   } else if (creator.role === 'manager') {
     if (!['cashier', 'inventory_officer'].includes(targetRole)) {
       return res.status(403).json({ error: 'Managers may only create Cashiers or Inventory Officers.' });
@@ -697,11 +724,6 @@ router.post('/users', authenticateSession, (req, res) => {
       VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'ACTIVE', 1, ?)
     `).run(userId, orgId, targetBranch, name, targetRole, pinHashed, pinHashed, email || null, phone || null, creator.id);
 
-    db.prepare(`
-      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, ?, ?, ?, 'Create Staff Account', ?, '-', ?, 'New staff account created')
-    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), creator.name, creator.role, targetBranch, name, targetRole.toUpperCase());
-
     const newUser = {
       id: userId,
       organizationId: orgId,
@@ -713,9 +735,18 @@ router.post('/users', authenticateSession, (req, res) => {
       status: 'ACTIVE',
       active: 1
     };
+    // Respond immediately; the audit entry is written best-effort AFTER the
+    // response so the client isn't blocked on an extra DB round-trip.
     res.status(201).json(newUser);
+
+    try {
+      db.prepare(`
+        INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+        VALUES (?, ?, ?, ?, ?, ?, 'Create Staff Account', ?, '-', ?, 'New staff account created')
+      `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), creator.name, creator.role, targetBranch, name, targetRole.toUpperCase());
+    } catch (e) { /* audit is best-effort */ }
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    if (!res.headersSent) res.status(500).json({ error: e.message });
   }
 });
 
