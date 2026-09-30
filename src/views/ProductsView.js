@@ -118,10 +118,11 @@ window.editProductPrice = function(id) {
   });
 };
 
-window.toggleProductActive = function(id) {
+window.toggleProductActive = async function(id) {
   const p = store.products.find(x => x.id === id);
   if (!p) return;
-  p.active = !p.active;
-  store.logAudit("Toggled Product Status", p.name, !p.active, p.active, "Owner/Manager update");
+  const newStatus = !p.active;
+  await store.updateProductActive(id, newStatus);
+  store.logAudit("Toggled Product Status", p.name, !newStatus, newStatus, "Owner/Manager update");
   if (window.initApp) window.initApp();
 };

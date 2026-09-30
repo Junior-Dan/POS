@@ -590,6 +590,40 @@ export class CellarStore {
     }
   }
 
+  async saveBusinessProfile(profileData) {
+    this.businessProfile = { ...(this.businessProfile || {}), ...profileData };
+    try {
+      await fetch('/api/settings/business-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.businessProfile)
+      });
+    } catch (e) {
+      console.warn("Save business profile notice:", e);
+    }
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+  }
+
+  async updateProductActive(id, active) {
+    const prod = this.products.find(p => p.id === id);
+    if (!prod) return;
+    prod.active = active;
+    try {
+      await fetch(`/api/products/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: active ? 1 : 0 })
+      });
+    } catch (e) {
+      console.warn("Product active status save notice:", e);
+    }
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+  }
+
   // --- API MUTATION METHODS ---
   async addProduct(productData) {
     try {

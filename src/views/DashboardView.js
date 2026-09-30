@@ -279,11 +279,11 @@ export function initDashboardCharts() {
 
     // Create Coral Accent Gradient Fill for Hourly Line Chart
     const ctx = ctxH.getContext('2d');
-    let gradient = 'rgba(255, 86, 48, 0.1)';
+    let gradient = 'rgba(255, 86, 48, 0.12)';
     if (ctx) {
       gradient = ctx.createLinearGradient(0, 0, 0, 240);
-      gradient.addColorStop(0, 'rgba(255, 86, 48, 0.25)');
-      gradient.addColorStop(0.8, 'rgba(255, 86, 48, 0.04)');
+      gradient.addColorStop(0, 'rgba(255, 86, 48, 0.28)');
+      gradient.addColorStop(0.7, 'rgba(255, 86, 48, 0.05)');
       gradient.addColorStop(1, 'rgba(255, 86, 48, 0.0)');
     }
 
@@ -300,18 +300,18 @@ export function initDashboardCharts() {
         data: {
           labels: traffic.hours,
           datasets: [{
-            label: 'Money / Revenue (KSh)',
+            label: 'Sales Revenue (KSh)',
             data: traffic.data,
             borderColor: '#ff5630',
             borderWidth: 3,
             backgroundColor: gradient,
             fill: true,
-            tension: 0, // Sharp straight segment points matching reference line style
+            tension: 0.35, // Smooth curves for beautiful line graph
             pointBackgroundColor: '#ff5630',
             pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
-            pointRadius: 5,
-            pointHoverRadius: 8,
+            pointRadius: 4,
+            pointHoverRadius: 7,
             pointHoverBackgroundColor: '#ffffff',
             pointHoverBorderColor: '#ff5630'
           }]
@@ -320,7 +320,7 @@ export function initDashboardCharts() {
           responsive: true,
           maintainAspectRatio: false,
           animation: {
-            duration: 500,
+            duration: 600,
             easing: 'easeOutQuart'
           },
           plugins: {
@@ -331,49 +331,37 @@ export function initDashboardCharts() {
               bodyColor: '#ffffff',
               borderColor: 'rgba(255, 86, 48, 0.3)',
               borderWidth: 1,
-              padding: 12,
+              padding: 10,
               displayColors: false,
               callbacks: {
                 label: function(context) {
                   const idx = context.dataIndex;
                   const currentOrders = chartHourly?._trafficOrders || traffic.orders || [];
                   const orderCount = currentOrders[idx] || 0;
-                  return ` Revenue: KSh ${context.parsed.y.toLocaleString()} (${orderCount} sales)`;
+                  return ` Revenue: KSh ${context.parsed.y.toLocaleString()} (${orderCount} transactions)`;
                 }
               }
             }
           },
           scales: {
             x: {
-              title: {
-                display: true,
-                text: 'Real Time',
-                color: '#64748b',
-                font: { size: 11, weight: '700' },
-                padding: { top: 6 }
-              },
-              grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: true, borderColor: '#e2e8f0' },
+              grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
               ticks: {
-                color: '#64748b',
-                font: { size: 10, weight: '600' },
-                maxRotation: 30,
-                minRotation: 30
+                color: '#94a3b8',
+                font: { size: 10, weight: '600', family: 'Manrope' },
+                maxRotation: 0,
+                autoSkip: true
               }
             },
             y: {
-              title: {
-                display: true,
-                text: 'Money / Revenue (KSh)',
-                color: '#64748b',
-                font: { size: 11, weight: '700' }
-              },
-              grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: true, borderColor: '#e2e8f0' },
+              grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
               ticks: { 
-                color: '#64748b', 
-                font: { size: 10, weight: '600' },
+                color: '#94a3b8', 
+                font: { size: 10, weight: '600', family: 'Manrope' },
                 callback: function(val) {
                   if (val === 0) return 'KSh 0';
-                  return 'KSh ' + val.toLocaleString();
+                  if (val >= 1000) return 'KSh ' + (val/1000).toFixed(0) + 'k';
+                  return 'KSh ' + val;
                 }
               },
               beginAtZero: true
@@ -397,14 +385,15 @@ export function initDashboardCharts() {
           labels: catLabels.length ? catLabels : ['No Sales Yet'],
           datasets: [{
             data: catData.length ? catData : [1],
-            backgroundColor: ['#d3a94e', '#4ebf7b', '#4a9eff', '#aa77ff', '#e05648', '#f3f1ed'],
+            backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ff5630'],
             borderWidth: 2,
-            borderColor: '#131316'
+            borderColor: 'rgba(15, 23, 42, 0.8)'
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          cutout: '65%',
           animation: {
             duration: 750,
             easing: 'easeOutQuart'
@@ -412,7 +401,12 @@ export function initDashboardCharts() {
           plugins: {
             legend: {
               position: 'bottom',
-              labels: { color: '#aaaaaa', font: { size: 11 }, boxWidth: 12 }
+              labels: { 
+                color: '#94a3b8', 
+                font: { size: 11, family: 'Manrope', weight: '600' }, 
+                boxWidth: 10,
+                padding: 14
+              }
             }
           }
         }
