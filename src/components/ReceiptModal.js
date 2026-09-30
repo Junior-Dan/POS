@@ -34,7 +34,7 @@ window.renderReceiptHtml = function(sale) {
 
   const profile = store.businessProfile || {};
   const receipt = store.receiptSettings || {};
-  const branch = store.branches.find(b => b.id === (sale.branchId || store.activeBranchId)) || store.branches[0] || { name: 'Nairobi CBD Main' };
+  const branch = store.branches.find(b => b.id === (sale.branchId || store.activeBranchId)) || store.branches[0] || { name: store.businessProfile?.name || 'Main Store' };
 
   const receiptNo = sale.receiptNo || `REC-${Date.now().toString().slice(-6)}`;
   const timestamp = sale.timestamp ? new Date(sale.timestamp).toLocaleString() : new Date().toLocaleString();

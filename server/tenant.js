@@ -36,13 +36,17 @@ export function uniqueBranchCode(desired) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 24) || 'store';
 
-  let code = base;
-  for (let attempt = 0; attempt < 8; attempt++) {
-    let taken = false;
-    try { taken = !!db.prepare('SELECT id FROM branches WHERE LOWER(code) = ?').get(code); } catch (e) {}
-    if (!taken) return code;
-    code = `${base}-${Math.floor(1000 + Math.random() * 9000)}`;
-  }
-  // Final fallback: time-based suffix is effectively unique.
+  try {
+    const existing = db.prepare('SELECT code FROM branches WHERE LOWER(code) LIKE ?').all(`${base}%`);
+    const codeSet = new Set((existing || []).map(r => (r.code || '').toLowerCase()));
+    if (!codeSet.has(base)) return base;
+
+    let code = `${base}-${Math.floor(1000 + Math.random() * 9000)}`;
+    for (let i = 0; i < 10; i++) {
+      if (!codeSet.has(code)) return code;
+      code = `${base}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+  } catch (e) {}
+
   return `${base}-${Date.now().toString().slice(-6)}`;
 }

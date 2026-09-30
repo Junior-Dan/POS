@@ -397,6 +397,9 @@ export function initDb() {
   if (!userColumns.includes('pin_hash')) {
     try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT;'); } catch (e) {}
   }
+  if (!userColumns.includes('password_hash')) {
+    try { db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;'); } catch (e) {}
+  }
   if (!userColumns.includes('updated_at')) {
     try { db.exec('ALTER TABLE users ADD COLUMN updated_at DATETIME;'); } catch (e) {}
   }
@@ -412,12 +415,19 @@ const TENANT_TABLES = [
 ];
 
 function runTenantMigration() {
-  const MIGRATION_VERSION = '4';
+  const MIGRATION_VERSION = '5';
   let current = null;
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
     current = row ? row.value : null;
   } catch (e) {}
+
+  try { db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT'); } catch (e) {}
+
   if (current === MIGRATION_VERSION) return;
 
   for (const t of TENANT_TABLES) {

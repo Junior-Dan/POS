@@ -4,7 +4,7 @@ export function renderStaffModal() {
     <div class="modal-card" style="max-width: 560px;">
       <div class="modal-header">
         <div class="modal-title">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span id="staffModalTitle">Add Staff Member</span>
         </div>
         <button class="modal-close" onclick="closeModal('staffModal')">
@@ -25,8 +25,8 @@ export function renderStaffModal() {
             <input type="text" class="form-input" id="staffPhoneInput" placeholder="e.g. 0722 300 400">
           </div>
           <div class="form-group">
-            <label class="form-label">Email Address</label>
-            <input type="email" class="form-input" id="staffEmailInput" placeholder="e.g. mary@ciscowines.co.ke">
+            <label class="form-label">Email Address * (Staff Email for Login)</label>
+            <input type="email" class="form-input" id="staffEmailInput" placeholder="e.g. mary@company.com">
           </div>
         </div>
 
@@ -34,9 +34,8 @@ export function renderStaffModal() {
           <div class="form-group">
             <label class="form-label">Assigned Role *</label>
             <select class="form-select" id="staffRoleSelect">
-              <option value="owner">OWNER (Business-wide full access)</option>
               <option value="manager">MANAGER (Branch operational admin)</option>
-              <option value="cashier">CASHIER (POS & assigned drawer)</option>
+              <option value="cashier" selected>CASHIER (POS & assigned drawer)</option>
               <option value="inventory_officer">INVENTORY OFFICER (Stock & purchasing)</option>
             </select>
           </div>
@@ -54,9 +53,9 @@ export function renderStaffModal() {
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
           <div class="form-group">
-            <label class="form-label">Secret Security PIN (4 digits) *</label>
-            <input type="password" class="form-input" id="staffPinInput" placeholder="••••" maxlength="4">
-            <span style="font-size:10.5px; color:var(--text-faint);">PINs are securely masked and encrypted.</span>
+            <label class="form-label">Password / Security PIN (4+ chars) *</label>
+            <input type="text" class="form-input" id="staffPinInput" placeholder="e.g. 1234 or SecretPass">
+            <span style="font-size:10.5px; color:var(--text-faint);">Send this password to staff with their share link.</span>
           </div>
           <div class="form-group">
             <label class="form-label">Account Status</label>
@@ -65,13 +64,63 @@ export function renderStaffModal() {
               <option value="INACTIVE">SUSPENDED / INACTIVE</option>
             </select>
           </div>
-        </div>
+        <div id="staffModalErrorMsg" class="setup-error-msg"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('staffModal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitSaveStaff()">Save Staff Account</button>
+        <button class="btn btn-primary" id="saveStaffSubmitBtn" onclick="submitSaveStaff()">Save Staff & Generate Share Link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARE STAFF LOGIN LINK MODAL -->
+  <div class="modal-overlay" id="shareStaffModal">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          <span>Share Staff Login Credentials</span>
+        </div>
+        <button class="modal-close" onclick="closeModal('shareStaffModal')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+        <div style="background:var(--accent-soft); border:1px solid var(--accent-border); border-radius:10px; padding:14px;">
+          <div style="font-size:13px; font-weight:700; color:var(--accent); margin-bottom:4px;" id="shareStaffHeaderTitle">Staff Credentials Created!</div>
+          <div style="font-size:12px; color:var(--text-dim);" id="shareStaffHeaderDesc">Send the link below to your staff member. They will log in using their email and password on your custom business login page.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Custom Business Login URL</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="shareStaffUrlInput" readonly class="form-input" style="background:var(--surface); font-weight:600;">
+            <button class="btn btn-secondary btn-sm" onclick="copyStaffShareLinkOnly()">Copy URL</button>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; background:var(--surface-hover); padding:12px; border-radius:8px; border:1px solid var(--border);">
+          <div>
+            <span style="font-size:11px; font-weight:700; color:var(--text-faint); text-transform:uppercase;">Staff Email</span>
+            <div id="shareStaffEmailVal" style="font-size:13px; font-weight:700; color:var(--text-main); margin-top:2px;">-</div>
+          </div>
+          <div>
+            <span style="font-size:11px; font-weight:700; color:var(--text-faint); text-transform:uppercase;">Password / PIN</span>
+            <div id="shareStaffPassVal" style="font-size:13px; font-weight:800; color:var(--accent); margin-top:2px; font-family:monospace;">-</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Formatted Invite Message</label>
+          <textarea id="shareStaffMessageText" readonly class="form-input" style="height:90px; font-size:11.5px; line-height:1.5; background:var(--surface); font-family:sans-serif;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('shareStaffModal')">Done</button>
+        <button class="btn btn-primary" onclick="copyStaffInviteDetails()">📋 Copy Full Invitation</button>
       </div>
     </div>
   </div>
   `;
 }
+

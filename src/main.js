@@ -76,9 +76,126 @@ window.logoutUser = () => {
   try {
     sessionStorage.removeItem('cellar_session_auth');
     sessionStorage.removeItem('cellar_authenticated_user');
+    localStorage.removeItem('cellar_current_user_backup');
+    localStorage.removeItem('cellar_biz_profile_backup');
+    localStorage.removeItem('cellar_branches_backup');
+    localStorage.removeItem('cellar_sales_backup');
+    localStorage.removeItem('cellar_products_backup');
   } catch (e) {}
   initApp();
 };
+
+  window.submitSaveStaff = async () => {
+    if (window._isSubmittingStaff) return;
+    const isOwner = store.currentUser?.role === 'owner';
+    const name = document.getElementById('staffNameInput')?.value.trim() || '';
+    const phone = document.getElementById('staffPhoneInput')?.value.trim() || '0700000000';
+    const email = document.getElementById('staffEmailInput')?.value.trim() || '';
+    const role = document.getElementById('staffRoleSelect')?.value || 'cashier';
+    const primaryBranchId = document.getElementById('staffPrimaryBranchSelect')?.value || '';
+    const status = document.getElementById('staffStatusSelect')?.value || 'ACTIVE';
+    const pin = document.getElementById('staffPinInput')?.value.trim() || '';
+    const errDiv = document.getElementById('staffModalErrorMsg');
+
+    if (errDiv) errDiv.textContent = '';
+
+    if (!name) {
+      if (errDiv) errDiv.textContent = "Please enter Staff Name!";
+      else alert("Please enter Staff Name!");
+      return;
+    }
+    if (!email) {
+      if (errDiv) errDiv.textContent = "Please enter Staff Email Address so they can log in!";
+      else alert("Please enter Staff Email Address so they can log in!");
+      return;
+    }
+
+    if (!isOwner && (role === 'manager' || role === 'owner')) {
+      if (errDiv) errDiv.textContent = "Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!";
+      else alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
+      return;
+    }
+
+    const token = getAuthToken() || store.currentUser?.token || '';
+    if (!token) {
+      alert("Session expired. Please log in with your PIN to perform staff management.");
+      window.logoutUser();
+      return;
+    }
+
+    const editId = document.getElementById('staffEditId')?.value || '';
+    const saveBtn = document.getElementById('saveStaffSubmitBtn');
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving Staff Account...';
+    }
+    window._isSubmittingStaff = true;
+    let savedUser = null;
+
+    try {
+      if (editId) {
+        const res = await fetch(`/api/auth/users/${editId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
+        });
+        const data = await readJsonSafe(res);
+        if (!res.ok) throw new Error(data.error || `Failed to update staff (HTTP ${res.status}).`);
+        savedUser = data;
+        store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
+      } else {
+        if (!pin || pin.length < 4) {
+          throw new Error("Please enter a 4-character password or PIN for staff login!");
+        }
+        const res = await fetch('/api/auth/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
+        });
+        const data = await readJsonSafe(res);
+        if (!res.ok) throw new Error(data.error || `Failed to create staff (HTTP ${res.status}).`);
+        savedUser = data;
+        store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
+      }
+
+      // Optimistically update local users state for instant rendering
+      if (savedUser) {
+        const existingIdx = (store.users || []).findIndex(u => u.id === savedUser.id);
+        if (existingIdx >= 0) {
+          store.users[existingIdx] = { ...store.users[existingIdx], ...savedUser };
+        } else {
+          if (!store.users) store.users = [];
+          store.users.unshift(savedUser);
+        }
+      }
+
+      window.closeModal('staffModal');
+      initApp();
+
+      if (savedUser) {
+        window.shareStaffLoginLink(savedUser, pin);
+      }
+
+      // Non-blocking background sync
+      store.fetchUsers().catch(() => {});
+    } catch (e) {
+      if (errDiv) errDiv.textContent = e.message;
+      else alert("Error saving staff account: " + e.message);
+    } finally {
+      window._isSubmittingStaff = false;
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Staff & Generate Share Link';
+      }
+    }
+  };
 
 export function initApp() {
   const root = document.getElementById('app-root');
@@ -411,26 +528,28 @@ function bindEvents() {
   };
 
   window.submitInitialSetup = async () => {
-    const name = document.getElementById('setupNameInput').value.trim();
+    const name = document.getElementById('setupNameInput')?.value.trim();
     const phone = document.getElementById('setupPhoneInput')?.value.trim() || "";
-    const email = document.getElementById('setupEmailInput').value.trim();
-    const pin = document.getElementById('setupPinInput').value.trim();
-    const confirmPin = document.getElementById('setupConfirmPinInput')?.value.trim() || "";
-    const businessName = document.getElementById('setupBizNameInput').value.trim() || "Cisco Wines & Spirits";
-    const branchName = document.getElementById('setupBranchNameInput')?.value.trim() || "Nairobi CBD Main";
-    const branchCode = document.getElementById('setupBranchCodeInput')?.value.trim() || "cbd";
+    const email = document.getElementById('setupEmailInput')?.value.trim() || "";
+    const password = document.getElementById('setupPasswordInput')?.value.trim() || document.getElementById('setupPinInput')?.value.trim() || "";
+    const confirmPassword = document.getElementById('setupConfirmPasswordInput')?.value.trim() || document.getElementById('setupConfirmPinInput')?.value.trim() || "";
+    const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Cisco Wines & Spirits";
     const err = document.getElementById('setupErrorMsg');
 
     if (!name) {
       if (err) err.textContent = "Please enter Owner Full Name!";
       return;
     }
-    if (!pin || pin.length < 4) {
-      if (err) err.textContent = "Please enter a 4-digit Security PIN!";
+    if (!email) {
+      if (err) err.textContent = "Please enter Email Address!";
       return;
     }
-    if (confirmPin && confirmPin !== pin) {
-      if (err) err.textContent = "Security PIN and Confirm PIN do not match!";
+    if (!password || password.length < 4) {
+      if (err) err.textContent = "Please enter a password (at least 4 characters)!";
+      return;
+    }
+    if (confirmPassword && confirmPassword !== password) {
+      if (err) err.textContent = "Password and Confirm Password do not match!";
       return;
     }
 
@@ -438,7 +557,7 @@ function bindEvents() {
       const res = await fetch('/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, email, pin, confirmPin, businessName, branchName, branchCode })
+        body: JSON.stringify({ name, phone, email, password, confirmPassword, businessName })
       });
       const data = await readJsonSafe(res);
       if (!res.ok) {
@@ -458,24 +577,20 @@ function bindEvents() {
         store.loginUsers = [store.currentUser];
       }
       if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
-      await store.fetchBranchLogin();
-      await store.loadAuthenticatedData();
+
+      activeViewId = 'dashboard';
+      initApp();
+
+      store.fetchBranchLogin();
+      store.loadAuthenticatedData();
       store.saveLocalBackup();
-
-      // Build the shareable login URL from the resolved branch code (works
-      // both locally, e.g. http://localhost:3001, and on the deployed
-      // Vercel domain — window.location.origin adapts automatically).
-      const resolvedCode = (data.branch && data.branch.code) ? data.branch.code : branchCode;
-
-      window.closeModal('setupModal');
-      window.showSetupSuccess(name, resolvedCode);
     } catch (e) {
       if (err) {
         if (e.message && e.message.includes('already exists')) {
           err.innerHTML = `
             <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); border-radius:10px; padding:12px; margin-top:12px; text-align:center;">
-              <div style="color:#f87171; font-weight:800; font-size:13px; margin-bottom:8px;">⚠️ A business owner already exists for this system.</div>
-              <button type="button" class="btn btn-primary btn-sm" onclick="switchAuthMode('login')" style="font-weight:700; padding:6px 14px; font-size:12px;">🔑 Log In to Account with PIN</button>
+              <div style="color:#ef4444; font-weight:800; font-size:13px; margin-bottom:8px;">⚠️ An account already exists for this email or system.</div>
+              <button type="button" class="btn btn-primary btn-sm" onclick="switchAuthMode('login')" style="font-weight:700; padding:6px 14px; font-size:12px;">🔑 Log In to Account</button>
             </div>
           `;
         } else {
@@ -625,12 +740,151 @@ function bindEvents() {
     }
   }
 
-  function normalizePin(pinVal) {
-    if (pinVal === null || pinVal === undefined) return "";
-    const str = String(pinVal).trim();
-    if (str.length < 4 && !isNaN(str)) return str.padStart(4, '0');
-    return str;
-  }
+  window.togglePasswordInputVisibility = () => {
+    const input = document.getElementById('loginPasswordInput');
+    if (input) {
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+  };
+
+  window.toggleBranchCodeVisibility = () => {
+    const input = document.getElementById('branchStaffCodeInput');
+    if (input) {
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+  };
+
+  window.submitBranchTerminalLogin = async () => {
+    if (window._isSubmittingBranchLogin) return;
+    const selectedUserId = document.getElementById('branchStaffSelect')?.value;
+    const emailInput = document.getElementById('branchStaffEmailInput')?.value.trim();
+    const codeInput = document.getElementById('branchStaffCodeInput')?.value.trim();
+    const errDiv = document.getElementById('branchLoginErrorMsg');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const branchCode = urlParams.get('branch') || store.loginBranch?.code || null;
+
+    if (!codeInput) {
+      if (errDiv) errDiv.textContent = 'Please enter your Security Code / PIN.';
+      return;
+    }
+
+    window._isSubmittingBranchLogin = true;
+    if (errDiv) errDiv.textContent = 'Authenticating...';
+
+    try {
+      const payload = {
+        pin: codeInput,
+        password: codeInput,
+        userId: selectedUserId || null,
+        email: emailInput || null,
+        username: emailInput || null,
+        branchCode
+      };
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await readJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(data.error || `Invalid Security Code! Access Denied.`);
+      }
+
+      if (data.token) {
+        setAuthToken(data.token);
+        try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
+      }
+
+      store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
+
+      if (data.user.branchId) {
+        store.activeBranchId = data.user.branchId;
+      }
+
+      const roleMap = {
+        owner: 'dashboard',
+        manager: 'dashboard',
+        inventory_officer: 'inventory',
+        cashier: 'pos'
+      };
+      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+
+      window._isSubmittingBranchLogin = false;
+      if (errDiv) errDiv.textContent = '';
+
+      initApp();
+      store.loadAuthenticatedData();
+      store.logAudit("Terminal Login Successful", data.user.name, "-", data.user.role, `Authenticated on branch ${branchCode}`);
+    } catch (e) {
+      window._isSubmittingBranchLogin = false;
+      if (errDiv) errDiv.textContent = e.message || 'Invalid Security Code or credentials!';
+    }
+  };
+
+  window.submitMainLogin = async () => {
+    if (window._isSubmittingMainLogin) return;
+    const emailInput = document.getElementById('loginEmailInput');
+    const passwordInput = document.getElementById('loginPasswordInput');
+    const errDiv = document.getElementById('loginEmailErrorMsg');
+
+    const email = (emailInput?.value || '').trim();
+    const password = (passwordInput?.value || '').trim();
+
+    if (!email || !password) {
+      if (errDiv) errDiv.textContent = 'Please enter both email and password.';
+      return;
+    }
+
+    window._isSubmittingMainLogin = true;
+    if (errDiv) errDiv.textContent = 'Authenticating...';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, username: email, password, pin: password })
+      });
+
+      const data = await readJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(data.error || `Invalid credentials! Access Denied. (HTTP ${res.status})`);
+      }
+
+      if (data.token) {
+        setAuthToken(data.token);
+        try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
+      }
+
+      store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
+
+      if (data.user.branchId) {
+        store.activeBranchId = data.user.branchId;
+      }
+
+      const roleMap = {
+        owner: 'dashboard',
+        manager: 'dashboard',
+        inventory_officer: 'inventory',
+        cashier: 'pos'
+      };
+      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+
+      window._isSubmittingMainLogin = false;
+      if (errDiv) errDiv.textContent = '';
+
+      initApp();
+      store.loadAuthenticatedData();
+      store.logAudit("Main Account Login", data.user.name, "-", data.user.role, "Authenticated via Email/Password");
+    } catch (e) {
+      window._isSubmittingMainLogin = false;
+      if (errDiv) errDiv.textContent = e.message || 'Invalid email or password! Access Denied.';
+    }
+  };
 
   window.submitLoginPin = async () => {
     if (window._isSubmittingPin) return;
@@ -1377,12 +1631,20 @@ function bindEvents() {
 
     const primSelect = document.getElementById('staffPrimaryBranchSelect');
     if (primSelect) {
-      primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      if (!store.branches || store.branches.length === 0) {
+        primSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
+      } else {
+        primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      }
     }
 
     const addSelect = document.getElementById('staffAdditionalBranchesSelect');
     if (addSelect) {
-      addSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      if (!store.branches || store.branches.length === 0) {
+        addSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
+      } else {
+        addSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      }
     }
 
     window.openModal('staffModal');
@@ -1419,32 +1681,88 @@ function bindEvents() {
     const primSelect = document.getElementById('staffPrimaryBranchSelect');
     if (primSelect) {
       const currentBranch = u ? (u.branchId || u.primaryBranchId) : null;
-      const availableBranches = (store.branches && store.branches.length > 0)
-        ? store.branches
-        : [store.loginBranch || { id: store.activeBranchId || 'B1', name: 'Main Branch' }];
-      primSelect.innerHTML = availableBranches.map(b => `<option value="${b.id || b.code}" ${b.id === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
+      if (!store.branches || store.branches.length === 0) {
+        primSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
+      } else {
+        primSelect.innerHTML = store.branches.map(b => `<option value="${b.id || b.code}" ${b.id === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
+      }
     }
 
     const addSelect = document.getElementById('staffAdditionalBranchesSelect');
     if (addSelect) {
-      const availableBranches = (store.branches && store.branches.length > 0) ? store.branches : [];
-      addSelect.innerHTML = availableBranches.map(b => `<option value="${b.id || b.code}" ${(u?.additionalBranchIds || []).includes(b.id) ? 'selected' : ''}>${b.name}</option>`).join('');
+      if (!store.branches || store.branches.length === 0) {
+        addSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
+      } else {
+        addSelect.innerHTML = store.branches.map(b => `<option value="${b.id || b.code}" ${(u?.additionalBranchIds || []).includes(b.id) ? 'selected' : ''}>${b.name}</option>`).join('');
+      }
     }
 
     window.openModal('staffModal');
   };
 
-  window.submitSaveStaff = async () => {
-    const isOwner = store.currentUser?.role === 'owner';
-    const name = document.getElementById('staffNameInput').value.trim();
-    const phone = document.getElementById('staffPhoneInput').value.trim();
-    const email = document.getElementById('staffEmailInput').value.trim();
-    const role = document.getElementById('staffRoleSelect').value;
-    const primaryBranchId = document.getElementById('staffPrimaryBranchSelect').value;
-    const status = document.getElementById('staffStatusSelect').value;
-    const pin = document.getElementById('staffPinInput').value.trim();
+  window.shareStaffLoginLink = (userOrId, suppliedPin = '') => {
+    let user = typeof userOrId === 'object' && userOrId ? userOrId : (store.users || []).find(u => u.id === userOrId);
+    if (!user) {
+      user = {
+        id: userOrId,
+        email: document.getElementById('staffEmailInput')?.value || '',
+        name: document.getElementById('staffNameInput')?.value || '',
+        role: document.getElementById('staffRoleSelect')?.value || 'cashier'
+      };
+    }
 
-    if (!name || !phone) return alert("Please enter Staff Name and Phone Number!");
+    const branchId = user.primaryBranchId || user.branchId || user.branch_id;
+    const branch = (store.branches || []).find(b => b.id === branchId) || store.getActiveBranch();
+    const branchCode = branch?.code || 'main';
+    const bizName = store.businessProfile?.name || 'Cellar POS';
+
+    const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}`;
+    const pass = suppliedPin || user.pin || '••••';
+
+    const urlInput = document.getElementById('shareStaffUrlInput');
+    const emailVal = document.getElementById('shareStaffEmailVal');
+    const passVal = document.getElementById('shareStaffPassVal');
+    const msgText = document.getElementById('shareStaffMessageText');
+
+    if (urlInput) urlInput.value = loginUrl;
+    if (emailVal) emailVal.textContent = user.email || 'Not set';
+    if (passVal) passVal.textContent = pass;
+
+    const formattedMsg = `Welcome to ${bizName}!\nHere is your custom business terminal login link:\n${loginUrl}\n\nLogin Email: ${user.email || 'your email'}\nPassword / Security PIN: ${pass}\nRole: ${(user.role || 'cashier').toUpperCase()}`;
+    if (msgText) msgText.value = formattedMsg;
+
+    window.openModal('shareStaffModal');
+  };
+
+  window.copyStaffShareLinkOnly = () => {
+    const urlInput = document.getElementById('shareStaffUrlInput');
+    if (urlInput && urlInput.value) {
+      navigator.clipboard.writeText(urlInput.value);
+      alert('Custom Business Login URL copied to clipboard!');
+    }
+  };
+
+  window.copyStaffInviteDetails = () => {
+    const msgText = document.getElementById('shareStaffMessageText');
+    if (msgText && msgText.value) {
+      navigator.clipboard.writeText(msgText.value);
+      alert('Full invitation details copied to clipboard!');
+    }
+  };
+
+  window.submitSaveStaff = async () => {
+    if (window._isSubmittingStaff) return;
+    const isOwner = store.currentUser?.role === 'owner';
+    const name = document.getElementById('staffNameInput')?.value.trim() || '';
+    const phone = document.getElementById('staffPhoneInput')?.value.trim() || '0700000000';
+    const email = document.getElementById('staffEmailInput')?.value.trim() || '';
+    const role = document.getElementById('staffRoleSelect')?.value || 'cashier';
+    const primaryBranchId = document.getElementById('staffPrimaryBranchSelect')?.value || '';
+    const status = document.getElementById('staffStatusSelect')?.value || 'ACTIVE';
+    const pin = document.getElementById('staffPinInput')?.value.trim() || '';
+
+    if (!name) return alert("Please enter Staff Name!");
+    if (!email) return alert("Please enter Staff Email Address so they can log in!");
 
     if (!isOwner && (role === 'manager' || role === 'owner')) {
       return alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
@@ -1457,7 +1775,10 @@ function bindEvents() {
       return;
     }
 
-    const editId = document.getElementById('staffEditId').value;
+    const editId = document.getElementById('staffEditId')?.value || '';
+    let savedUser = null;
+    window._isSubmittingStaff = true;
+
     try {
       if (editId) {
         const res = await fetch(`/api/auth/users/${editId}`, {
@@ -1468,10 +1789,15 @@ function bindEvents() {
           },
           body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
         });
-        if (!res.ok) throw new Error((await readJsonSafe(res)).error || `Failed to update staff (HTTP ${res.status}).`);
+        const data = await readJsonSafe(res);
+        if (!res.ok) throw new Error(data.error || `Failed to update staff (HTTP ${res.status}).`);
+        savedUser = data;
         store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
       } else {
-        if (!pin || pin.length < 4) return alert("Please enter a 4-digit Secret Security PIN!");
+        if (!pin || pin.length < 4) {
+          window._isSubmittingStaff = false;
+          return alert("Please enter a 4-character password or PIN for staff login!");
+        }
         const res = await fetch('/api/auth/users', {
           method: 'POST',
           headers: {
@@ -1480,16 +1806,36 @@ function bindEvents() {
           },
           body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
         });
-        if (!res.ok) throw new Error((await readJsonSafe(res)).error || `Failed to create staff (HTTP ${res.status}).`);
+        const data = await readJsonSafe(res);
+        if (!res.ok) throw new Error(data.error || `Failed to create staff (HTTP ${res.status}).`);
+        savedUser = data;
         store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
       }
 
-      await store.fetchUsers();
+      // Optimistically update local users state for instant rendering
+      if (savedUser) {
+        const existingIdx = (store.users || []).findIndex(u => u.id === savedUser.id);
+        if (existingIdx >= 0) {
+          store.users[existingIdx] = { ...store.users[existingIdx], ...savedUser };
+        } else {
+          if (!store.users) store.users = [];
+          store.users.unshift(savedUser);
+        }
+      }
+
       window.closeModal('staffModal');
       initApp();
-      alert("Staff member configuration saved successfully!");
+
+      if (savedUser) {
+        window.shareStaffLoginLink(savedUser, pin);
+      }
+
+      // Non-blocking background sync
+      store.fetchUsers().catch(() => {});
     } catch (e) {
       alert("Error saving staff account: " + e.message);
+    } finally {
+      window._isSubmittingStaff = false;
     }
   };
 

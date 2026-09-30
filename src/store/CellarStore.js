@@ -245,6 +245,9 @@ export class CellarStore {
       localStorage.setItem('cellar_products_backup', JSON.stringify(this.products || []));
       localStorage.setItem('cellar_shift_backup', JSON.stringify(this.currentShift || {}));
       localStorage.setItem('cellar_notifications_backup', JSON.stringify(this.notifications || []));
+      if (this.businessProfile) localStorage.setItem('cellar_biz_profile_backup', JSON.stringify(this.businessProfile));
+      if (this.branches) localStorage.setItem('cellar_branches_backup', JSON.stringify(this.branches));
+      if (this.currentUser) localStorage.setItem('cellar_current_user_backup', JSON.stringify(this.currentUser));
     } catch (e) {}
   }
 
@@ -261,6 +264,15 @@ export class CellarStore {
 
       const notifs = localStorage.getItem('cellar_notifications_backup');
       if (notifs) this.notifications = JSON.parse(notifs);
+
+      const bizProf = localStorage.getItem('cellar_biz_profile_backup');
+      if (bizProf) this.businessProfile = JSON.parse(bizProf);
+
+      const branches = localStorage.getItem('cellar_branches_backup');
+      if (branches) this.branches = JSON.parse(branches);
+
+      const user = localStorage.getItem('cellar_current_user_backup');
+      if (user) this.currentUser = JSON.parse(user);
     } catch (e) {}
   }
 
@@ -399,11 +411,12 @@ export class CellarStore {
 
   // --- API FETCHERS ---
   async fetchUsers() {
-    // Staff roster is protected (owner/manager only) — silently ignored for
-    // other roles. Never auto-assigns currentUser (that would bypass login).
     const data = await this.safeFetchJson('/api/auth/users');
     if (data && Array.isArray(data)) {
-      this.users = data;
+      this.users = data.map(u => ({
+        ...u,
+        primaryBranchId: u.primaryBranchId || u.branchId || u.branch_id
+      }));
       this.notify();
     }
   }
@@ -1010,7 +1023,7 @@ export class CellarStore {
     if (this.activeBranchId === 'ALL') {
       return { id: 'ALL', name: 'All Branches (Enterprise)' };
     }
-    return this.branches.find(b => b.id === this.activeBranchId) || this.branches[0] || { id: 'B1', name: 'Nairobi CBD Main' };
+    return (this.branches && this.branches.find(b => b.id === this.activeBranchId)) || (this.branches && this.branches[0]) || { id: null, name: 'Overall Business (No Branches Yet)', code: 'main' };
   }
 
   canUserAccessView(user, viewId) {

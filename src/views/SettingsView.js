@@ -213,6 +213,15 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
 
       return `
         <div class="section-card">
+          ${branches.length === 0 ? `
+            <div style="background:var(--accent-soft); border:1px solid var(--accent-border); border-radius:10px; padding:14px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-weight:700; color:var(--accent); font-size:13.5px; margin-bottom:2px;">📍 No Branches Configured Yet</div>
+                <div style="font-size:12px; color:var(--text-dim);">As overall business owner, please create your branches under Branch Management before registering staff.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="switchSettingsTab('branches')">+ Create First Branch</button>
+            </div>
+          ` : ''}
           <div class="section-header">
             <div>
               <div class="section-title">Staff Management & Security PINs</div>
@@ -245,7 +254,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                         <span style="font-size:11px; color:var(--text-dim);">${u.email || u.phone || ''}</span>
                       </td>
                       <td><span class="badge ${u.role === 'cashier' ? 'badge-info' : 'badge-primary'}" style="text-transform:uppercase;">${u.role.replace('_', ' ')}</span></td>
-                      <td>${primBranch ? primBranch.name : 'Nairobi CBD Main'}</td>
+                      <td>${(u.role || '').toLowerCase() === 'owner' ? '<span class="badge badge-secondary" style="background:var(--accent-soft); color:var(--accent);">All Branches (Overall Owner)</span>' : (primBranch ? primBranch.name : '<span style="color:var(--text-faint);">No Branch Assigned</span>')}</td>
                       <td>${addBranches.length ? addBranches.map(n => `<span class="size-badge">${n}</span>`).join(' ') : '<span style="color:var(--text-faint);">None</span>'}</td>
                       <td>
                         <div style="display:flex; align-items:center; gap:6px;">
@@ -260,6 +269,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                       <td><span class="badge ${u.status === 'INACTIVE' ? 'badge-danger' : 'badge-success'}">${u.status || 'ACTIVE'}</span></td>
                       <td>
                         <div style="display:flex; gap:6px;">
+                          <button class="btn btn-secondary btn-sm" onclick="shareStaffLoginLink('${u.id}')" title="Share Custom Business Login Link">🔗 Share Link</button>
                           <button class="btn btn-secondary btn-sm" onclick="openEditStaffModal('${u.id}')">Edit</button>
                           <button class="btn btn-primary btn-sm" onclick="openResetPinModal('${u.id}')" style="background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-border);">Reset PIN</button>
                           <button class="btn btn-danger btn-sm" onclick="deleteStaff('${u.id}')">Deactivate</button>

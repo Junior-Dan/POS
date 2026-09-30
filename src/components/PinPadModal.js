@@ -113,29 +113,23 @@ export function renderPinPadModal() {
         </div>
         <div class="form-group">
           <label class="form-label">Business / Store Name</label>
-          <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cisco Wines & Spirits" value="Cisco Wines & Spirits">
+          <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cisco Wines & Spirits" value="Cisco Wines & Spirits" required>
         </div>
         <div class="form-group">
           <label class="form-label">Owner Full Name</label>
-          <input type="text" class="form-input" id="setupNameInput" placeholder="e.g. David Kamau">
+          <input type="text" class="form-input" id="setupNameInput" placeholder="e.g. David Kamau" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Email Address (Optional)</label>
-          <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Initial Main Branch Name</label>
-            <input type="text" class="form-input" id="setupBranchNameInput" placeholder="e.g. Nairobi CBD Main" value="Nairobi CBD Main">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Branch Code / URL Slug</label>
-            <input type="text" class="form-input" id="setupBranchCodeInput" placeholder="e.g. cbd" value="cbd">
-          </div>
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Create 4-Digit Security PIN</label>
-          <input type="password" maxlength="4" class="form-input" id="setupPinInput" placeholder="e.g. 0000" style="letter-spacing:4px; font-size:18px; text-align:center;">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" class="form-input" id="setupPhoneInput" placeholder="e.g. 0722 000 111">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" id="setupPasswordInput" placeholder="••••••••" required>
         </div>
         <div id="setupErrorMsg" style="color:var(--red); font-size:12px; text-align:center; font-weight:700; min-height:16px;"></div>
         <button class="btn btn-primary btn-lg" style="width:100%; font-weight:800;" onclick="submitInitialSetup()">Create Account & Start</button>
