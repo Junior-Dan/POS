@@ -1,7 +1,7 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderSidebar(currentUser, activeViewId = 'dashboard') {
-  const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
+  const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
   const bizName = store.businessProfile?.name || "Celler POS";
   const activeBranch = store.getActiveBranch();

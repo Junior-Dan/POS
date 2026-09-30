@@ -11,14 +11,7 @@ export function seedDatabase() {
     VALUES (@id, @name, @role, @pin, @email, 1)
   `);
 
-  const users = [
-    { id: "U1", name: "David Kamau", role: "owner", pin: "0000", email: "owner@cellar.co.ke" },
-    { id: "U2", name: "Mary Wanjiku", role: "manager", pin: "1234", email: "manager@cellar.co.ke" },
-    { id: "U3", name: "John Omondi", role: "cashier", pin: "5555", email: "john@cellar.co.ke" },
-    { id: "U4", name: "Peter Otieno", role: "inventory_officer", pin: "8888", email: "peter@cellar.co.ke" },
-    { id: "U5", name: "Faith Njeri", role: "cashier", pin: "2222", email: "faith@cellar.co.ke" },
-    { id: "U6", name: "Alex Kiprop", role: "inventory_officer", pin: "3333", email: "alex@cellar.co.ke" }
-  ];
+  const users = [];
 
   for (const u of users) {
     insertUser.run(u);

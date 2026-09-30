@@ -1,7 +1,7 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderTopbar(currentUser = store.currentUser) {
-  const user = currentUser || store.currentUser || { name: 'David Kamau', role: 'owner' };
+  const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
   const bizName = store.businessProfile?.name || "Celler POS";
   const userInitials = (user.name || "David Kamau").split(' ').map(n => n[0]).join('');
   

@@ -5,12 +5,15 @@ export function renderAuthLandingScreen(overrideMode = null) {
   const hasBranchQuery = urlParams.has('branch');
 
   const rosterLoaded = store.rosterLoaded === true;
+  const realOwnerExists = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
+    (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner');
+
   let cachedOwnerExists = false;
   try { cachedOwnerExists = localStorage.getItem('cellar_owner_exists') === '1'; } catch (e) {}
 
-  const hasExistingOwner = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
-    (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner') ||
-    cachedOwnerExists;
+  // If the server roster has been loaded and confirms NO owner account exists in DB,
+  // do not let a stale cached localStorage flag force the Login form.
+  const hasExistingOwner = realOwnerExists || (rosterLoaded && (store.loginUsers || []).length === 0 ? false : cachedOwnerExists);
 
   // Determine landing screen mode:
   // 1. If accessing via a branch query link (?branch=code), ALWAYS show Branch Terminal PIN Login.
@@ -24,7 +27,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
     isBranchLogin = true;
   } else if (overrideMode === 'setup') {
     isRegisterSetup = true;
-  } else if (overrideMode === 'login') {
+  } else if (overrideMode === 'login' && hasExistingOwner) {
     isBranchLogin = false; // Main email login
   } else if (!hasExistingOwner) {
     isRegisterSetup = true;

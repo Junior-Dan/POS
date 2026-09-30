@@ -196,7 +196,7 @@ router.post('/', (req, res) => {
       ? req.authUser.branchId
       : (branchId || (req.authUser && req.authUser.branchId) || 'B1');
     const cashierId = cashier?.id || 'U3';
-    const cashierName = cashier?.name || 'John Omondi';
+    const cashierName = cashier?.name || req.authUser?.name || 'Cashier';
     const customerId = customer?.id || 'C1';
     const customerName = customer?.name || 'Walk-in Customer';
 
