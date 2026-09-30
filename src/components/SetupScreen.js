@@ -18,11 +18,13 @@ export function renderAuthLandingScreen(overrideMode = null) {
   let isBranchLogin = false;
   let isRegisterSetup = false;
 
+  const effectiveMode = overrideMode || window.currentAuthTab;
+
   if (hasBranchQuery) {
     isBranchLogin = true;
-  } else if (overrideMode === 'setup') {
+  } else if (effectiveMode === 'setup') {
     isRegisterSetup = true;
-  } else if (overrideMode === 'login') {
+  } else if (effectiveMode === 'login') {
     isRegisterSetup = false; // Main email login
   } else if (!hasExistingOwner) {
     isRegisterSetup = true;
@@ -46,6 +48,13 @@ export function renderAuthLandingScreen(overrideMode = null) {
           </div>
 
           <div class="auth-pane-body">
+            ${!isBranchLogin ? `
+              <div class="auth-tab-switcher">
+                <button type="button" class="auth-tab-btn ${isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('setup')">Create Account</button>
+                <button type="button" class="auth-tab-btn ${!isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('login')">Log In</button>
+              </div>
+            ` : ''}
+
             ${isRegisterSetup ? `
               <!-- CREATE ACCOUNT SETUP FORM (NO BRANCH INPUTS OR PINS) -->
               <div class="auth-header-section">
@@ -133,20 +142,20 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 </form>
               </div>
             ` : `
-              <!-- MAIN STORE LOGIN (EMAIL & PASSWORD) -->
+              <!-- MAIN STORE LOGIN (EMAIL / PHONE & PASSWORD) -->
               <div class="auth-header-section">
                 <h1 class="welcome-title">Welcome Back</h1>
-                <p class="welcome-subtitle">Enter your email and password to access your account.</p>
+                <p class="welcome-subtitle">Enter your email or phone number and password to access your account.</p>
               </div>
 
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
                 <div class="form-group">
-                  <label class="form-label">Email</label>
-                  <input type="email" class="form-input" id="loginEmailInput" placeholder="sellostore@company.com" required>
+                  <label class="form-label">Email Address or Phone Number *</label>
+                  <input type="text" class="form-input" id="loginEmailInput" placeholder="e.g. owner@celler.co.ke or 0722000111" required>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Password</label>
+                  <label class="form-label">Password *</label>
                   <div style="position:relative;">
                     <input type="password" class="form-input" id="loginPasswordInput" placeholder="••••••••" style="padding-right:38px;" required>
                     <button type="button" onclick="togglePasswordInputVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">

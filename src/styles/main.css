@@ -1843,6 +1843,40 @@ svg.icon-lg { width: 24px; height: 24px; }
   color: #0f172a;
 }
 
+.auth-tab-switcher {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+  gap: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.auth-tab-btn:hover {
+  color: #0f172a;
+}
+
+.auth-tab-btn.active {
+  background: #ffffff;
+  color: #4f46e5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 .welcome-setup-form {
   display: flex;
   flex-direction: column;

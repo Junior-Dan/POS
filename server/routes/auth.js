@@ -429,7 +429,7 @@ router.post('/login', (req, res) => {
     const u = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(userId);
     if (u) candidates.push(u);
   } else {
-    candidates = db.prepare('SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)) AND active = 1 ORDER BY created_at DESC').all(loginCred, loginCred);
+    candidates = db.prepare('SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ? OR LOWER(phone) = LOWER(?)) AND active = 1 ORDER BY created_at DESC').all(loginCred, loginCred, loginCred, loginCred);
   }
 
   if (!candidates || candidates.length === 0) {
