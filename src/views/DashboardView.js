@@ -3,6 +3,18 @@ import Chart from 'chart.js/auto';
 
 let chartHourly, chartCategory;
 
+// Current wall-clock time in Kenya (Africa/Nairobi) regardless of device timezone.
+export function formatKenyaClock() {
+  try {
+    return new Intl.DateTimeFormat('en-KE', {
+      timeZone: 'Africa/Nairobi',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    }).format(new Date());
+  } catch (e) {
+    return '';
+  }
+}
+
 export function renderDashboardView() {
   const todaySales = store.getTodaySales();
   const totalRev = store.getTodayRevenue();
@@ -45,7 +57,7 @@ export function renderDashboardView() {
               KSh ${totalRev.toLocaleString()}
             </div>
           </div>
-          <span class="section-subtitle">Real-time hourly sales stream</span>
+          <span class="section-subtitle">Hourly sales stream · <span id="dashKenyaClock">${formatKenyaClock()}</span> EAT</span>
         </div>
         <div style="height: 240px; position:relative; padding-top:10px;">
           <canvas id="chartHourlySales"></canvas>
@@ -212,6 +224,9 @@ export function initDashboardCharts() {
 
     const elItems = document.getElementById('dashStatItemsSold');
     if (elItems) elItems.textContent = `${itemsSold}`;
+
+    const elClock = document.getElementById('dashKenyaClock');
+    if (elClock) elClock.textContent = formatKenyaClock();
 
     // Real-time top products table update
     const prodMap = {};

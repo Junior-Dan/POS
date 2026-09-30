@@ -1150,16 +1150,54 @@ export class CellarStore {
     return new Date();
   }
 
+  // --- KENYA (Africa/Nairobi, UTC+3, no DST) TIME HELPERS ------------------
+  // DB timestamps are stored in UTC (often as "YYYY-MM-DD HH:MM:SS" with no
+  // timezone marker). Parse them as UTC, then shift to Nairobi wall-clock so the
+  // dashboard's "today" and hourly buckets are correct regardless of the
+  // browser's or server's timezone.
+  _toUtcDate(ts) {
+    if (!ts) return new Date();
+    if (ts instanceof Date) return ts;
+    if (typeof ts === 'number') return new Date(ts);
+    let s = String(ts).trim();
+    const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
+    if (s.includes(' ') && !s.includes('T')) s = s.replace(' ', 'T');
+    if (!hasTz) s += 'Z'; // treat naive DB timestamps as UTC
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d;
+    const fallback = new Date(String(ts));
+    return isNaN(fallback.getTime()) ? new Date() : fallback;
+  }
+
+  // Returns Nairobi wall-clock parts {y, m (0-11), day, hour} for a timestamp.
+  kenyaParts(ts) {
+    const d = this._toUtcDate(ts);
+    const shifted = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+    return {
+      y: shifted.getUTCFullYear(),
+      m: shifted.getUTCMonth(),
+      day: shifted.getUTCDate(),
+      hour: shifted.getUTCHours()
+    };
+  }
+
   // --- DYNAMIC CALCULATORS WITH BRANCH & DATE SCOPING ---
   getTodaySales() {
-    const target = this.getSelectedDateObj();
-    const tYear = target.getFullYear();
-    const tMonth = target.getMonth();
-    const tDate = target.getDate();
+    // Target day in Kenyan time (selected date, or "today" in Nairobi).
+    let ty, tm, td;
+    if (this.selectedDate) {
+      const parts = this.selectedDate.split('-');
+      ty = parseInt(parts[0], 10);
+      tm = parseInt(parts[1], 10) - 1;
+      td = parseInt(parts[2], 10);
+    } else {
+      const now = this.kenyaParts(Date.now());
+      ty = now.y; tm = now.m; td = now.day;
+    }
 
     return this.sales.filter(s => {
-      const d = new Date(s.timestamp || s.created_at);
-      const matchesDate = d.getFullYear() === tYear && d.getMonth() === tMonth && d.getDate() === tDate;
+      const k = this.kenyaParts(s.timestamp || s.created_at);
+      const matchesDate = k.y === ty && k.m === tm && k.day === td;
       const matchesBranch = this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId;
       return matchesDate && matchesBranch;
     });
@@ -1268,15 +1306,15 @@ export class CellarStore {
   getHourlySalesTraffic() {
     const todaySales = this.getTodaySales().filter(s => !s.refunded);
 
+    // Default trading window (Kenyan hours); widen it to include any real sales.
     let startHour = 8;
-    let endHour = 23;
+    let endHour = 22;
 
     todaySales.forEach(s => {
-      const d = new Date(s.timestamp || s.created_at || Date.now());
-      const h = d.getHours();
+      const h = this.kenyaParts(s.timestamp || s.created_at).hour;
       if (!isNaN(h)) {
-        if (h < startHour) startHour = Math.min(startHour, h);
-        if (h > endHour) endHour = Math.max(endHour, h);
+        startHour = Math.min(startHour, h);
+        endHour = Math.max(endHour, h);
       }
     });
 
@@ -1292,14 +1330,11 @@ export class CellarStore {
     }
 
     todaySales.forEach(s => {
-      const d = new Date(s.timestamp || s.created_at || Date.now());
-      const h = d.getHours();
-      if (!isNaN(h)) {
-        const idx = h - startHour;
-        if (idx >= 0 && idx < data.length) {
-          data[idx] += (s.total || 0);
-          orders[idx] += 1;
-        }
+      const h = this.kenyaParts(s.timestamp || s.created_at).hour;
+      const idx = h - startHour;
+      if (idx >= 0 && idx < data.length) {
+        data[idx] += (s.total || 0);
+        orders[idx] += 1;
       }
     });
 
