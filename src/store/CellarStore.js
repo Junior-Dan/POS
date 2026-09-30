@@ -314,10 +314,13 @@ export class CellarStore {
       this.loginUsers = Array.isArray(data.users) ? data.users : [];
       this.rosterLoaded = true;
       try {
-        const ownerExists = this.loginUsers.some(u => (u.role || '').toLowerCase() === 'owner') ||
-          (this.currentUser && (this.currentUser.role || '').toLowerCase() === 'owner') ||
-          localStorage.getItem('cellar_owner_exists') === '1';
-        localStorage.setItem('cellar_owner_exists', ownerExists ? '1' : '0');
+        const ownerExists = (this.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner') ||
+          (this.currentUser && (this.currentUser.role || '').toLowerCase() === 'owner');
+        if (ownerExists) {
+          localStorage.setItem('cellar_owner_exists', '1');
+        } else {
+          localStorage.removeItem('cellar_owner_exists');
+        }
       } catch (e) {}
       this.notify();
     } else {
@@ -423,6 +426,7 @@ export class CellarStore {
     this.users = [];
     this.suppliers = [];
     this.branches = [];
+    this.loginUsers = [];
     this.sales = [];
     this.stockMovements = [];
     this.cashMovements = [];
@@ -434,6 +438,7 @@ export class CellarStore {
     this.notifications = [];
     this.currentShift = null;
     try {
+      localStorage.removeItem('cellar_owner_exists');
       localStorage.removeItem('cellar_sales_backup');
       localStorage.removeItem('cellar_products_backup');
       localStorage.removeItem('cellar_shift_backup');

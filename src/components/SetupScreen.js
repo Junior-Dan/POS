@@ -5,21 +5,16 @@ export function renderAuthLandingScreen(overrideMode = null) {
   const hasBranchQuery = urlParams.has('branch');
 
   const rosterLoaded = store.rosterLoaded === true;
+  const userCount = (store.loginUsers || []).length;
   const realOwnerExists = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
     (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner');
 
   let cachedOwnerExists = false;
   try { cachedOwnerExists = localStorage.getItem('cellar_owner_exists') === '1'; } catch (e) {}
 
-  // If the server roster has been loaded and confirms NO owner account exists in DB,
-  // do not let a stale cached localStorage flag force the Login form.
-  const hasExistingOwner = realOwnerExists || (rosterLoaded && (store.loginUsers || []).length === 0 ? false : cachedOwnerExists);
+  // If no users exist in the database (or zero roster users loaded), no account exists yet!
+  const hasExistingOwner = (rosterLoaded && userCount === 0) ? false : (realOwnerExists || cachedOwnerExists);
 
-  // Determine landing screen mode:
-  // 1. If accessing via a branch query link (?branch=code), ALWAYS show Branch Terminal PIN Login.
-  // 2. Otherwise (main URL like http://localhost:5173/ or http://localhost:3000/):
-  //    - If overrideMode === 'setup' OR no owner account registered yet, show Register Owner form.
-  //    - Otherwise default to Email & Password Main Login.
   let isBranchLogin = false;
   let isRegisterSetup = false;
 
