@@ -365,7 +365,7 @@ router.post('/setup', (req, res) => {
     // (no per-staff branch auto-creation round-trips).
     const bName = branchName || 'Main Branch';
     db.prepare(`
-      INSERT INTO branches (id, organization_id, name, code, location, phone, status)
+      INSERT OR REPLACE INTO branches (id, organization_id, name, code, location, phone, status)
       VALUES (?, ?, ?, ?, 'Head Office', ?, 'ACTIVE')
     `).run(bId, orgId, bName, bCode, phone || '');
 

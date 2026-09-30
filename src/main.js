@@ -583,11 +583,11 @@ function bindEvents() {
       initApp();
     } catch (e) {
       if (err) {
-        if (e.message && e.message.includes('already exists')) {
+        if (e.message && (e.message.includes('already exists') || e.message.includes('already in use'))) {
           err.innerHTML = `
             <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); border-radius:10px; padding:12px; margin-top:12px; text-align:center;">
-              <div style="color:#ef4444; font-weight:800; font-size:13px; margin-bottom:8px;">⚠️ An account already exists for this email or system.</div>
-              <button type="button" class="btn btn-primary btn-sm" onclick="switchAuthMode('login')" style="font-weight:700; padding:6px 14px; font-size:12px;">🔑 Log In to Account</button>
+              <div style="color:#ef4444; font-weight:800; font-size:13px; margin-bottom:8px;">⚠️ ${e.message}</div>
+              <button type="button" class="btn btn-primary btn-sm" onclick="switchAuthMode('login')" style="font-weight:700; padding:6px 14px; font-size:12px;">🔑 Switch to Log In</button>
             </div>
           `;
         } else {
