@@ -580,7 +580,8 @@ router.get('/branch-info', (req, res) => {
       code: branch.code,
       location: branch.location || 'Branch Location',
       phone: branch.phone || '',
-      businessName: orgName
+      businessName: orgName,
+      organizationId: branchOrgId || null
     },
     users: branchUsers.map(u => ({
       id: u.id,

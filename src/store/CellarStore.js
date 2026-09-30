@@ -407,7 +407,40 @@ export class CellarStore {
     await this.fetchBranchLogin();
     // Restore any prior session, then load protected data if authenticated.
     await this.restoreSession();
+
+    // A shared branch/staff invite link must open THAT organization's login —
+    // never a stale session from a different org left in this browser. If a link
+    // is being opened and the restored session belongs to a different org (or a
+    // personal ?staff link names someone else), drop the session and show the
+    // branch login screen instead.
+    try {
+      const hasLink = !!(this.loginBranch && (this.loginStaffRef || this._hasBranchParam()));
+      if (hasLink && this.currentUser && this.currentUser.id) {
+        const linkOrg = this.loginBranch.organizationId || null;
+        const sessionOrg = this.currentUser.organizationId || null;
+        const orgMismatch = linkOrg && sessionOrg && linkOrg !== sessionOrg;
+        const staffMismatch = this.loginStaffRef &&
+          String(this.currentUser.id).toLowerCase() !== String(this.loginStaffRef).toLowerCase() &&
+          String(this.currentUser.email || '').toLowerCase() !== String(this.loginStaffRef).toLowerCase();
+        if (orgMismatch || staffMismatch) {
+          clearAuthToken();
+          try {
+            sessionStorage.removeItem('cellar_session_auth');
+            sessionStorage.removeItem('cellar_authenticated_user');
+          } catch (e) {}
+          this.currentUser = null;
+        }
+      }
+    } catch (e) {}
+
     await this.loadAuthenticatedData();
+  }
+
+  _hasBranchParam() {
+    try {
+      if (typeof window === 'undefined' || !window.location) return false;
+      return new URLSearchParams(window.location.search).has('branch');
+    } catch (e) { return false; }
   }
 
   seedFallback() {
