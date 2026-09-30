@@ -746,7 +746,10 @@ router.post('/users', authenticateSession, (req, res) => {
       `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), creator.name, creator.role, targetBranch, name, targetRole.toUpperCase());
     } catch (e) { /* audit is best-effort */ }
   } catch (e) {
-    if (!res.headersSent) res.status(500).json({ error: e.message });
+    console.error('CREATE STAFF FAILED:', e && e.message ? e.message : e);
+    if (!res.headersSent) {
+      res.status(500).json({ error: (e && e.message) ? e.message : 'Failed to create staff (server error).' });
+    }
   }
 });
 
