@@ -70,14 +70,13 @@ window.switchAuthTab = (tab) => {
   }
 };
 
-window.logoutUser = async () => {
+window.logoutUser = () => {
   store.resetState();
   clearAuthToken();
   try {
     sessionStorage.removeItem('cellar_session_auth');
     sessionStorage.removeItem('cellar_authenticated_user');
   } catch (e) {}
-  await store.fetchBranchLogin();
   initApp();
 };
 
@@ -595,13 +594,12 @@ function bindEvents() {
     }
   };
 
-  window.switchAuthMode = async (mode) => {
+  window.switchAuthMode = (mode) => {
     if (mode === 'setup') {
       window.forceRegisterMode = true;
     } else {
       window.forceRegisterMode = false;
     }
-    await store.fetchBranchLogin();
     const root = document.getElementById('app-root');
     if (root) {
       root.innerHTML = renderAuthLandingScreen(mode);
