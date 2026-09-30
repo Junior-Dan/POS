@@ -1150,16 +1150,59 @@ export class CellarStore {
     return new Date();
   }
 
-  // --- DYNAMIC CALCULATORS WITH BRANCH & DATE SCOPING ---
+  // Helper to parse timestamps consistently into East African Time (EAT / Africa/Nairobi - GMT+3)
+  getEatDate(dateInput) {
+    if (!dateInput) return new Date();
+    let d;
+    if (typeof dateInput === 'string') {
+      let s = dateInput.trim();
+      if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(s)) {
+        s = s.replace(' ', 'T') + 'Z';
+      }
+      d = new Date(s);
+    } else {
+      d = new Date(dateInput);
+    }
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+
+  getEatHour(dateInput) {
+    const d = this.getEatDate(dateInput);
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Africa/Nairobi',
+        hour: 'numeric',
+        hour12: false
+      });
+      const hStr = formatter.format(d);
+      return parseInt(hStr, 10) % 24;
+    } catch (e) {
+      return (d.getUTCHours() + 3) % 24;
+    }
+  }
+
+  // --- DYNAMIC CALCULATORS WITH BRANCH & DATE SCOPING (EAST AFRICAN TIME - EAT) ---
   getTodaySales() {
     const target = this.getSelectedDateObj();
-    const tYear = target.getFullYear();
-    const tMonth = target.getMonth();
-    const tDate = target.getDate();
+    let targetYmd = '';
+    try {
+      const eatFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' });
+      targetYmd = eatFormatter.format(target);
+    } catch (e) {
+      targetYmd = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')}`;
+    }
 
     return this.sales.filter(s => {
-      const d = new Date(s.timestamp || s.created_at);
-      const matchesDate = d.getFullYear() === tYear && d.getMonth() === tMonth && d.getDate() === tDate;
+      const d = this.getEatDate(s.timestamp || s.created_at);
+      let saleYmd = '';
+      try {
+        const eatFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' });
+        saleYmd = eatFormatter.format(d);
+      } catch (e) {
+        saleYmd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+
+      const matchesDate = saleYmd === targetYmd;
       const matchesBranch = this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId;
       return matchesDate && matchesBranch;
     });
@@ -1266,18 +1309,17 @@ export class CellarStore {
   }
 
   getHourlySalesTraffic() {
-    const hours = ['12 AM', '2 AM', '4 AM', '6 AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
+    const hours = ['12 AM EAT', '2 AM EAT', '4 AM EAT', '6 AM EAT', '8 AM EAT', '10 AM EAT', '12 PM EAT', '2 PM EAT', '4 PM EAT', '6 PM EAT', '8 PM EAT', '10 PM EAT'];
     const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     const todaySales = this.getTodaySales().filter(s => !s.refunded);
 
-
     todaySales.forEach(s => {
-      const h = new Date(s.timestamp || s.created_at).getHours();
+      const h = this.getEatHour(s.timestamp || s.created_at);
       const idx = Math.floor(h / 2);
       if (idx >= 0 && idx < 12) {
-        data[idx] += s.total;
+        data[idx] += Number(s.total || 0);
         orders[idx] += 1;
       }
     });

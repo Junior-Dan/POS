@@ -54,12 +54,12 @@ export function renderDashboardView() {
       <div class="section-card main-chart-card">
         <div class="section-header">
           <div>
-            <div class="stat-title">Revenue & Hourly Performance</div>
+            <div class="stat-title">Revenue & Hourly Performance (East African Time - EAT)</div>
             <div class="hero-revenue-amount" id="dashHeroRevenue">
               KSh ${totalRev.toLocaleString()}
             </div>
           </div>
-          <span class="section-subtitle">Real-time hourly sales stream</span>
+          <span class="section-subtitle">Real-time hourly sales stream (EAT / GMT+3)</span>
         </div>
         <div style="height: 240px; position:relative; padding-top:10px;">
           <canvas id="chartHourlySales"></canvas>
