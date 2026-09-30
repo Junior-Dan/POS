@@ -71,16 +71,11 @@ window.switchAuthTab = (tab) => {
 };
 
 window.logoutUser = () => {
-  store.currentUser = null;
+  store.resetState();
   clearAuthToken();
   try {
     sessionStorage.removeItem('cellar_session_auth');
     sessionStorage.removeItem('cellar_authenticated_user');
-    localStorage.removeItem('cellar_current_user_backup');
-    localStorage.removeItem('cellar_biz_profile_backup');
-    localStorage.removeItem('cellar_branches_backup');
-    localStorage.removeItem('cellar_sales_backup');
-    localStorage.removeItem('cellar_products_backup');
   } catch (e) {}
   initApp();
 };
@@ -579,11 +574,10 @@ function bindEvents() {
       if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
 
       activeViewId = 'dashboard';
-      initApp();
-
+      await store.loadAuthenticatedData();
       store.fetchBranchLogin();
-      store.loadAuthenticatedData();
       store.saveLocalBackup();
+      initApp();
     } catch (e) {
       if (err) {
         if (e.message && e.message.includes('already exists')) {
@@ -816,8 +810,8 @@ function bindEvents() {
       window._isSubmittingBranchLogin = false;
       if (errDiv) errDiv.textContent = '';
 
+      await store.loadAuthenticatedData();
       initApp();
-      store.loadAuthenticatedData();
       store.logAudit("Terminal Login Successful", data.user.name, "-", data.user.role, `Authenticated on branch ${branchCode}`);
     } catch (e) {
       window._isSubmittingBranchLogin = false;
@@ -877,8 +871,8 @@ function bindEvents() {
       window._isSubmittingMainLogin = false;
       if (errDiv) errDiv.textContent = '';
 
+      await store.loadAuthenticatedData();
       initApp();
-      store.loadAuthenticatedData();
       store.logAudit("Main Account Login", data.user.name, "-", data.user.role, "Authenticated via Email/Password");
     } catch (e) {
       window._isSubmittingMainLogin = false;

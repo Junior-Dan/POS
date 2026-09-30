@@ -61,11 +61,11 @@ if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
 export class CellarStore {
   constructor() {
     this.listeners = [];
-    this.products = INITIAL_PRODUCTS;
+    this.products = [];
     this.users = INITIAL_USERS;
     this.suppliers = INITIAL_SUPPLIERS;
     this.branches = INITIAL_BRANCHES;
-    this.activeBranchId = "B1";
+    this.activeBranchId = "main";
     // Branch-scoped login roster (populated from the public branch-info
     // endpoint — used to render the "Who are you?" account picker).
     this.loginUsers = [];
@@ -77,42 +77,10 @@ export class CellarStore {
     this.expenses = [];
     this.auditLogs = [];
     this.purchases = [];
-    this.customers = [
-      { id: "C1", name: "Walk-in Customer", phone: "N/A", email: "-", visits: 0, totalSpend: 0 },
-      { id: "C2", name: "David Mwangi", phone: "0712345678", email: "david@example.com", visits: 3, totalSpend: 24500 }
-    ];
+    this.customers = [];
     this.shifts = [];
-    this.notifications = [
-      {
-        id: "NOTIF-1",
-        type: "shift",
-        title: "Shift Reconciled & Closed",
-        message: "Cashier John Omondi reconciled cash & closed shift at Nairobi CBD Main. Expected: KSh 45,000, Actual: KSh 45,000, Variance: KSh 0 (Perfect Match).",
-        branchId: "B1",
-        cashierName: "John Omondi",
-        timestamp: new Date(Date.now() - 1800000).toISOString(),
-        read: false
-      },
-      {
-        id: "NOTIF-2",
-        type: "cash",
-        title: "Drawer Cash Out Authorized",
-        message: "Cashier John Omondi logged KSh 2,500 Cash Out (Supplier Delivery Petty Cash).",
-        branchId: "B1",
-        cashierName: "John Omondi",
-        timestamp: new Date(Date.now() - 5400000).toISOString(),
-        read: false
-      }
-    ];
-    this.currentShift = {
-      id: "SHIFT-101",
-      branchId: "B1",
-      cashierId: "U3",
-      cashierName: "John Omondi",
-      startTime: new Date().toISOString(),
-      openingFloat: 5000,
-      status: "ACTIVE"
-    };
+    this.notifications = [];
+    this.currentShift = null;
     // No implicit login: unauthenticated until a valid session token is
     // restored or a PIN login succeeds.
     this.currentUser = null;
@@ -441,6 +409,33 @@ export class CellarStore {
       if (typeof window === 'undefined' || !window.location) return false;
       return new URLSearchParams(window.location.search).has('branch');
     } catch (e) { return false; }
+  }
+
+  resetState() {
+    this.currentUser = null;
+    this.products = [];
+    this.users = [];
+    this.suppliers = [];
+    this.branches = [];
+    this.sales = [];
+    this.stockMovements = [];
+    this.cashMovements = [];
+    this.expenses = [];
+    this.auditLogs = [];
+    this.purchases = [];
+    this.customers = [];
+    this.shifts = [];
+    this.notifications = [];
+    this.currentShift = null;
+    try {
+      localStorage.removeItem('cellar_sales_backup');
+      localStorage.removeItem('cellar_products_backup');
+      localStorage.removeItem('cellar_shift_backup');
+      localStorage.removeItem('cellar_notifications_backup');
+      localStorage.removeItem('cellar_biz_profile_backup');
+      localStorage.removeItem('cellar_branches_backup');
+      localStorage.removeItem('cellar_current_user_backup');
+    } catch (e) {}
   }
 
   seedFallback() {
