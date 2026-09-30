@@ -64,6 +64,7 @@ export function renderStaffModal() {
               <option value="INACTIVE">SUSPENDED / INACTIVE</option>
             </select>
           </div>
+        </div>
         <div id="staffModalErrorMsg" class="setup-error-msg"></div>
       </div>
       <div class="modal-footer">

@@ -1712,8 +1712,14 @@ function bindEvents() {
     }
 
     const branchId = user.primaryBranchId || user.branchId || user.branch_id;
-    const branch = (store.branches || []).find(b => b.id === branchId) || store.getActiveBranch();
-    const branchCode = branch?.code || 'main';
+    let branch = (store.branches || []).find(b => b.id === branchId || b.code === branchId);
+    let branchCode = branch?.code;
+    // store.branches can be stale right after the backend auto-creates a branch;
+    // the branch id is "BR-<code>", so derive the real code from it as a fallback.
+    if (!branchCode && branchId && /^BR-/i.test(branchId)) {
+      branchCode = branchId.replace(/^BR-/i, '');
+    }
+    if (!branchCode) branchCode = store.getActiveBranch()?.code || 'main';
     const bizName = store.businessProfile?.name || 'Cellar POS';
 
     const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}`;
