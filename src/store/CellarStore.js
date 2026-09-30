@@ -337,6 +337,9 @@ export class CellarStore {
       // Preserve the token on currentUser so staff-management guards always
       // have a fallback even if localStorage is later cleared.
       this.currentUser = { ...data.user, token: data.user.token || token };
+      if (data.user.organizationName) {
+        this.businessProfile = { ...this.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
+      }
       // Owners view all branches; staff are scoped to their own branch.
       this.activeBranchId = data.user.branchId ||
         ((data.user.role || '').toLowerCase() === 'owner' ? 'ALL' : this.activeBranchId);

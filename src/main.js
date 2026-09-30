@@ -568,6 +568,9 @@ function bindEvents() {
       window.forceRegisterMode = false;
 
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      if (data.user && data.user.organizationName) {
+        store.businessProfile = { ...store.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
+      }
       if (!store.loginUsers || store.loginUsers.length === 0) {
         store.loginUsers = [store.currentUser];
       }
@@ -793,6 +796,9 @@ function bindEvents() {
       }
 
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      if (data.user && data.user.organizationName) {
+        store.businessProfile = { ...store.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
+      }
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
       store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
@@ -852,6 +858,9 @@ function bindEvents() {
       }
 
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      if (data.user && data.user.organizationName) {
+        store.businessProfile = { ...store.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
+      }
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
       store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
@@ -908,6 +917,9 @@ function bindEvents() {
       // Stamp the token onto currentUser so staff-management guards always have
       // a fallback even if localStorage is unavailable (e.g. private browsing).
       store.currentUser = { ...data.user, token: data.token || getAuthToken() };
+      if (data.user && data.user.organizationName) {
+        store.businessProfile = { ...store.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
+      }
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
       // Bind the active branch to the authenticated user (non-owners).

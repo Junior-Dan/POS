@@ -260,13 +260,23 @@ export function authenticateSession(req, res, next) {
     }
   }
 
+  const authOrgId = dbUser ? (dbUser.organization_id || null) : (session.organizationId || null);
+  let organizationName = null;
+  if (authOrgId) {
+    try {
+      const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(authOrgId);
+      if (org && org.name) organizationName = org.name;
+    } catch (e) {}
+  }
+
   req.authUser = {
     id: dbUser ? dbUser.id : session.userId,
     name: dbUser ? dbUser.name : (session.name || 'Authenticated User'),
     email: dbUser ? dbUser.email : (session.email || null),
     phone: dbUser ? dbUser.phone : null,
     role: dbUser ? (dbUser.role || 'cashier').toLowerCase() : (session.role || 'cashier').toLowerCase(),
-    organizationId: dbUser ? (dbUser.organization_id || null) : (session.organizationId || null),
+    organizationId: authOrgId,
+    organizationName,
     branchId: dbUser ? (dbUser.branch_id || null) : (session.branchId || null),
     token
   };
@@ -470,6 +480,14 @@ router.post('/login', (req, res) => {
   const orgId = user.organization_id || 'ORG-1';
   const branchId = user.branch_id || null;
 
+  // Authoritative organization name so owner and every staff member show the
+  // exact same business name immediately, regardless of settings load timing.
+  let organizationName = null;
+  try {
+    const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgId);
+    if (org && org.name) organizationName = org.name;
+  } catch (e) {}
+
   // Stateless JWT session — valid on any serverless instance immediately
   const token = signSession(user, orgId, branchId);
 
@@ -479,6 +497,7 @@ router.post('/login', (req, res) => {
     user: {
       id: user.id,
       organizationId: orgId,
+      organizationName,
       branchId,
       name: user.name,
       role: user.role.toLowerCase(),

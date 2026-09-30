@@ -47,6 +47,12 @@ router.put('/:key', (req, res) => {
 
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(settingKey(orgId, key), strVal);
 
+    // Keep the authoritative organization name in sync with the business
+    // profile so owner and staff always show the exact same business name.
+    if (key === 'businessProfile' && value && typeof value === 'object' && value.name) {
+      try { db.prepare('UPDATE organizations SET name = ? WHERE id = ?').run(String(value.name), orgId); } catch (e) {}
+    }
+
     db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Update Settings', ?, '-', 'Updated', 'Configuration settings updated')
