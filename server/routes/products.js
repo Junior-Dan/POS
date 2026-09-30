@@ -229,9 +229,18 @@ router.put('/:id', (req, res) => {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    const costPrice = p.cost !== undefined ? parseFloat(p.cost) : (p.costPrice !== undefined ? parseFloat(p.costPrice) : existing.cost_price);
-    const sellingPrice = p.price !== undefined ? parseFloat(p.price) : (p.sellingPrice !== undefined ? parseFloat(p.sellingPrice) : existing.selling_price);
-    const stock = p.stock !== undefined ? parseInt(p.stock, 10) : existing.current_stock;
+    // PARTIAL update: only change fields actually supplied in the request. A
+    // "deactivate" sends just {active:0} and must NOT rewrite price/stock (doing
+    // so risked writing NULL/NaN into NOT NULL columns → 500). null params are
+    // ignored via COALESCE, keeping the existing value.
+    const toNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+    const toInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+
+    const costParam = p.cost !== undefined ? toNum(p.cost) : (p.costPrice !== undefined ? toNum(p.costPrice) : null);
+    const sellParam = p.price !== undefined ? toNum(p.price) : (p.sellingPrice !== undefined ? toNum(p.sellingPrice) : null);
+    const stockParam = p.stock !== undefined ? toInt(p.stock) : (p.currentStock !== undefined ? toInt(p.currentStock) : null);
+    const highParam = p.highValue !== undefined ? (p.highValue ? 1 : 0) : null;
+    const activeParam = p.active !== undefined ? (p.active ? 1 : 0) : null;
 
     db.prepare(`
       UPDATE products
@@ -245,11 +254,11 @@ router.put('/:id', (req, res) => {
           case_units = COALESCE(?, case_units),
           barcode = COALESCE(?, barcode),
           sku = COALESCE(?, sku),
-          cost_price = ?,
-          selling_price = ?,
+          cost_price = COALESCE(?, cost_price),
+          selling_price = COALESCE(?, selling_price),
           wholesale_price = COALESCE(?, wholesale_price),
           min_price = COALESCE(?, min_price),
-          current_stock = ?,
+          current_stock = COALESCE(?, current_stock),
           reorder_level = COALESCE(?, reorder_level),
           supplier_id = COALESCE(?, supplier_id),
           high_value = COALESCE(?, high_value),
@@ -258,9 +267,9 @@ router.put('/:id', (req, res) => {
       WHERE id = ? AND organization_id = ?
     `).run(
       p.brand, p.name, p.category, p.productType, p.unit, p.abv, p.size,
-      p.caseUnits, p.barcode, p.sku, costPrice, sellingPrice, p.wholesalePrice,
-      p.minPrice, stock, p.reorder || p.reorderLevel, p.supplierId, p.highValue ? 1 : 0,
-      p.active !== undefined ? (p.active ? 1 : 0) : existing.active, id, orgId
+      p.caseUnits, p.barcode, p.sku, costParam, sellParam, p.wholesalePrice,
+      p.minPrice, stockParam, (p.reorder || p.reorderLevel), p.supplierId, highParam,
+      activeParam, id, orgId
     );
 
     // Audit log
@@ -270,7 +279,7 @@ router.put('/:id', (req, res) => {
     `).run(
       `AUD-${Date.now()}`, orgId, new Date().toISOString(), p.userName || 'Manager', req.authUser.branchId || '-', existing.name,
       `Price: ${existing.selling_price}, Stock: ${existing.current_stock}`,
-      `Price: ${sellingPrice}, Stock: ${stock}`
+      `Price: ${sellParam !== null ? sellParam : existing.selling_price}, Stock: ${stockParam !== null ? stockParam : existing.current_stock}`
     );
 
     res.json({ message: "Product updated successfully" });
