@@ -321,6 +321,15 @@ router.post('/setup', (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 4 characters.' });
   }
 
+  // Email must be unique across the whole system — login is by email, so a
+  // duplicate would make sign-in ambiguous.
+  if (email) {
+    const exists = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
+    if (exists) {
+      return res.status(409).json({ error: 'This email is already in use. Please log in instead or use a different email.' });
+    }
+  }
+
   // Unique identifiers per organization so many businesses coexist safely.
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const orgId = `ORG-${stamp}`;
@@ -690,6 +699,14 @@ router.post('/users', authenticateSession, (req, res) => {
     return res.status(400).json({ error: 'PIN must be at least 4 digits.' });
   }
 
+  // Enforce a unique email (login is by email, so it cannot be shared).
+  if (email) {
+    const exists = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
+    if (exists) {
+      return res.status(409).json({ error: 'This email is already in use by another account.' });
+    }
+  }
+
   const targetRole = role.toLowerCase();
   const orgId = creator.organizationId || 'ORG-1';
   let targetBranch;
@@ -809,6 +826,12 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
     const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     const guard = canManageTarget(req.authUser, existing);
     if (!guard.ok) return res.status(guard.code).json({ error: guard.error });
+
+    // If the email is being changed, it must not collide with another account.
+    if (email && String(email).trim() && String(email).trim().toLowerCase() !== String(existing.email || '').toLowerCase()) {
+      const clash = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?').get(String(email).trim(), id);
+      if (clash) return res.status(409).json({ error: 'This email is already in use by another account.' });
+    }
 
     // Managers cannot change role or move staff between branches; owners can
     // reassign among non-owner roles.
