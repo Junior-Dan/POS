@@ -390,32 +390,61 @@ window.completePosSale = function(paymentMethod = 'CASH') {
   const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
   const custId = document.getElementById('posCustomerSelect')?.value;
   
-  const proceedWithCheckout = async () => {
+  const proceedWithCheckout = () => {
     const discountAmt = (subtotal * discPercent) / 100;
     const total = subtotal - discountAmt;
     const tax = total * 0.16;
+    const selectedCustomer = (store.customers || []).find(c => c.id === custId);
 
-    try {
-      const selectedCustomer = (store.customers || []).find(c => c.id === custId);
-      const saleResult = await store.createSale({
-        items: currentCart,
-        subtotal,
-        discount: discountAmt,
-        tax,
-        total,
-        paymentMethod,
-        customer: selectedCustomer
-      });
+    // Snapshot the cart, then build an immediate display receipt. The server
+    // assigns the official receipt number + eTIMS codes; those refresh in place
+    // once persistence returns (which can take a moment on the cloud DB).
+    const itemsSnapshot = currentCart.map(i => ({ ...i }));
+    const displaySale = {
+      receiptNo: `REC-${Date.now().toString().slice(-6)}`,
+      items: itemsSnapshot,
+      subtotal,
+      discount: discountAmt,
+      tax,
+      total,
+      paymentMethod,
+      cashierName: store.currentUser?.name || 'Cashier',
+      customerName: selectedCustomer?.name || 'Walk-in Customer',
+      timestamp: new Date().toISOString()
+    };
 
-      currentCart = [];
-      
-      if (window.renderReceiptHtml) window.renderReceiptHtml(saleResult);
-      window.openModal('receiptModal');
+    // 1) Clear the cart + show the receipt IMMEDIATELY (no waiting on the server).
+    currentCart = [];
+    refreshCartUi();
+    const discEl = document.getElementById('posDiscountInput');
+    if (discEl) discEl.value = '';
+    if (window.renderReceiptHtml) window.renderReceiptHtml(displaySale);
+    window.openModal('receiptModal');
 
-      if (window.initApp) window.initApp();
-    } catch (err) {
-      alert("Checkout Transaction Error: " + err.message);
-    }
+    // 2) Persist in the background; reconcile the receipt + refresh stock after.
+    store.createSale({
+      items: itemsSnapshot,
+      subtotal,
+      discount: discountAmt,
+      tax,
+      total,
+      paymentMethod,
+      customer: selectedCustomer
+    }).then(saleResult => {
+      const modal = document.getElementById('receiptModal');
+      if (saleResult && modal && modal.classList.contains('active') && window.renderReceiptHtml) {
+        const merged = {
+          ...displaySale,
+          ...saleResult,
+          items: (saleResult.items && saleResult.items.length) ? saleResult.items : itemsSnapshot
+        };
+        window.renderReceiptHtml(merged);
+      }
+      const grid = document.getElementById('posProductGrid');
+      if (grid) grid.innerHTML = renderProductGridHtml();
+    }).catch(err => {
+      alert("Sale recorded locally, but syncing to the server failed: " + err.message);
+    });
   };
 
   if (discPercent > (store.securitySettings?.maxDiscountPercentWithoutAuth || 5)) {
