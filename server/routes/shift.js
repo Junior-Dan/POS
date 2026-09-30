@@ -15,9 +15,9 @@ router.get('/current', (req, res) => {
     const branchId = (req.authUser.role !== 'owner') ? req.authUser.branchId : (req.query.branchId || null);
     let shift;
     if (branchId) {
-      shift = db.prepare('SELECT * FROM shifts WHERE status = "ACTIVE" AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId);
+      shift = db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId);
     } else {
-      shift = db.prepare('SELECT * FROM shifts WHERE status = "ACTIVE" AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
+      shift = db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
     }
     if (!shift) {
       return res.json(null);
@@ -58,7 +58,7 @@ router.post('/open', (req, res) => {
 
   try {
     // Close existing active shift if any (this org + this branch)
-    const existing = db.prepare('SELECT id FROM shifts WHERE status = "ACTIVE" AND organization_id = ? AND branch_id = ?').get(orgId, effectiveBranch);
+    const existing = db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ?').get(orgId, effectiveBranch);
     if (existing) {
       return res.status(400).json({ error: "An active shift is already open. Please close it first." });
     }
@@ -114,8 +114,8 @@ router.post('/cash-movement', (req, res) => {
   try {
     const branchId = (req.authUser.role !== 'owner') ? req.authUser.branchId : null;
     const activeShift = branchId
-      ? db.prepare('SELECT id FROM shifts WHERE status = "ACTIVE" AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
-      : db.prepare('SELECT id FROM shifts WHERE status = "ACTIVE" AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
+      ? db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
+      : db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
     const targetShiftId = shiftId || activeShift?.id || 'SHIFT-101';
     const movId = `CM-${Date.now()}`;
     const signedAmount = type === 'OUT' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
@@ -162,8 +162,8 @@ router.post('/close', (req, res) => {
     const shift = shiftId
       ? db.prepare('SELECT * FROM shifts WHERE id = ? AND organization_id = ?').get(shiftId, orgId)
       : (branchId
-          ? db.prepare('SELECT * FROM shifts WHERE status = "ACTIVE" AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
-          : db.prepare('SELECT * FROM shifts WHERE status = "ACTIVE" AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId));
+          ? db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
+          : db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId));
     if (!shift) {
       return res.status(404).json({ error: "No active shift found to close." });
     }
