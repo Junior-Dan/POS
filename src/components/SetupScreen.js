@@ -117,29 +117,44 @@ export function renderAuthLandingScreen(overrideMode = null) {
               </div>
 
               <div class="auth-mode-content">
-                <!-- PRIMARY: STAFF EMAIL & PASSWORD LOGIN FORM -->
-                <form onsubmit="event.preventDefault(); submitBranchTerminalLogin();" class="welcome-setup-form">
-                  <div class="form-group">
-                    <label class="form-label">STAFF EMAIL ADDRESS *</label>
-                    <input type="email" class="form-input" id="branchStaffEmailInput" placeholder="e.g. staff@company.com" required>
-                  </div>
+                ${(() => {
+                  const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
+                  if (activeRoster.length === 0) {
+                    return `
+                      <div style="text-align:center; padding:16px; margin-bottom:12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px;">
+                        <div style="font-size:13px; color:#b91c1c; font-weight:700; margin-bottom:4px;">
+                          ${rosterLoaded ? 'No staff accounts for this terminal' : 'Loading staff accounts…'}
+                        </div>
+                        ${rosterLoaded ? `<div style="font-size:12px; color:#64748b;">Ask your owner to add you to this branch, or double-check your login link.</div>` : ''}
+                      </div>`;
+                  }
+                  return `
+                    <!-- STAFF ACCOUNT PICKER + PIN (no email typing on shared terminals) -->
+                    <form onsubmit="event.preventDefault(); submitBranchTerminalLogin();" class="welcome-setup-form">
+                      <div class="form-group">
+                        <label class="form-label">SELECT YOUR ACCOUNT *</label>
+                        <select class="form-select" id="branchStaffSelect">
+                          ${activeRoster.map(u => `<option value="${u.id}">${u.name} — ${(u.role || 'cashier').toUpperCase()}</option>`).join('')}
+                        </select>
+                      </div>
 
-                  <div class="form-group">
-                    <label class="form-label">PASSWORD / SECURITY PIN *</label>
-                    <div style="position:relative;">
-                      <input type="password" class="form-input" id="branchStaffCodeInput" placeholder="••••••••" style="padding-right:38px;" required>
-                      <button type="button" onclick="toggleBranchCodeVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">
-                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      <div class="form-group">
+                        <label class="form-label">PASSWORD / SECURITY PIN *</label>
+                        <div style="position:relative;">
+                          <input type="password" class="form-input" id="branchStaffCodeInput" placeholder="••••••••" style="padding-right:38px;" required>
+                          <button type="button" onclick="toggleBranchCodeVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">
+                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div id="branchLoginErrorMsg" class="setup-error-msg"></div>
+
+                      <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
+                        Log In to Dashboard
                       </button>
-                    </div>
-                  </div>
-
-                  <div id="branchLoginErrorMsg" class="setup-error-msg"></div>
-
-                  <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
-                    Log In to Dashboard
-                  </button>
-                </form>
+                    </form>`;
+                })()}
               </div>
             ` : `
               <!-- MAIN STORE LOGIN (EMAIL / PHONE & PASSWORD) -->
