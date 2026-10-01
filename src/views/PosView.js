@@ -195,42 +195,45 @@ window.openMpesaModal = function() {
 
   const totalEl = document.getElementById('mpesaModalTotal');
   const phoneEl = document.getElementById('mpesaPhoneInput');
+  const codeEl = document.getElementById('mpesaCodeInput');
+  const errEl = document.getElementById('mpesaModalErrorMsg');
   const statusBox = document.getElementById('mpesaStatusBox');
   const badgeEl = document.getElementById('mpesaBadgeState');
   const textEl = document.getElementById('mpesaStatusText');
   const pushBtn = document.getElementById('triggerMpesaPushBtn');
-  const simBtn = document.getElementById('simMpesaSuccessBtn');
 
   if (totalEl) totalEl.textContent = `KSh ${total.toLocaleString()}`;
   if (phoneEl && !phoneEl.value) phoneEl.value = "0712345678";
+  if (codeEl) codeEl.value = "";
+  if (errEl) errEl.textContent = "";
   if (statusBox) statusBox.style.display = 'none';
   if (pushBtn) pushBtn.disabled = false;
 
   const triggerFlow = () => {
+    const code = (codeEl?.value || '').trim().toUpperCase();
+    if (!code || code.length < 3) {
+      if (errEl) errEl.textContent = "Please enter the M-Pesa transaction code!";
+      codeEl?.focus();
+      return;
+    }
+    if (errEl) errEl.textContent = "";
+
     const phone = phoneEl?.value.trim() || "0712345678";
     if (statusBox) statusBox.style.display = 'block';
     if (badgeEl) {
       badgeEl.className = 'badge badge-warning';
-      badgeEl.textContent = 'STK PUSH INITIATED';
+      badgeEl.textContent = 'VALIDATING CODE';
     }
-    if (textEl) textEl.textContent = `📱 STK Push prompt sent to ${phone}...`;
+    if (textEl) textEl.textContent = `📱 Recording M-Pesa Code: ${code}...`;
     if (pushBtn) pushBtn.disabled = true;
 
     setTimeout(() => {
-      if (badgeEl) {
-        badgeEl.className = 'badge badge-success';
-        badgeEl.textContent = 'PAYMENT CONFIRMED';
-      }
-      if (textEl) textEl.textContent = `✅ KSh ${total.toLocaleString()} received via M-PESA from ${phone}!`;
-      setTimeout(() => {
-        window.closeModal('mpesaPaymentModal');
-        window.completePosSale('M-PESA');
-      }, 500);
-    }, 600);
+      window.closeModal('mpesaPaymentModal');
+      window.completePosSale('M-PESA', code);
+    }, 400);
   };
 
   if (pushBtn) pushBtn.onclick = triggerFlow;
-  if (simBtn) simBtn.onclick = triggerFlow;
 
   window.openModal('mpesaPaymentModal');
 };
@@ -363,6 +366,11 @@ window.filterPosCat = function(cat) {
 };
 
 function refreshCartUi() {
+  // Any change to the cart starts a new logical sale, so invalidate the pending
+  // idempotency key. A retry of an UNCHANGED cart (after a failed submit) keeps
+  // the same key and is de-duplicated by the backend.
+  window._pendingSaleRef = null;
+
   const list = document.getElementById('posCartItemsList');
   if (list) list.innerHTML = renderCartItemsHtml();
 
@@ -377,7 +385,7 @@ function refreshCartUi() {
   if (document.getElementById('posTotalDue')) document.getElementById('posTotalDue').textContent = `KSh ${total.toLocaleString()}`;
 }
 
-window.completePosSale = function(paymentMethod = 'CASH') {
+window.completePosSale = function(paymentMethod = 'CASH', mpesaCode = null) {
   if (currentCart.length === 0) {
     alert("Cart is empty! Tap products from catalogue to add to cart.");
     return;
@@ -390,61 +398,77 @@ window.completePosSale = function(paymentMethod = 'CASH') {
   const discPercent = parseFloat(document.getElementById('posDiscountInput')?.value) || 0;
   const custId = document.getElementById('posCustomerSelect')?.value;
   
-  const proceedWithCheckout = () => {
+  const proceedWithCheckout = async () => {
+    // Guard against double-submission (double tap / Enter spam) producing
+    // duplicate sales while the first request is still in flight.
+    if (window._posSaleInFlight) return;
+    window._posSaleInFlight = true;
+
     const discountAmt = (subtotal * discPercent) / 100;
     const total = subtotal - discountAmt;
     const tax = total * 0.16;
     const selectedCustomer = (store.customers || []).find(c => c.id === custId);
-
-    // Snapshot the cart, then build an immediate display receipt. The server
-    // assigns the official receipt number + eTIMS codes; those refresh in place
-    // once persistence returns (which can take a moment on the cloud DB).
     const itemsSnapshot = currentCart.map(i => ({ ...i }));
-    const displaySale = {
-      receiptNo: `REC-${Date.now().toString().slice(-6)}`,
-      items: itemsSnapshot,
-      subtotal,
-      discount: discountAmt,
-      tax,
-      total,
-      paymentMethod,
-      cashierName: store.currentUser?.name || 'Cashier',
-      customerName: selectedCustomer?.name || 'Walk-in Customer',
-      timestamp: new Date().toISOString()
-    };
 
-    // 1) Clear the cart + show the receipt IMMEDIATELY (no waiting on the server).
-    currentCart = [];
-    refreshCartUi();
-    const discEl = document.getElementById('posDiscountInput');
-    if (discEl) discEl.value = '';
-    if (window.renderReceiptHtml) window.renderReceiptHtml(displaySale);
-    window.openModal('receiptModal');
+    // Stable idempotency key for THIS cart-submit; reused on retry until the
+    // cart changes or the sale succeeds, so a dropped-response retry can't dupe.
+    if (!window._pendingSaleRef) {
+      window._pendingSaleRef = `CR-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    const clientRef = window._pendingSaleRef;
 
-    // 2) Persist in the background; reconcile the receipt + refresh stock after.
-    store.createSale({
-      items: itemsSnapshot,
-      subtotal,
-      discount: discountAmt,
-      tax,
-      total,
-      paymentMethod,
-      customer: selectedCustomer
-    }).then(saleResult => {
-      const modal = document.getElementById('receiptModal');
-      if (saleResult && modal && modal.classList.contains('active') && window.renderReceiptHtml) {
-        const merged = {
-          ...displaySale,
-          ...saleResult,
-          items: (saleResult.items && saleResult.items.length) ? saleResult.items : itemsSnapshot
-        };
-        window.renderReceiptHtml(merged);
-      }
+    const payBtn = document.getElementById('payQuickBtn');
+    const prevLabel = payBtn ? payBtn.textContent : null;
+    if (payBtn) { payBtn.disabled = true; payBtn.textContent = 'Processing…'; }
+
+    try {
+      // Persist FIRST and wait for the backend to confirm. Only a sale the
+      // server actually saved is treated as complete.
+      const saleResult = await store.createSale({
+        items: itemsSnapshot,
+        subtotal,
+        discount: discountAmt,
+        tax,
+        total,
+        paymentMethod,
+        mpesaCode,
+        clientRef,
+        customer: selectedCustomer
+      });
+
+      // Confirmed persisted — consume the idempotency key and clear the cart,
+      // then print the receipt from authoritative server data.
+      window._pendingSaleRef = null;
+      currentCart = [];
+      refreshCartUi();
+      const discEl = document.getElementById('posDiscountInput');
+      if (discEl) discEl.value = '';
+
+      const receipt = {
+        items: itemsSnapshot,
+        subtotal,
+        discount: discountAmt,
+        tax,
+        total,
+        paymentMethod,
+        cashierName: store.currentUser?.name || 'Cashier',
+        customerName: selectedCustomer?.name || 'Walk-in Customer',
+        timestamp: new Date().toISOString(),
+        ...saleResult,
+        items: (saleResult?.items && saleResult.items.length) ? saleResult.items : itemsSnapshot
+      };
+      if (window.renderReceiptHtml) window.renderReceiptHtml(receipt);
+      window.openModal('receiptModal');
+
       const grid = document.getElementById('posProductGrid');
       if (grid) grid.innerHTML = renderProductGridHtml();
-    }).catch(err => {
-      alert("Sale recorded locally, but syncing to the server failed: " + err.message);
-    });
+    } catch (err) {
+      // Nothing was cleared or printed — the cart is intact so the cashier can retry.
+      alert('Sale was NOT completed: ' + err.message + '\n\nThe cart has been kept — please try again.');
+    } finally {
+      window._posSaleInFlight = false;
+      if (payBtn) { payBtn.disabled = false; payBtn.textContent = prevLabel; }
+    }
   };
 
   if (discPercent > (store.securitySettings?.maxDiscountPercentWithoutAuth || 5)) {

@@ -35,9 +35,9 @@ import { renderSupplierModal } from './components/SupplierModal.js';
 import { renderPurchaseOrderModal } from './components/PurchaseOrderModal.js';
 import { renderExpenseModal } from './components/ExpenseModal.js';
 import { renderCustomerModal } from './components/CustomerModal.js';
-import { renderBranchModal } from './components/BranchModal.js';
 import { renderStaffModal } from './components/StaffModal.js';
 import { renderResetPinModal } from './components/ResetPinModal.js';
+import { renderForgotPasswordModal } from './components/ForgotPasswordModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 let activeViewId = 'dashboard';
@@ -80,127 +80,20 @@ window.logoutUser = () => {
   initApp();
 };
 
-  window.submitSaveStaff = async () => {
-    if (window._isSubmittingStaff) return;
-    const isOwner = store.currentUser?.role === 'owner';
-    const name = document.getElementById('staffNameInput')?.value.trim() || '';
-    const phone = document.getElementById('staffPhoneInput')?.value.trim() || '0700000000';
-    const email = document.getElementById('staffEmailInput')?.value.trim() || '';
-    const role = document.getElementById('staffRoleSelect')?.value || 'cashier';
-    const primaryBranchId = document.getElementById('staffPrimaryBranchSelect')?.value || '';
-    const status = document.getElementById('staffStatusSelect')?.value || 'ACTIVE';
-    const pin = document.getElementById('staffPinInput')?.value.trim() || '';
-    const errDiv = document.getElementById('staffModalErrorMsg');
-
-    if (errDiv) errDiv.textContent = '';
-
-    if (!name) {
-      if (errDiv) errDiv.textContent = "Please enter Staff Name!";
-      else alert("Please enter Staff Name!");
-      return;
-    }
-    if (!email) {
-      if (errDiv) errDiv.textContent = "Please enter Staff Email Address so they can log in!";
-      else alert("Please enter Staff Email Address so they can log in!");
-      return;
-    }
-
-    if (!isOwner && (role === 'manager' || role === 'owner')) {
-      if (errDiv) errDiv.textContent = "Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!";
-      else alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
-      return;
-    }
-
-    const token = getAuthToken() || store.currentUser?.token || '';
-    if (!token) {
-      alert("Session expired. Please log in with your PIN to perform staff management.");
-      window.logoutUser();
-      return;
-    }
-
-    const editId = document.getElementById('staffEditId')?.value || '';
-    const saveBtn = document.getElementById('saveStaffSubmitBtn');
-
-    if (saveBtn) {
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving Staff Account...';
-    }
-    window._isSubmittingStaff = true;
-    let savedUser = null;
-
-    try {
-      if (editId) {
-        const res = await fetch(`/api/auth/users/${editId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
-        });
-        const data = await readJsonSafe(res);
-        if (!res.ok) throw new Error(data.error || `Failed to update staff (HTTP ${res.status}).`);
-        savedUser = data;
-        store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
-      } else {
-        if (!pin || pin.length < 4) {
-          throw new Error("Please enter a 4-character password or PIN for staff login!");
-        }
-        const res = await fetch('/api/auth/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
-        });
-        const data = await readJsonSafe(res);
-        if (!res.ok) throw new Error(data.error || `Failed to create staff (HTTP ${res.status}).`);
-        savedUser = data;
-        store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
-      }
-
-      // Optimistically update local users state for instant rendering
-      if (savedUser) {
-        const existingIdx = (store.users || []).findIndex(u => u.id === savedUser.id);
-        if (existingIdx >= 0) {
-          store.users[existingIdx] = { ...store.users[existingIdx], ...savedUser };
-        } else {
-          if (!store.users) store.users = [];
-          store.users.unshift(savedUser);
-        }
-      }
-
-      window.closeModal('staffModal');
-      initApp();
-
-      if (savedUser) {
-        window.shareStaffLoginLink(savedUser, pin);
-      }
-
-      // Non-blocking background sync
-      store.fetchUsers().catch(() => {});
-    } catch (e) {
-      if (errDiv) errDiv.textContent = e.message;
-      else alert("Error saving staff account: " + e.message);
-    } finally {
-      window._isSubmittingStaff = false;
-      if (saveBtn) {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Staff & Generate Share Link';
-      }
-    }
-  };
-
 export function initApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
 
-  // If unauthenticated, render the standalone full-screen Auth Landing Page.
-  // Main URL (no ?branch=) shows Create Account setup form only.
-  // Shared branch URL (?branch=code) shows Branch Log In screen only.
+  // If unauthenticated, render the single full-screen Auth Landing Page:
+  // first run (no owner yet) shows Owner Setup; otherwise the one unified
+  // email + password Sign In form used by the owner and all staff alike.
   if (!store.currentUser || !store.currentUser.id) {
-    root.innerHTML = renderAuthLandingScreen();
+    root.innerHTML = `
+      ${renderAuthLandingScreen()}
+      <div id="modals-root">
+        ${renderForgotPasswordModal()}
+      </div>
+    `;
     bindEvents();
     return;
   }
@@ -248,9 +141,9 @@ export function initApp() {
       ${renderPurchaseOrderModal()}
       ${renderExpenseModal()}
       ${renderCustomerModal()}
-      ${renderBranchModal()}
       ${renderStaffModal()}
       ${renderResetPinModal()}
+      ${renderForgotPasswordModal()}
     </div>
   `;
 
@@ -259,14 +152,6 @@ export function initApp() {
 }
 
 function bindEvents() {
-  // Clear PIN pad state when switching selected user account in login dropdown
-  const loginSelect = document.getElementById('loginUserSelect');
-  if (loginSelect) {
-    loginSelect.addEventListener('change', () => {
-      window.clearLoginPin();
-    });
-  }
-
   // Navigation tabs
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -511,17 +396,6 @@ function bindEvents() {
     }, 2000);
   }
 
-  // Interactive Staff Login & Role Switcher
-  window.loginEnteredPin = "";
-  window._isSubmittingPin = false;
-
-  window.openInitialSetupModal = () => {
-    const err = document.getElementById('setupErrorMsg');
-    if (err) err.textContent = "";
-    window.closeModal('userLoginModal');
-    window.openModal('setupModal');
-  };
-
   window.submitInitialSetup = async () => {
     const name = document.getElementById('setupNameInput')?.value.trim();
     const phone = document.getElementById('setupPhoneInput')?.value.trim() || "";
@@ -610,216 +484,15 @@ function bindEvents() {
     }
   };
 
-  // Post-registration success screen: shows the owner the shareable login URL
-  // for their branch (used by the owner and staff to log in), with copy +
-  // continue-to-dashboard actions. The URL is derived from the live origin so
-  // it is correct on localhost and on the deployed Vercel domain alike.
-  window.showSetupSuccess = (ownerName, branchCode) => {
-    const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}`;
-    const root = document.getElementById('app-root');
-    if (!root) return;
-    root.innerHTML = `
-      <div class="welcome-setup-container">
-        <div class="welcome-setup-card">
-          <div class="welcome-setup-header">
-            <div class="welcome-logo-badge" style="background:rgba(34,197,94,0.15);">
-              <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" style="width:28px; height:28px;"><path d="M20 6 9 17l-5-5"/></svg>
-            </div>
-            <h1 class="welcome-title">Welcome, ${ownerName}!</h1>
-            <p class="welcome-subtitle">Your business owner account is ready.</p>
-          </div>
-
-          <div style="background:#0f0f12; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:16px; margin-bottom:16px;">
-            <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">🔗 Your Login URL</div>
-            <div style="font-size:12px; color:#94a3b8; margin-bottom:10px;">Bookmark this link. You and your staff use it to log in with your Security PINs — the branch code identifies the terminal, it is not a password.</div>
-            <div style="display:flex; gap:8px; align-items:stretch;">
-              <input type="text" id="setupLoginUrlInput" readonly value="${loginUrl}" style="flex:1; background:#000; color:#e2e8f0; border:1.5px solid rgba(255,255,255,0.2); border-radius:8px; padding:10px; font-size:12px; font-weight:600;">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="copyBranchUrl('setup', '${loginUrl}')" style="white-space:nowrap; font-weight:700;">Copy</button>
-            </div>
-          </div>
-
-          <button type="button" class="welcome-submit-btn" onclick="window.enterDashboardAfterSetup()">
-            <span>Continue to Owner Dashboard</span>
-            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-
-          <div style="text-align:center; margin-top:12px;">
-            <a href="${loginUrl}" target="_blank" style="font-size:12px; color:#94a3b8;">Open login page in a new tab ↗</a>
-          </div>
-        </div>
-      </div>
-    `;
-  };
-
   window.enterDashboardAfterSetup = () => {
     activeViewId = 'dashboard';
     initApp();
   };
 
-  window.openStaffLoginModal = (isMandatory = false) => {
-    // Use the branch-scoped roster (public) so the picker lists only this
-    // branch's staff (plus org owners), never other branches' users.
-    const roster = (store.loginUsers && store.loginUsers.length > 0) ? store.loginUsers : (store.users || []);
-    if (!roster || roster.length === 0) {
-      window.openInitialSetupModal();
-      return;
-    }
-    window._isSubmittingPin = false;
-    const sel = document.getElementById('loginUserSelect');
-    if (sel) {
-      const currentId = store.currentUser?.id;
-      sel.innerHTML = roster
-        .filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE')
-        .map(u => `<option value="${u.id}" ${u.id === currentId ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
-    }
-    window.loginEnteredPin = "";
-    updateLoginPinDots();
-    const err = document.getElementById('loginPinErrorMsg');
-    if (err) err.textContent = "";
-
-    const closeBtn = document.querySelector('#userLoginModal .modal-close');
-    if (closeBtn) {
-      closeBtn.style.display = isMandatory ? 'none' : 'block';
-    }
-
-    const modal = document.getElementById('userLoginModal');
-    if (modal) {
-      modal.classList.add('active');
-    }
-  };
-
-  window.pressLoginPin = (num) => {
-    if (window._isSubmittingPin) return;
-    if ((window.loginEnteredPin || "").length < 4) {
-      window.loginEnteredPin = (window.loginEnteredPin || "") + num;
-      updateLoginPinDots();
-      const err = document.getElementById('loginPinErrorMsg');
-      if (err) err.textContent = "";
-
-      if (window.loginEnteredPin.length === 4) {
-        setTimeout(() => {
-          if (window.loginEnteredPin.length === 4) {
-            window.submitLoginPin();
-          }
-        }, 100);
-      }
-    }
-  };
-
-  window.clearLoginPin = () => {
-    window._isSubmittingPin = false;
-    window.loginEnteredPin = "";
-    updateLoginPinDots();
-    const err = document.getElementById('loginPinErrorMsg');
-    if (err) err.textContent = "";
-  };
-
-  window.showPinDigits = true; // Show typed PIN digits clearly
-
-  window.togglePinVisibility = () => {
-    window.showPinDigits = !window.showPinDigits;
-    updateLoginPinDots();
-  };
-
-  function updateLoginPinDots() {
-    const val = window.loginEnteredPin || "";
-    for (let i = 0; i < 4; i++) {
-      const box = document.getElementById(`loginPinBox${i}`);
-      if (box) {
-        if (i < val.length) {
-          box.classList.add('active');
-          box.textContent = window.showPinDigits ? val[i] : '•';
-        } else {
-          box.classList.remove('active');
-          box.textContent = '-';
-        }
-      }
-    }
-  }
-
   window.togglePasswordInputVisibility = () => {
     const input = document.getElementById('loginPasswordInput');
     if (input) {
       input.type = input.type === 'password' ? 'text' : 'password';
-    }
-  };
-
-  window.toggleBranchCodeVisibility = () => {
-    const input = document.getElementById('branchStaffCodeInput');
-    if (input) {
-      input.type = input.type === 'password' ? 'text' : 'password';
-    }
-  };
-
-  window.submitBranchTerminalLogin = async () => {
-    if (window._isSubmittingBranchLogin) return;
-    const selectedUserId = document.getElementById('branchStaffSelect')?.value;
-    const emailInput = document.getElementById('branchStaffEmailInput')?.value.trim();
-    const codeInput = document.getElementById('branchStaffCodeInput')?.value.trim();
-    const errDiv = document.getElementById('branchLoginErrorMsg');
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const branchCode = urlParams.get('branch') || store.loginBranch?.code || null;
-
-    if (!codeInput) {
-      if (errDiv) errDiv.textContent = 'Please enter your Security Code / PIN.';
-      return;
-    }
-
-    window._isSubmittingBranchLogin = true;
-    if (errDiv) errDiv.textContent = 'Authenticating...';
-
-    try {
-      const payload = {
-        pin: codeInput,
-        password: codeInput,
-        userId: selectedUserId || null,
-        email: emailInput || null,
-        username: emailInput || null,
-        branchCode
-      };
-
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await readJsonSafe(res);
-      if (!res.ok) {
-        throw new Error(data.error || `Invalid Security Code! Access Denied.`);
-      }
-
-      if (data.token) {
-        setAuthToken(data.token);
-        try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
-      }
-
-      store.currentUser = { ...data.user, token: data.token || getAuthToken() };
-      if (data.user && data.user.organizationName) {
-        store.businessProfile = { ...store.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
-      }
-      try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
-
-      store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
-
-      const roleMap = {
-        owner: 'dashboard',
-        manager: 'dashboard',
-        inventory_officer: 'inventory',
-        cashier: 'pos'
-      };
-      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
-
-      window._isSubmittingBranchLogin = false;
-      if (errDiv) errDiv.textContent = '';
-
-      await store.loadAuthenticatedData();
-      initApp();
-      store.logAudit("Terminal Login Successful", data.user.name, "-", data.user.role, `Authenticated on branch ${branchCode}`);
-    } catch (e) {
-      window._isSubmittingBranchLogin = false;
-      if (errDiv) errDiv.textContent = e.message || 'Invalid Security Code or credentials!';
     }
   };
 
@@ -837,9 +510,6 @@ function bindEvents() {
       return;
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const branchCode = urlParams.get('branch') || store.loginBranch?.code || null;
-
     window._isSubmittingMainLogin = true;
     if (errDiv) errDiv.textContent = 'Authenticating...';
 
@@ -847,7 +517,7 @@ function bindEvents() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username: email, password, pin: password, branchCode })
+        body: JSON.stringify({ email, username: email, password, pin: password })
       });
 
       const data = await readJsonSafe(res);
@@ -888,101 +558,135 @@ function bindEvents() {
     }
   };
 
-  window.submitLoginPin = async () => {
-    if (window._isSubmittingPin) return;
-    const pin = window.loginEnteredPin;
-    if (!pin || pin.length < 4) {
-      const err = document.getElementById('loginPinErrorMsg');
-      if (err && pin.length > 0) err.textContent = "Please enter all 4 digits.";
+  window.openForgotPasswordModal = () => {
+    const emailIn = document.getElementById('loginEmailInput');
+    const forgotEmail = document.getElementById('forgotEmailInput');
+    const msg = document.getElementById('forgotModalMsg');
+    const step2 = document.getElementById('forgotStep2Area');
+    const submitBtn = document.getElementById('submitForgotBtn');
+
+    if (forgotEmail && emailIn && emailIn.value) {
+      forgotEmail.value = emailIn.value.trim();
+    }
+    if (msg) msg.textContent = '';
+    if (step2) step2.style.display = 'none';
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Reset Code';
+      submitBtn.onclick = () => window.submitForgotPassword();
+    }
+    window.openModal('forgotPasswordModal');
+  };
+
+  window.submitForgotPassword = async () => {
+    const email = document.getElementById('forgotEmailInput')?.value.trim();
+    const msg = document.getElementById('forgotModalMsg');
+    const step2 = document.getElementById('forgotStep2Area');
+    const submitBtn = document.getElementById('submitForgotBtn');
+
+    if (!email) {
+      if (msg) {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'Please enter your email address.';
+      }
       return;
     }
 
-    window._isSubmittingPin = true;
-    const selectedUserId = document.getElementById('loginUserSelect')?.value;
-    const branchCode = store.loginBranch?.code || null;
+    if (msg) {
+      msg.style.color = '#6366f1';
+      msg.textContent = 'Sending one-time reset code...';
+    }
+    if (submitBtn) submitBtn.disabled = true;
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin, userId: selectedUserId, branchCode })
+        body: JSON.stringify({ email })
       });
       const data = await readJsonSafe(res);
       if (!res.ok) {
-        throw new Error(data.error || `Invalid PIN! Access Denied. (HTTP ${res.status})`);
+        throw new Error(data.error || `Request failed (HTTP ${res.status}).`);
       }
 
-      if (data.token) {
-        setAuthToken(data.token);
-        try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
+      if (msg) {
+        msg.style.color = '#10b981';
+        msg.textContent = '✅ A one-time reset code was sent to your email. Enter the code and your new password below.';
       }
-
-      // Stamp the token onto currentUser so staff-management guards always have
-      // a fallback even if localStorage is unavailable (e.g. private browsing).
-      store.currentUser = { ...data.user, token: data.token || getAuthToken() };
-      if (data.user && data.user.organizationName) {
-        store.businessProfile = { ...store.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
+      if (step2) step2.style.display = 'flex';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Password';
+        submitBtn.onclick = () => window.submitResetPasswordDirect();
       }
-      try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
-
-      // Bind the active branch to the authenticated user (non-owners).
-      store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
-
-      // Role-based view redirection (Requirement #6)
-      const roleMap = {
-        owner: 'dashboard',
-        manager: 'dashboard',
-        inventory_officer: 'inventory',
-        cashier: 'pos'
-      };
-      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
-
-      window.loginEnteredPin = "";
-      window._isSubmittingPin = false;
-      updateLoginPinDots();
-      window.closeModal('userLoginModal');
-
-      // Now that we hold a token, load the role/branch-protected data.
-      await store.loadAuthenticatedData();
-      initApp();
-      store.logAudit("Staff Login Successful", data.user.name, "-", data.user.role, "Authenticated via PIN");
     } catch (e) {
-      const err = document.getElementById('loginPinErrorMsg');
-      if (err) err.textContent = e.message || "Invalid PIN! Access Denied.";
-      window.loginEnteredPin = "";
-      window._isSubmittingPin = false;
-      updateLoginPinDots();
+      if (submitBtn) submitBtn.disabled = false;
+      if (msg) {
+        msg.style.color = '#ef4444';
+        msg.textContent = e.message;
+      }
     }
   };
 
-  // Keyboard typing support for PIN Terminal (Bound once)
-  if (!window._keypadKeyboardListenerAttached) {
-    window._keypadKeyboardListenerAttached = true;
-    window.addEventListener('keydown', (e) => {
-      const isAuthLanding = !!document.querySelector('.welcome-setup-container');
-      const modal = document.getElementById('userLoginModal');
-      const isModalActive = modal && modal.classList.contains('active');
+  window.submitResetPasswordDirect = async () => {
+    const email = document.getElementById('forgotEmailInput')?.value.trim();
+    const resetCode = document.getElementById('resetCodeInput')?.value.trim();
+    const newPassword = document.getElementById('resetNewPasswordInput')?.value.trim();
+    const confirmPassword = document.getElementById('resetConfirmPasswordInput')?.value.trim();
+    const msg = document.getElementById('forgotModalMsg');
+    const submitBtn = document.getElementById('submitForgotBtn');
 
-      if (isAuthLanding || isModalActive) {
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
-          return;
-        }
-        if (e.key >= '0' && e.key <= '9') {
-          e.preventDefault();
-          window.pressLoginPin(e.key);
-        } else if (e.key === 'Backspace') {
-          e.preventDefault();
-          if ((window.loginEnteredPin || "").length > 0) {
-            window.loginEnteredPin = window.loginEnteredPin.slice(0, -1);
-            updateLoginPinDots();
-          }
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          window.submitLoginPin();
-        }
+    if (!resetCode) {
+      if (msg) {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'Please enter the reset code sent to your email.';
       }
-    });
-  }
+      return;
+    }
+    if (!newPassword || newPassword.length < 4) {
+      if (msg) {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'Password must be at least 4 characters.';
+      }
+      return;
+    }
+    if (confirmPassword && newPassword !== confirmPassword) {
+      if (msg) {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'New Password and Confirm Password do not match.';
+      }
+      return;
+    }
+
+    if (msg) {
+      msg.style.color = '#6366f1';
+      msg.textContent = 'Updating password in Supabase Auth & database...';
+    }
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token: resetCode, newPassword, confirmPassword })
+      });
+      const data = await readJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to reset password (HTTP ${res.status}).`);
+      }
+
+      alert('Password reset successfully! You can now sign in with your new password.');
+      window.closeModal('forgotPasswordModal');
+      const loginPassInput = document.getElementById('loginPasswordInput');
+      if (loginPassInput) loginPassInput.value = newPassword;
+    } catch (e) {
+      if (submitBtn) submitBtn.disabled = false;
+      if (msg) {
+        msg.style.color = '#ef4444';
+        msg.textContent = e.message;
+      }
+    }
+  };
 
   window.lockTerminal = async () => {
     try {
@@ -999,30 +703,6 @@ function bindEvents() {
     window.currentAuthTab = 'login';
     initApp();
   };
-
-  const switchBtn = document.getElementById('switchUserBtn');
-  if (switchBtn) {
-    switchBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      window.openStaffLoginModal();
-    });
-  }
-
-  const lockBtn = document.getElementById('lockTerminalBtn');
-  if (lockBtn) {
-    lockBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      window.openStaffLoginModal();
-    });
-  }
-
-  const topUserBadge = document.querySelector('.topbar-user-badge');
-  if (topUserBadge) {
-    topUserBadge.addEventListener('click', (e) => {
-      e.stopPropagation();
-      window.openStaffLoginModal();
-    });
-  }
 
   // Quick Seed / Reset Clean
   const seedBtn = document.getElementById('quickSeedBtn');
@@ -1477,16 +1157,6 @@ function bindEvents() {
     }
   };
 
-  // --- BRANCH & ENTERPRISE HANDLERS ---
-  window.switchActiveBranch = (branchId) => {
-    store.setActiveBranch(branchId);
-    const branch = store.getActiveBranch();
-    if (branch && (branch.code || branch.id) && window.history) {
-      window.history.pushState(null, '', `/?branch=${encodeURIComponent(branch.code || branch.id)}`);
-    }
-    initApp();
-  };
-
   // --- ADMINISTRATION CENTER HANDLERS ---
   window.submitSaveBusinessProfile = async () => {
     const name = document.getElementById('setBizName').value.trim();
@@ -1513,147 +1183,45 @@ function bindEvents() {
   };
 
 
-  window.openAddBranchModal = () => {
-    document.getElementById('branchModalTitle').textContent = "Add New Branch";
-    document.getElementById('branchEditId').value = "";
-    document.getElementById('branchNameInput').value = "";
-    document.getElementById('branchCodeInput').value = "";
-    document.getElementById('branchLocationInput').value = "";
-    document.getElementById('branchPhoneInput').value = "";
-    document.getElementById('branchHoursInput').value = "08:00 AM - 10:00 PM";
-
-    const mgrSelect = document.getElementById('branchManagerSelect');
-    if (mgrSelect) {
-      mgrSelect.innerHTML = `<option value="">None (Unassigned)</option>` + store.users.map(u => `<option value="${u.id}">${u.name} (${u.role.toUpperCase()})</option>`).join('');
-    }
-
-    window.openModal('branchModal');
-  };
-
-  window.openEditBranchModal = (id) => {
-    const b = store.branches.find(x => x.id === id);
-    if (!b) return;
-
-    document.getElementById('branchModalTitle').textContent = "Edit Branch Details";
-    document.getElementById('branchEditId').value = b.id;
-    document.getElementById('branchNameInput').value = b.name;
-    document.getElementById('branchCodeInput').value = b.code || "";
-    document.getElementById('branchLocationInput').value = b.location || "";
-    document.getElementById('branchPhoneInput').value = b.phone || "";
-    document.getElementById('branchHoursInput').value = b.hours || "08:00 AM - 10:00 PM";
-    document.getElementById('branchStatusSelect').value = b.status || "ACTIVE";
-
-    const mgrSelect = document.getElementById('branchManagerSelect');
-    if (mgrSelect) {
-      mgrSelect.innerHTML = `<option value="">None (Unassigned)</option>` + store.users.map(u => `<option value="${u.id}" ${u.id === b.managerId ? 'selected' : ''}>${u.name} (${u.role.toUpperCase()})</option>`).join('');
-    }
-
-    window.openModal('branchModal');
-  };
-
-  window.copyBranchUrl = (id, url) => {
-    try {
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(url);
-      } else {
-        const input = document.getElementById(`branchUrlInput_${id}`);
-        if (input) {
-          input.select();
-          document.execCommand('copy');
-        }
-      }
-      alert(`Copied Branch Login URL:\n${url}`);
-    } catch (e) {
-      prompt("Copy Branch Login URL:", url);
-    }
-  };
-
-  window.submitSaveBranch = () => {
-    const name = document.getElementById('branchNameInput').value.trim();
-    const code = (document.getElementById('branchCodeInput').value.trim() || `BR-${Date.now().toString().slice(-4)}`).toLowerCase();
-    const location = document.getElementById('branchLocationInput').value.trim();
-    const phone = document.getElementById('branchPhoneInput').value.trim();
-    const managerId = document.getElementById('branchManagerSelect').value;
-    const hours = document.getElementById('branchHoursInput').value.trim();
-    const status = document.getElementById('branchStatusSelect').value;
-
-    if (!name || !location) return alert("Please enter Branch Name and Location!");
-
-    const editId = document.getElementById('branchEditId').value;
-    if (editId) {
-      const b = store.branches.find(x => x.id === editId);
-      if (b) {
-        b.name = name; b.code = code; b.location = location; b.phone = phone;
-        b.managerId = managerId; b.hours = hours; b.status = status;
-        store.logAudit("Updated Branch", name, "-", `Code: ${code}`, "Branch Configuration Saved");
-      }
-    } else {
-      const newBranch = {
-        id: `B${store.branches.length + 1}`,
-        name, code, location, phone, managerId, hours, status
-      };
-      store.branches.push(newBranch);
-      store.logAudit("Created New Branch", name, "-", `Code: ${code}`, "Added Branch to Enterprise");
-    }
-
-    store.saveBranches();
-    window.closeModal('branchModal');
-    initApp();
-    alert(`Branch configuration saved! Dedicated URL: ${window.location.origin}/?branch=${code}`);
-  };
-
-  window.deleteBranch = (id) => {
-    const b = store.branches.find(x => x.id === id);
-    if (!b) return;
-    if (confirm(`Deactivate/Delete branch "${b.name}"?`)) {
-      store.branches = store.branches.filter(x => x.id !== id);
-      store.logAudit("Deleted Branch", b.name, "-", "-", "Deactivated Branch");
-      store.saveBranches();
-      initApp();
-    }
-  };
-
   window.openAddStaffModal = () => {
+    window._isSubmittingStaff = false;
     const isOwner = store.currentUser?.role === 'owner';
-    document.getElementById('staffModalTitle').textContent = "Add Staff Account";
-    document.getElementById('staffEditId').value = "";
-    document.getElementById('staffNameInput').value = "";
-    document.getElementById('staffPhoneInput').value = "";
-    document.getElementById('staffEmailInput').value = "";
-    document.getElementById('staffPinInput').value = "";
+    const title = document.getElementById('staffModalTitle');
+    if (title) title.textContent = "Add Staff Account";
+    const editId = document.getElementById('staffEditId');
+    if (editId) editId.value = "";
+    const nameIn = document.getElementById('staffNameInput');
+    if (nameIn) nameIn.value = "";
+    const phoneIn = document.getElementById('staffPhoneInput');
+    if (phoneIn) phoneIn.value = "";
+    const emailIn = document.getElementById('staffEmailInput');
+    if (emailIn) emailIn.value = "";
+    const pinIn = document.getElementById('staffPinInput');
+    if (pinIn) pinIn.value = "";
+
+    const errDiv = document.getElementById('staffModalErrorMsg');
+    if (errDiv) errDiv.textContent = "";
+
+    const saveBtn = document.getElementById('saveStaffSubmitBtn');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Staff Account';
+    }
 
     const roleSelect = document.getElementById('staffRoleSelect');
     if (roleSelect) {
       roleSelect.innerHTML = `
-        ${isOwner ? '<option value="owner">OWNER (Business-wide full access)</option>' : ''}
-        ${isOwner ? '<option value="manager">MANAGER (Branch operational admin)</option>' : ''}
+        ${isOwner ? '<option value="manager">MANAGER (Operational admin)</option>' : ''}
         <option value="cashier" selected>CASHIER (POS & assigned drawer)</option>
         <option value="inventory_officer">INVENTORY OFFICER (Stock & purchasing)</option>
       `;
-    }
-
-    const primSelect = document.getElementById('staffPrimaryBranchSelect');
-    if (primSelect) {
-      if (!store.branches || store.branches.length === 0) {
-        primSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
-      } else {
-        primSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-      }
-    }
-
-    const addSelect = document.getElementById('staffAdditionalBranchesSelect');
-    if (addSelect) {
-      if (!store.branches || store.branches.length === 0) {
-        addSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
-      } else {
-        addSelect.innerHTML = store.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-      }
     }
 
     window.openModal('staffModal');
   };
 
   window.openEditStaffModal = (id) => {
+    window._isSubmittingStaff = false;
     const u = store.users.find(x => x.id === id);
     if (!u) return;
 
@@ -1662,45 +1230,66 @@ function bindEvents() {
       return alert("Access Denied: Only the Business Owner can edit Manager or Owner staff accounts!");
     }
 
-    document.getElementById('staffModalTitle').textContent = "Edit Staff Account";
-    document.getElementById('staffEditId').value = u.id;
-    document.getElementById('staffNameInput').value = u.name;
-    document.getElementById('staffPhoneInput').value = u.phone || "";
-    document.getElementById('staffEmailInput').value = u.email || "";
+    const errDiv = document.getElementById('staffModalErrorMsg');
+    if (errDiv) errDiv.textContent = "";
+
+    const saveBtn = document.getElementById('saveStaffSubmitBtn');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Staff Account';
+    }
+
+    const title = document.getElementById('staffModalTitle');
+    if (title) title.textContent = "Edit Staff Account";
+    const editId = document.getElementById('staffEditId');
+    if (editId) editId.value = u.id;
+    const nameIn = document.getElementById('staffNameInput');
+    if (nameIn) nameIn.value = u.name;
+    const phoneIn = document.getElementById('staffPhoneInput');
+    if (phoneIn) phoneIn.value = u.phone || "";
+    const emailIn = document.getElementById('staffEmailInput');
+    if (emailIn) emailIn.value = u.email || "";
 
     const roleSelect = document.getElementById('staffRoleSelect');
     if (roleSelect) {
-      roleSelect.innerHTML = `
-        ${isOwner ? `<option value="owner" ${u.role === 'owner' ? 'selected' : ''}>OWNER (Business-wide full access)</option>` : ''}
-        ${isOwner ? `<option value="manager" ${u.role === 'manager' ? 'selected' : ''}>MANAGER (Branch operational admin)</option>` : ''}
-        <option value="cashier" ${u.role === 'cashier' ? 'selected' : ''}>CASHIER (POS & assigned drawer)</option>
-        <option value="inventory_officer" ${u.role === 'inventory_officer' ? 'selected' : ''}>INVENTORY OFFICER (Stock & purchasing)</option>
-      `;
+      if (u.role === 'owner') {
+        // The owner's own role is fixed — shown read-only, never reassignable.
+        roleSelect.innerHTML = `<option value="owner" selected>OWNER (Full access)</option>`;
+      } else {
+        roleSelect.innerHTML = `
+          ${isOwner ? `<option value="manager" ${u.role === 'manager' ? 'selected' : ''}>MANAGER (Operational admin)</option>` : ''}
+          <option value="cashier" ${u.role === 'cashier' ? 'selected' : ''}>CASHIER (POS & assigned drawer)</option>
+          <option value="inventory_officer" ${u.role === 'inventory_officer' ? 'selected' : ''}>INVENTORY OFFICER (Stock & purchasing)</option>
+        `;
+      }
     }
 
     document.getElementById('staffStatusSelect').value = u.status || "ACTIVE";
     document.getElementById('staffPinInput').value = ""; // Masked PIN!
 
-    const primSelect = document.getElementById('staffPrimaryBranchSelect');
-    if (primSelect) {
-      const currentBranch = u ? (u.branchId || u.primaryBranchId) : null;
-      if (!store.branches || store.branches.length === 0) {
-        primSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
-      } else {
-        primSelect.innerHTML = store.branches.map(b => `<option value="${b.id || b.code}" ${b.id === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
-      }
-    }
-
-    const addSelect = document.getElementById('staffAdditionalBranchesSelect');
-    if (addSelect) {
-      if (!store.branches || store.branches.length === 0) {
-        addSelect.innerHTML = `<option value="">No Branches Created Yet</option>`;
-      } else {
-        addSelect.innerHTML = store.branches.map(b => `<option value="${b.id || b.code}" ${(u?.additionalBranchIds || []).includes(b.id) ? 'selected' : ''}>${b.name}</option>`).join('');
-      }
-    }
-
     window.openModal('staffModal');
+  };
+
+  window.generateRandomStaffPassword = () => {
+    const passInput = document.getElementById('staffPinInput');
+    if (!passInput) return;
+    // Genuinely random, mixed-character password (CSPRNG when available).
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghijkmnpqrstuvwxyz';
+    const digits = '23456789';
+    const symbols = '!@#$%&*?';
+    const all = upper + lower + digits + symbols;
+    const rnd = (n) => (window.crypto && window.crypto.getRandomValues)
+      ? window.crypto.getRandomValues(new Uint32Array(1))[0] % n
+      : Math.floor(Math.random() * n);
+    const pick = (set) => set[rnd(set.length)];
+    const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+    while (chars.length < 10) chars.push(pick(all));
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = rnd(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    passInput.value = chars.join('');
   };
 
   window.shareStaffLoginLink = (userOrId, suppliedPin = '') => {
@@ -1714,52 +1303,30 @@ function bindEvents() {
       };
     }
 
-    const branchId = user.primaryBranchId || user.branchId || user.branch_id;
-    let branch = (store.branches || []).find(b => b.id === branchId || b.code === branchId);
-    let branchCode = branch?.code;
-    // store.branches can be stale right after the backend auto-creates a branch;
-    // the branch id is "BR-<code>", so derive the real code from it as a fallback.
-    if (!branchCode && branchId && /^BR-/i.test(branchId)) {
-      branchCode = branchId.replace(/^BR-/i, '');
-    }
-    if (!branchCode) branchCode = store.getActiveBranch()?.code || 'main';
     const bizName = store.businessProfile?.name || 'Celler POS';
 
-    // Personal invite link: locked to THIS staff account via ?staff=<id>. The
-    // login page opened from this link shows only their account — nobody else's.
-    const staffRef = user.id || user.email || '';
-    const staffQ = staffRef ? `&staff=${encodeURIComponent(staffRef)}` : '';
-    const loginUrl = `${window.location.origin}/?branch=${encodeURIComponent(branchCode)}${staffQ}`;
-    const pass = suppliedPin || user.pin || '••••';
+    const pass = suppliedPin || user.temporaryPassword || user.pin || '••••';
 
-    const urlInput = document.getElementById('shareStaffUrlInput');
+    const nameVal = document.getElementById('shareStaffNameVal');
     const emailVal = document.getElementById('shareStaffEmailVal');
     const passVal = document.getElementById('shareStaffPassVal');
     const msgText = document.getElementById('shareStaffMessageText');
 
-    if (urlInput) urlInput.value = loginUrl;
+    if (nameVal) nameVal.textContent = `${user.name} (${(user.role || 'cashier').toUpperCase()})`;
     if (emailVal) emailVal.textContent = user.email || 'Not set';
     if (passVal) passVal.textContent = pass;
 
-    const formattedMsg = `Welcome to ${bizName}!\nHere is your custom business terminal login link:\n${loginUrl}\n\nLogin Email: ${user.email || 'your email'}\nPassword / Security PIN: ${pass}\nRole: ${(user.role || 'cashier').toUpperCase()}`;
+    const formattedMsg = `Welcome to ${bizName}!\nHere are your staff login credentials:\n\nRole: ${(user.role || 'cashier').toUpperCase()}\nEmail: ${user.email || 'your email'}\nPassword / Temporary Password: ${pass}\n\nLog in at: ${window.location.origin}`;
     if (msgText) msgText.value = formattedMsg;
 
     window.openModal('shareStaffModal');
-  };
-
-  window.copyStaffShareLinkOnly = () => {
-    const urlInput = document.getElementById('shareStaffUrlInput');
-    if (urlInput && urlInput.value) {
-      navigator.clipboard.writeText(urlInput.value);
-      alert('Custom Business Login URL copied to clipboard!');
-    }
   };
 
   window.copyStaffInviteDetails = () => {
     const msgText = document.getElementById('shareStaffMessageText');
     if (msgText && msgText.value) {
       navigator.clipboard.writeText(msgText.value);
-      alert('Full invitation details copied to clipboard!');
+      alert('Staff login credentials copied to clipboard!');
     }
   };
 
@@ -1767,30 +1334,48 @@ function bindEvents() {
     if (window._isSubmittingStaff) return;
     const isOwner = store.currentUser?.role === 'owner';
     const name = document.getElementById('staffNameInput')?.value.trim() || '';
-    const phone = document.getElementById('staffPhoneInput')?.value.trim() || '0700000000';
+    const phone = document.getElementById('staffPhoneInput')?.value.trim() || '';
     const email = document.getElementById('staffEmailInput')?.value.trim() || '';
     const role = document.getElementById('staffRoleSelect')?.value || 'cashier';
-    const primaryBranchId = document.getElementById('staffPrimaryBranchSelect')?.value || '';
     const status = document.getElementById('staffStatusSelect')?.value || 'ACTIVE';
     const pin = document.getElementById('staffPinInput')?.value.trim() || '';
+    const errDiv = document.getElementById('staffModalErrorMsg');
 
-    if (!name) return alert("Please enter Staff Name!");
-    if (!email) return alert("Please enter Staff Email Address so they can log in!");
+    if (errDiv) errDiv.textContent = '';
+
+    if (!name) {
+      if (errDiv) errDiv.textContent = "Please enter Staff Name!";
+      else alert("Please enter Staff Name!");
+      return;
+    }
+    if (!email) {
+      if (errDiv) errDiv.textContent = "Please enter Staff Email Address so they can log in!";
+      else alert("Please enter Staff Email Address so they can log in!");
+      return;
+    }
 
     if (!isOwner && (role === 'manager' || role === 'owner')) {
-      return alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
+      if (errDiv) errDiv.textContent = "Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!";
+      else alert("Access Denied: Only the Business Owner can register or assign Manager/Owner accounts!");
+      return;
     }
 
     const token = getAuthToken() || store.currentUser?.token || '';
     if (!token) {
-      alert("Session expired. Please log in with your PIN to perform staff management.");
+      alert("Session expired. Please log in to manage staff.");
       window.logoutUser();
       return;
     }
 
     const editId = document.getElementById('staffEditId')?.value || '';
-    let savedUser = null;
+    const saveBtn = document.getElementById('saveStaffSubmitBtn');
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving Staff Account...';
+    }
     window._isSubmittingStaff = true;
+    let savedUser = null;
 
     try {
       if (editId) {
@@ -1800,24 +1385,20 @@ function bindEvents() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
+          body: JSON.stringify({ name, phone, email, role, status, pin })
         });
         const data = await readJsonSafe(res);
         if (!res.ok) throw new Error(data.error || `Failed to update staff (HTTP ${res.status}).`);
         savedUser = data;
         store.logAudit("Updated Staff Member", name, "-", `Role: ${role.toUpperCase()}`, "Staff Account Modified");
       } else {
-        if (!pin || pin.length < 4) {
-          window._isSubmittingStaff = false;
-          return alert("Please enter a 4-character password or PIN for staff login!");
-        }
         const res = await fetch('/api/auth/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, phone, email, role, primaryBranchId, status, pin })
+          body: JSON.stringify({ name, phone, email, role, status, pin })
         });
         const data = await readJsonSafe(res);
         if (!res.ok) throw new Error(data.error || `Failed to create staff (HTTP ${res.status}).`);
@@ -1825,7 +1406,6 @@ function bindEvents() {
         store.logAudit("Created Staff Account", name, "-", `Role: ${role.toUpperCase()}`, "Staff Registered");
       }
 
-      // Optimistically update local users state for instant rendering
       if (savedUser) {
         const existingIdx = (store.users || []).findIndex(u => u.id === savedUser.id);
         if (existingIdx >= 0) {
@@ -1840,15 +1420,22 @@ function bindEvents() {
       initApp();
 
       if (savedUser) {
-        window.shareStaffLoginLink(savedUser, pin);
+        const displayPass = pin || savedUser.temporaryPassword || '••••';
+        window.shareStaffLoginLink(savedUser, displayPass);
       }
 
-      // Non-blocking background sync
       store.fetchUsers().catch(() => {});
     } catch (e) {
-      alert("Error saving staff account: " + e.message);
+      const currentErrDiv = document.getElementById('staffModalErrorMsg');
+      if (currentErrDiv) currentErrDiv.textContent = e.message;
+      else alert("Error saving staff account: " + e.message);
     } finally {
       window._isSubmittingStaff = false;
+      const currentBtn = document.getElementById('saveStaffSubmitBtn');
+      if (currentBtn) {
+        currentBtn.disabled = false;
+        currentBtn.textContent = 'Save Staff Account';
+      }
     }
   };
 
@@ -1882,18 +1469,6 @@ function bindEvents() {
         initApp();
       } catch (e) {
         alert("Error deactivating staff: " + e.message);
-      }
-    }
-  };
-
-  window.toggleStaffPinView = (id) => {
-    const el = document.getElementById(`staffPinVal_${id}`);
-    if (el) {
-      const realPin = el.dataset.pin || '••••';
-      if (el.textContent === '••••') {
-        el.textContent = realPin;
-      } else {
-        el.textContent = '••••';
       }
     }
   };

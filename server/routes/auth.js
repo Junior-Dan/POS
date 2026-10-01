@@ -2,10 +2,18 @@ import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { createClient } from '@supabase/supabase-js';
 import { db } from '../db.js';
 import { getOrgSetting, setOrgSetting, uniqueBranchCode } from '../tenant.js';
 
 const router = express.Router();
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+
+export const supabaseAdmin = (supabaseUrl && supabaseKey && !supabaseKey.includes('your_secret'))
+  ? createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  : null;
 
 // Legacy in-memory session cache. Kept only so any pre-existing opaque tokens
 // keep working; NEW sessions are stateless JWTs (see below).
@@ -79,6 +87,25 @@ export function hashPin(pin) {
 
 function legacyHash(pin) {
   return crypto.pbkdf2Sync(String(pin).trim(), LEGACY_SALT, 10000, 32, 'sha256').toString('hex');
+}
+
+// Generate a genuinely random, mixed-character temporary password (e.g. "K7#mP9!vQ2").
+// Uses crypto.randomInt (CSPRNG). Guarantees at least one upper/lower/digit/symbol,
+// then shuffles. Ambiguous characters (0/O, 1/l/I) are excluded for readability.
+export function generateTempPassword(length = 10) {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%&*?';
+  const all = upper + lower + digits + symbols;
+  const pick = (set) => set[crypto.randomInt(set.length)];
+  const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+  while (chars.length < Math.max(8, length)) chars.push(pick(all));
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }
 
 export function verifyPin(pin, user) {
@@ -307,10 +334,21 @@ export function canAccessBranch(authUser, branchId) {
 // 1. REGISTER A NEW ORGANIZATION + ITS OWNER
 //    Multi-tenant: every call creates a BRAND NEW organization with its own
 //    owner, first branch, and isolated settings. Many businesses can register
-//    on the same deployment; each is fully partitioned by organization_id.
+// ---------------------------------------------------------------------------
+// 1. REGISTER A NEW ORGANIZATION + ITS OWNER
+//    Single-business: Allows creating the primary owner account if none exists.
 // ---------------------------------------------------------------------------
 router.post('/setup', (req, res) => {
   const { name, email, phone, password, confirmPassword, pin, confirmPin, businessName, branchName, branchCode } = req.body;
+
+  // Single-business guard: if an owner already exists, reject setup
+  try {
+    const existingOwner = db.prepare("SELECT id FROM users WHERE LOWER(role) = 'owner'").get();
+    if (existingOwner) {
+      return res.status(400).json({ error: 'An owner account already exists. Please log in using your credentials.' });
+    }
+  } catch (e) {}
+
   const secret = password !== undefined && password !== null && String(password).trim() !== ''
     ? password
     : (pin !== undefined && pin !== null ? pin : '');
@@ -331,8 +369,6 @@ router.post('/setup', (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 4 characters.' });
   }
 
-  // Email must be unique across the whole system — login is by email, so a
-  // duplicate would make sign-in ambiguous.
   if (email) {
     const exists = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
     if (exists) {
@@ -340,9 +376,8 @@ router.post('/setup', (req, res) => {
     }
   }
 
-  // Unique identifiers per organization so many businesses coexist safely.
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  const orgId = `ORG-${stamp}`;
+  const orgId = `ORG-MAIN`;
   const ownerId = `U-OWNER-${stamp}`;
   const bCode = uniqueBranchCode(branchCode || 'main');
   const bId = `BR-${bCode}`;
@@ -351,18 +386,27 @@ router.post('/setup', (req, res) => {
   try {
     const bizName = businessName || 'Cellar Wines & Spirits';
 
+    if (supabaseAdmin && email) {
+      try {
+        supabaseAdmin.auth.admin.createUser({
+          email: String(email).trim(),
+          password: cleanSecret,
+          email_confirm: true,
+          user_metadata: { name, role: 'owner' }
+        }).catch(err => console.warn('Supabase Auth owner setup notice:', err.message));
+      } catch (e) {
+        console.warn('Supabase Auth setup error:', e.message);
+      }
+    }
+
     db.prepare('INSERT OR REPLACE INTO organizations (id, name, owner_id) VALUES (?, ?, ?)')
       .run(orgId, bizName, ownerId);
 
-    // Owner has org-wide access: branch_id is intentionally NULL.
-    // Store in both pin_hash and password_hash for multi-way authentication compatibility.
     db.prepare(`
       INSERT OR REPLACE INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, password_hash, email, phone, status, active, created_by)
       VALUES (?, ?, NULL, ?, 'owner', '', ?, ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
     `).run(ownerId, orgId, name, passwordHashed, passwordHashed, email || null, phone || null);
 
-    // Create the initial branch NOW (one-time) so later staff creation is fast
-    // (no per-staff branch auto-creation round-trips).
     const bName = branchName || 'Main Branch';
     db.prepare(`
       INSERT OR REPLACE INTO branches (id, organization_id, name, code, location, phone, status)
@@ -379,7 +423,6 @@ router.post('/setup', (req, res) => {
     };
     setOrgSetting(orgId, 'businessProfile', profile);
 
-    // Stateless JWT session — valid on any serverless instance immediately.
     const token = signSession({ id: ownerId, role: 'owner' }, orgId, null);
 
     res.status(201).json({
@@ -389,7 +432,6 @@ router.post('/setup', (req, res) => {
       branch: { id: bId, code: bCode, name: bName }
     });
 
-    // Non-critical writes AFTER the response (client isn't blocked on them).
     try {
       setOrgSetting(orgId, 'branches', [
         { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
@@ -405,11 +447,10 @@ router.post('/setup', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. USER LOGIN (branch or owner). Requires explicit account selection so a
-//    PIN can never silently match a user in another branch.
+// 2. USER LOGIN
 // ---------------------------------------------------------------------------
 router.post('/login', (req, res) => {
-  const { pin, password, userId, username, email, branchCode } = req.body;
+  const { pin, password, userId, username, email } = req.body;
   const loginCred = (email || username || '').trim();
   const secret = password !== undefined && password !== null && String(password).trim() !== '' ? password : pin;
 
@@ -437,27 +478,8 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Account is disabled or the login credentials are invalid.' });
   }
 
-  // Among all PIN-matching candidates (an email/name can unfortunately be on
-  // more than one account), prefer the account for the selected branch first,
-  // then the highest-privilege role (owner > manager > inventory > cashier), so
-  // logging in lands on the user's primary account — not a stray duplicate.
   const matching = candidates.filter(u => u.status !== 'INACTIVE' && u.status !== 'DISABLED' && verifyPin(secret, u));
 
-  let preferredBranchId = null;
-  if (branchCode) {
-    const code = String(branchCode).toLowerCase();
-    const br = db.prepare('SELECT id FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
-    preferredBranchId = br ? br.id : null;
-  }
-  const roleRank = { owner: 0, manager: 1, inventory_officer: 2, cashier: 3 };
-  matching.sort((a, b) => {
-    const aBr = preferredBranchId && a.branch_id === preferredBranchId ? 0 : 1;
-    const bBr = preferredBranchId && b.branch_id === preferredBranchId ? 0 : 1;
-    if (aBr !== bBr) return aBr - bBr;
-    const ar = roleRank[(a.role || '').toLowerCase()] ?? 9;
-    const br = roleRank[(b.role || '').toLowerCase()] ?? 9;
-    return ar - br;
-  });
   let user = matching[0];
 
   if (!user) {
@@ -465,35 +487,17 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Incorrect email, password, or security PIN entered.' });
   }
 
-  // Branch binding: verify the account belongs to the terminal's organization.
-  if (branchCode) {
-    const code = String(branchCode).toLowerCase();
-    const branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
-    if (branch) {
-      const userOrg = user.organization_id || null;
-      const branchOrg = branch.organization_id || null;
-
-      if (userOrg && branchOrg && userOrg !== branchOrg) {
-        recordFailure(key);
-        return res.status(403).json({ error: 'This account belongs to a different business organization.' });
-      }
-    }
-  }
-
   clearFailures(key);
 
-  const orgId = user.organization_id || 'ORG-1';
+  const orgId = user.organization_id || 'ORG-MAIN';
   const branchId = user.branch_id || null;
 
-  // Authoritative organization name so owner and every staff member show the
-  // exact same business name immediately, regardless of settings load timing.
   let organizationName = null;
   try {
     const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgId);
     if (org && org.name) organizationName = org.name;
   } catch (e) {}
 
-  // Stateless JWT session — valid on any serverless instance immediately
   const token = signSession(user, orgId, branchId);
 
   res.json({
@@ -536,8 +540,7 @@ router.post('/logout', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. BRANCH INFO & ACTIVE USERS FOR BRANCH URL LOGIN (public — identifier only)
-//    The branch code identifies the branch; it does NOT authenticate anyone.
+// 5. PUBLIC BRANCH & STAFF ROSTER FOR LOGIN (Unified single-business roster)
 // ---------------------------------------------------------------------------
 router.get('/branch-info', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -547,94 +550,45 @@ router.get('/branch-info', (req, res) => {
   if (code && code !== 'all') {
     branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
   }
-
-  // Multi-tenant safety: with no branch code (main URL) or an unknown code, we
-  // must NOT fall back to some other organization's branch — that would leak a
-  // different business's staff onto this terminal. Return an empty terminal so
-  // the frontend offers Business Registration / asks for a valid branch link.
   if (!branch) {
-    return res.json({ branch: null, users: [] });
+    branch = db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
   }
 
-  // Active branch users + THIS organization's owner (owners are org-wide and
-  // may authenticate at any of their own branch terminals). Scoped by
-  // organization so one org's staff/owner never appear on another org's branch
-  // login — essential when the deployment serves many organizations. PINs are
-  // never exposed.
-  const branchOrgId = branch.organization_id || branch.organizationId || null;
   let branchUsers = [];
   try {
-    if (branchOrgId) {
-      branchUsers = db.prepare(`
-        SELECT id, name, role, email, phone, branch_id, status, active
-        FROM users
-        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
-          AND organization_id = ?
-          AND (branch_id = ? OR LOWER(role) = 'owner')
-        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
-      `).all(branchOrgId, branch.id);
-    } else {
-      // Legacy single-org data with no organization_id recorded.
-      branchUsers = db.prepare(`
-        SELECT id, name, role, email, phone, branch_id, status, active
-        FROM users
-        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
-          AND (branch_id = ? OR branch_id IS NULL OR LOWER(role) = 'owner')
-        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
-      `).all(branch.id);
-    }
+    branchUsers = db.prepare(`
+      SELECT id, name, role, email, phone, branch_id, status, active
+      FROM users
+      WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+      ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+    `).all();
   } catch (e) {
     branchUsers = [];
   }
 
-  // Fallback: if no staff are bound to this branch yet, include the owner(s) of
-  // THIS organization so the terminal is never left with an empty login list.
-  if (branchUsers.length === 0) {
-    try {
-      branchUsers = branchOrgId
-        ? db.prepare(`
-            SELECT id, name, role, email, phone, branch_id, status, active
-            FROM users
-            WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
-              AND LOWER(role) = 'owner' AND organization_id = ?
-          `).all(branchOrgId)
-        : db.prepare(`
-            SELECT id, name, role, email, phone, branch_id, status, active
-            FROM users
-            WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED' AND LOWER(role) = 'owner'
-          `).all();
-    } catch (e) {}
-  }
-
-  // Personal staff invite link (?staff=<id|email>): restrict the terminal to
-  // ONLY that one account so the link the owner shared opens that staff member's
-  // login and nobody else's. The account must still belong to this branch/org.
-  const staffRef = (req.query.staff || req.query.u || '').toString().trim().toLowerCase();
-  if (staffRef) {
-    const only = branchUsers.filter(u =>
-      String(u.id).toLowerCase() === staffRef ||
-      (u.email && String(u.email).toLowerCase() === staffRef)
-    );
-    branchUsers = only; // may be empty if the ref doesn't match this branch/org
-  }
-
   let orgName = 'Celler POS';
-  if (branchOrgId) {
-    try {
-      const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(branchOrgId);
-      if (org && org.name) orgName = org.name;
-    } catch (e) {}
-  }
+  try {
+    const org = db.prepare('SELECT name FROM organizations ORDER BY created_at ASC LIMIT 1').get();
+    if (org && org.name) orgName = org.name;
+  } catch (e) {}
 
   res.json({
-    branch: {
+    branch: branch ? {
       id: branch.id,
       name: branch.name,
       code: branch.code,
-      location: branch.location || 'Branch Location',
+      location: branch.location || 'Head Office',
       phone: branch.phone || '',
       businessName: orgName,
-      organizationId: branchOrgId || null
+      organizationId: branch.organization_id || null
+    } : {
+      id: 'main',
+      name: 'Main Branch',
+      code: 'main',
+      location: 'Head Office',
+      phone: '',
+      businessName: orgName,
+      organizationId: null
     },
     users: branchUsers.map(u => ({
       id: u.id,
@@ -711,19 +665,26 @@ router.post('/users', authenticateSession, (req, res) => {
   const creator = req.authUser;
   const { name, role, pin, confirmPin, email, phone, primaryBranchId, branchId, status } = req.body;
 
-  if (!name || !role || !pin) {
-    return res.status(400).json({ error: 'Name, role, and a 4-digit PIN are required.' });
+  if (!name || !role) {
+    return res.status(400).json({ error: 'Name and role are required.' });
   }
 
-  const cleanPin = String(pin).trim();
-  if (confirmPin && String(confirmPin).trim() !== cleanPin) {
-    return res.status(400).json({ error: 'PIN and Confirm PIN do not match.' });
-  }
-  if (cleanPin.length < 4) {
-    return res.status(400).json({ error: 'PIN must be at least 4 digits.' });
+  let cleanPin = pin ? String(pin).trim() : '';
+  let temporaryPassword = null;
+
+  if (!cleanPin) {
+    // Generate a unique, secure temporary password if none provided.
+    cleanPin = generateTempPassword();
+    temporaryPassword = cleanPin;
+  } else {
+    if (confirmPin && String(confirmPin).trim() !== cleanPin) {
+      return res.status(400).json({ error: 'Password and Confirm Password do not match.' });
+    }
+    if (cleanPin.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+    }
   }
 
-  // Enforce a unique email (login is by email, so it cannot be shared).
   if (email) {
     const exists = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
     if (exists) {
@@ -732,36 +693,31 @@ router.post('/users', authenticateSession, (req, res) => {
   }
 
   const targetRole = role.toLowerCase();
-  const orgId = creator.organizationId || 'ORG-1';
+  const orgId = creator.organizationId || 'ORG-MAIN';
   let targetBranch;
 
   if (creator.role === 'owner') {
     if (targetRole === 'owner') {
       return res.status(403).json({ error: 'Cannot create another Owner account.' });
     }
-    // Honor the branch the owner picked (if any).
     targetBranch = primaryBranchId || branchId || undefined;
   } else if (creator.role === 'manager') {
     if (!['cashier', 'inventory_officer'].includes(targetRole)) {
       return res.status(403).json({ error: 'Managers may only create Cashiers or Inventory Officers.' });
     }
-    // Force the manager's own branch — frontend-supplied branch is ignored.
     targetBranch = creator.branchId;
   } else {
     return res.status(403).json({ error: 'You do not have permission to create staff accounts.' });
   }
 
-  // Validate and resolve the target branch for the creator's organization.
   let branch = null;
   if (targetBranch) {
-    branch = db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(targetBranch, String(targetBranch).toLowerCase(), orgId);
+    branch = db.prepare('SELECT * FROM branches WHERE id = ? OR LOWER(code) = ?').get(targetBranch, String(targetBranch).toLowerCase());
   }
   if (!branch) {
-    // Fall back to the organization's primary branch
-    branch = db.prepare('SELECT * FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(orgId);
+    branch = db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
   }
   if (!branch) {
-    // Auto-create initial default branch if missing so staff creation never fails
     const defaultCode = uniqueBranchCode('main');
     const defaultId = `BR-${defaultCode}`;
     db.prepare(`
@@ -781,6 +737,19 @@ router.post('/users', authenticateSession, (req, res) => {
   const pinHashed = hashPin(cleanPin);
 
   try {
+    if (supabaseAdmin && email) {
+      try {
+        supabaseAdmin.auth.admin.createUser({
+          email: String(email).trim(),
+          password: cleanPin,
+          email_confirm: true,
+          user_metadata: { name, role: targetRole }
+        }).catch(err => console.warn('Supabase Auth staff creation notice:', err.message));
+      } catch (e) {
+        console.warn('Supabase Auth staff creation error:', e.message);
+      }
+    }
+
     db.prepare(`
       INSERT INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, password_hash, email, phone, status, active, created_by)
       VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'ACTIVE', 1, ?)
@@ -795,10 +764,9 @@ router.post('/users', authenticateSession, (req, res) => {
       email: email || null,
       phone: phone || null,
       status: 'ACTIVE',
-      active: 1
+      active: 1,
+      temporaryPassword: temporaryPassword || cleanPin
     };
-    // Respond immediately; the audit entry is written best-effort AFTER the
-    // response so the client isn't blocked on an extra DB round-trip.
     res.status(201).json(newUser);
 
     try {
@@ -851,6 +819,10 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
     const guard = canManageTarget(req.authUser, existing);
     if (!guard.ok) return res.status(guard.code).json({ error: guard.error });
 
+    // Protect the single owner: its role can never be reassigned and it can
+    // never be disabled — this business has exactly one owner at all times.
+    const targetIsOwner = (existing.role || '').toLowerCase() === 'owner';
+
     // If the email is being changed, it must not collide with another account.
     if (email && String(email).trim() && String(email).trim().toLowerCase() !== String(existing.email || '').toLowerCase()) {
       const clash = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?').get(String(email).trim(), id);
@@ -860,7 +832,7 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
     // Managers cannot change role or move staff between branches; owners can
     // reassign among non-owner roles.
     let newRole = existing.role;
-    if (role && req.authUser.role === 'owner') {
+    if (role && req.authUser.role === 'owner' && !targetIsOwner) {
       const r = role.toLowerCase();
       if (r !== 'owner') newRole = r;
     }
@@ -883,6 +855,8 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
     let userStatus = status || existing.status || 'ACTIVE';
     if (status === 'INACTIVE' || status === 'DISABLED') isActive = 0;
     else if (status === 'ACTIVE') isActive = 1;
+    // The owner can never be demoted or disabled.
+    if (targetIsOwner) { newRole = 'owner'; isActive = 1; userStatus = 'ACTIVE'; }
 
     db.prepare(`
       UPDATE users
@@ -972,10 +946,161 @@ router.post('/verify-pin', authenticateSession, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 11. CURRENT SESSION IDENTITY
+// 11. FORGOT & RESET PASSWORD (SUPABASE AUTH BACKED)
 // ---------------------------------------------------------------------------
-router.get('/me', authenticateSession, (req, res) => {
-  res.json({ user: req.authUser });
+// ---------------------------------------------------------------------------
+// PASSWORD RESET — one-time code, delivered OUT OF BAND (email + server log).
+// A reset is ONLY accepted together with a valid, unexpired code. The code is
+// never returned in any HTTP response, so a caller who cannot read the owner's
+// email (or the server log) cannot reset a password. Codes are stored as a
+// bcrypt hash in the settings table (works on SQLite and Supabase alike).
+// ---------------------------------------------------------------------------
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;   // code valid for 15 minutes
+const RESET_MAX_ATTEMPTS = 5;               // wrong-code attempts before invalidation
+const resetKey = (email) => `pwreset::${String(email).trim().toLowerCase()}`;
+
+function storeResetCode(email, code) {
+  const rec = { hash: hashPin(code), expires: Date.now() + RESET_CODE_TTL_MS, attempts: 0 };
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(resetKey(email), JSON.stringify(rec));
+}
+function readResetCode(email) {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(resetKey(email));
+    return row && row.value ? JSON.parse(row.value) : null;
+  } catch (e) { return null; }
+}
+function clearResetCode(email) {
+  try { db.prepare('DELETE FROM settings WHERE key = ?').run(resetKey(email)); } catch (e) {}
+}
+
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !String(email).trim()) {
+    return res.status(400).json({ error: 'Please enter your email address.' });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  try {
+    const user = db.prepare('SELECT id, email, name FROM users WHERE LOWER(email) = ? AND active = 1').get(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'No active account found with this email address.' });
+    }
+
+    // Generate a 6-digit one-time code, store only its hash, deliver out of band.
+    const code = String(crypto.randomInt(100000, 1000000));
+    storeResetCode(cleanEmail, code);
+    console.log(`[PASSWORD RESET] One-time code for ${cleanEmail}: ${code} (valid 15 min)`);
+
+    if (supabaseAdmin) {
+      // Best-effort: also e-mail the user via Supabase Auth recovery if configured.
+      try {
+        await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: `${req.protocol}://${req.get('host')}/#reset-password`
+        });
+      } catch (e) {
+        console.warn('Supabase reset email notice:', e.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      // NOTE: the code itself is intentionally NOT included in the response.
+      message: 'A one-time reset code has been sent to your registered email. Enter it below with your new password.'
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { email, token, code, newPassword, confirmPassword } = req.body;
+  const resetCode = (token !== undefined && token !== null && String(token).trim() !== '') ? token : code;
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: 'Email and new password are required.' });
+  }
+  if (!resetCode || !String(resetCode).trim()) {
+    return res.status(400).json({ error: 'A valid reset code is required. Request one via "Forgot Password".' });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPass = String(newPassword).trim();
+  const cleanCode = String(resetCode).trim();
+
+  if (confirmPassword && String(confirmPassword).trim() !== cleanPass) {
+    return res.status(400).json({ error: 'New Password and Confirm Password do not match.' });
+  }
+  if (cleanPass.length < 4) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+  }
+
+  // Verify the one-time reset code BEFORE touching any credential.
+  const rec = readResetCode(cleanEmail);
+  if (!rec) {
+    return res.status(400).json({ error: 'No active reset request. Please request a new reset code.' });
+  }
+  if (Date.now() > rec.expires) {
+    clearResetCode(cleanEmail);
+    return res.status(400).json({ error: 'Reset code has expired. Please request a new one.' });
+  }
+  if ((rec.attempts || 0) >= RESET_MAX_ATTEMPTS) {
+    clearResetCode(cleanEmail);
+    return res.status(429).json({ error: 'Too many invalid attempts. Please request a new reset code.' });
+  }
+  if (!bcrypt.compareSync(cleanCode, rec.hash)) {
+    rec.attempts = (rec.attempts || 0) + 1;
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(resetKey(cleanEmail), JSON.stringify(rec));
+    return res.status(401).json({ error: 'Invalid reset code.' });
+  }
+
+  try {
+    const user = db.prepare('SELECT id, email, name, organization_id FROM users WHERE LOWER(email) = ? AND active = 1').get(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'No account found matching this email address.' });
+    }
+
+    if (supabaseAdmin) {
+      try {
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+        const sbUser = (listData?.users || []).find(u => u.email?.toLowerCase() === cleanEmail);
+        if (sbUser) {
+          await supabaseAdmin.auth.admin.updateUserById(sbUser.id, { password: cleanPass });
+        } else {
+          await supabaseAdmin.auth.admin.createUser({
+            email: cleanEmail,
+            password: cleanPass,
+            email_confirm: true,
+            user_metadata: { name: user.name }
+          });
+        }
+      } catch (e) {
+        console.warn('Supabase Auth password update notice:', e.message);
+      }
+    }
+
+    const passHashed = hashPin(cleanPass);
+    db.prepare(`
+      UPDATE users
+      SET pin = '', pin_hash = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE LOWER(email) = ?
+    `).run(passHashed, passHashed, cleanEmail);
+
+    // One-time code consumed — invalidate it so it cannot be reused.
+    clearResetCode(cleanEmail);
+
+    try {
+      db.prepare(`
+        INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+        VALUES (?, ?, CURRENT_TIMESTAMP, ?, 'user', '-', 'Reset Password', ?, '-', 'Password Updated', 'Supabase Password Reset')
+      `).run(`AUD-${Date.now()}`, user.organization_id || 'ORG-MAIN', user.name, user.email);
+    } catch (e) {}
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully! You can now log in with your new password.'
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 export default router;

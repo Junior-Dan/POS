@@ -1,10 +1,14 @@
 import { db } from './db.js';
 
 export function seedDatabase() {
-  console.log("System DB active. Ready for user account setup & testing.");
-  return;
+  try {
+    const existing = db.prepare('SELECT COUNT(*) as count FROM products').get();
+    if (existing && Number(existing.count) > 0) {
+      return;
+    }
+  } catch (e) {}
 
-  console.log("Seeding fresh database state...");
+  console.log("Seeding fresh catalog products into database...");
 
   const insertUser = db.prepare(`
     INSERT INTO users (id, name, role, pin, email, active)
@@ -18,7 +22,7 @@ export function seedDatabase() {
   }
 
   const insertCategory = db.prepare(`
-    INSERT OR IGNORE INTO categories (id, name, description)
+    INSERT INTO categories (id, name, description)
     VALUES (@id, @name, @description)
   `);
 
@@ -57,11 +61,11 @@ export function seedDatabase() {
 
   const insertProduct = db.prepare(`
     INSERT INTO products (
-      id, brand, name, category, product_type, unit, abv, size, case_units,
+      id, organization_id, brand, name, category, product_type, unit, abv, size, case_units,
       barcode, sku, cost_price, selling_price, wholesale_price, min_price,
       tax_rate, current_stock, min_stock, reorder_level, supplier_id, high_value, active
     ) VALUES (
-      @id, @brand, @name, @category, @product_type, @unit, @abv, @size, @case_units,
+      @id, 'ORG-MAIN', @brand, @name, @category, @product_type, @unit, @abv, @size, @case_units,
       @barcode, @sku, @cost_price, @selling_price, @wholesale_price, @min_price,
       @tax_rate, @current_stock, @min_stock, @reorder_level, @supplier_id, @high_value, 1
     )
@@ -89,8 +93,8 @@ export function seedDatabase() {
   }
 
   const insertMovement = db.prepare(`
-    INSERT INTO stock_movements (id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-    VALUES (@id, @product_id, @product_name, @type, @qty, @previous_stock, @new_stock, @ref, @user_name, @reason)
+    INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
+    VALUES (@id, 'ORG-MAIN', @product_id, @product_name, @type, @qty, @previous_stock, @new_stock, @ref, @user_name, @reason)
   `);
 
   for (const p of products) {

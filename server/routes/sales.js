@@ -168,6 +168,22 @@ router.post('/', (req, res) => {
   if (!total || total <= 0) {
     return res.status(400).json({ error: "Invalid total transaction amount." });
   }
+  if (String(paymentMethod || '').toUpperCase() === 'M-PESA' && (!mpesaCode || !String(mpesaCode).trim())) {
+    return res.status(400).json({ error: "M-Pesa transaction code is required for M-Pesa payments." });
+  }
+
+  // Idempotency: if the client resends the SAME checkout (e.g. a retry after a
+  // dropped response), return the already-persisted sale instead of creating a
+  // duplicate and double-deducting stock. The key is stable per cart-submit.
+  const clientRef = (req.body.clientRef || req.body.idempotencyKey || '').toString().trim();
+  if (clientRef) {
+    try {
+      const prior = db.prepare('SELECT value FROM settings WHERE key = ?').get(`saleref::${clientRef}`);
+      if (prior && prior.value) {
+        return res.status(201).json({ success: true, sale: JSON.parse(prior.value), idempotent: true });
+      }
+    } catch (e) { /* fall through and create the sale normally */ }
+  }
 
   const orgId = req.authUser.organizationId;
 
@@ -306,6 +322,12 @@ router.post('/', (req, res) => {
 
   try {
     const saleResult = processSaleTransaction();
+    // Record the idempotency key -> persisted sale so an identical retry is a no-op.
+    if (clientRef) {
+      try {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`saleref::${clientRef}`, JSON.stringify(saleResult));
+      } catch (e) { /* non-fatal: sale already persisted */ }
+    }
     res.status(201).json({
       success: true,
       sale: saleResult

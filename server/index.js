@@ -1,3 +1,8 @@
+// Load .env BEFORE any other module is evaluated. ESM evaluates imports top-to-
+// bottom, and routes/auth.js reads JWT_SECRET (and db.js reads DB credentials)
+// at import time — so the env must be populated by this side-effect import
+// first, otherwise those modules fall back to defaults locally.
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

@@ -4,19 +4,6 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
   const bizName = store.businessProfile?.name || "Celler POS";
-  const activeBranch = store.getActiveBranch();
-
-  // Branch selector options based on user role and assigned branches
-  let availableBranches = store.branches || [];
-  if (user.role !== 'owner') {
-    const allowedBranchIds = [user.primaryBranchId, user.branchId, ...(user.additionalBranchIds || [])].filter(Boolean);
-    availableBranches = (store.branches || []).filter(b => b && allowedBranchIds.includes(b.id));
-    if (availableBranches.length === 0) {
-      const active = store.getActiveBranch();
-      availableBranches = active ? [active] : [{ id: 'main', name: 'Overall Business (No Branches Yet)', code: 'main' }];
-    }
-  }
-
 
   // Navigation tabs with role permission validation
   const allNavItems = [

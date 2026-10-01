@@ -55,7 +55,10 @@ export function renderSalesView() {
                     ${itemsStr}
                   </div>
                 </td>
-                <td><span class="badge ${method === 'M-PESA' ? 'badge-success' : 'badge-info'}">${method}</span></td>
+                <td>
+                  <span class="badge ${method === 'M-PESA' ? 'badge-success' : 'badge-info'}">${method}</span>
+                  ${(method === 'M-PESA' && (s.mpesaCode || s.mpesa_code)) ? `<div style="font-size:10.5px; font-weight:800; font-family:monospace; color:#10b981; margin-top:2px;">${s.mpesaCode || s.mpesa_code}</div>` : ''}
+                </td>
                 <td><strong style="color:var(--accent);">KSh ${totalVal.toLocaleString()}</strong></td>
                 <td>
                   ${isRefunded 

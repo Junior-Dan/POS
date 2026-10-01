@@ -1,6 +1,6 @@
 import { store } from '../store/CellarStore.js';
 
-let activeSettingsTab = "branches";
+let activeSettingsTab = "staff";
 
 export function renderSettingsView() {
   const profile = store.businessProfile || {};
@@ -18,9 +18,8 @@ export function renderSettingsView() {
   }, 50);
 
   const tabs = [
-    { id: "business", label: "Business Profile", icon: `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>` },
-    { id: "branches", label: "Branches", icon: `<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 13v2"/>` },
     { id: "staff", label: "Staff Management", icon: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>` },
+    { id: "business", label: "Business Profile", icon: `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>` },
     { id: "receipt", label: "Receipt Settings", icon: `<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="8" x2="16" y1="8" y2="8"/><line x1="8" x2="16" y1="12" y2="12"/><line x1="8" x2="12" y1="16" y2="16"/>` },
     { id: "payment", label: "Payment Settings", icon: `<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>` },
     { id: "shift", label: "Shift & Float", icon: `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>` },
@@ -37,7 +36,7 @@ export function renderSettingsView() {
       </div>
       <div>
         <h1 class="settings-main-title">Staff & Settings</h1>
-        <p class="settings-main-subtitle">Manage your staff, branches and system settings</p>
+        <p class="settings-main-subtitle">Manage your staff, roles and system settings</p>
       </div>
     </div>
 
@@ -116,116 +115,21 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
         </div>
       `;
 
-    case 'branches':
-      return `
-        <div class="section-card">
-          <div class="section-header">
-            <div class="section-title-box">
-              <div class="section-title-icon-yellow">
-                <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 13v2"/></svg>
-              </div>
-              <div>
-                <div class="section-title">Multi-Branch Management</div>
-                <span class="section-subtitle">Configure enterprise branches, assigned managers, and location scoping</span>
-              </div>
-            </div>
-            <button class="btn btn-yellow-accent" onclick="openAddBranchModal()">+ Add New Branch</button>
-          </div>
-          <div class="table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>BRANCH NAME</th>
-                  <th>BRANCH CODE</th>
-                  <th>DIRECT BRANCH LOGIN URL</th>
-                  <th>LOCATION</th>
-                  <th>MANAGER</th>
-                  <th>STATUS</th>
-                  <th>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${branches.map((b, idx) => {
-                  const isOwner = store.currentUser?.role === 'owner';
-                  const manager = isOwner ? users.find(u => u.id === b.managerId) : (b.managerId === store.currentUser?.id ? store.currentUser : null);
-                  const subLabel = idx === 0 ? 'Main' : 'Branch';
-                  const slug = (b.code || b.id).toLowerCase();
-                  const directUrl = `${window.location.origin}/?branch=${slug}`;
-
-                  return `
-                    <tr>
-                      <td>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                          <div class="branch-icon-pin">
-                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                          </div>
-                          <div>
-                            <strong>${b.name}</strong><br>
-                            <span style="font-size:11px; color:var(--text-faint);">${subLabel}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td><span class="size-badge">${b.code}</span></td>
-                      <td>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                          <input type="text" readonly class="form-input" value="${directUrl}" style="font-size:11px; padding:3px 6px; font-family:monospace; width:220px;" id="branchUrlInput_${b.id}">
-                          <button class="btn btn-secondary btn-sm" onclick="copyBranchUrl('${b.id}', '${directUrl}')" title="Copy Branch Login URL" style="padding:4px 8px;">
-                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                          </button>
-                          <a href="${directUrl}" target="_blank" class="btn btn-secondary btn-sm" title="Open Branch Login URL" style="padding:4px 8px; display:inline-flex; align-items:center;">
-                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          </a>
-                        </div>
-                      </td>
-                      <td>${b.location}</td>
-                      <td>${manager ? manager.name : '<span style="color:var(--text-faint);">Branch Admin</span>'}</td>
-                      <td><span class="badge badge-success">• ACTIVE</span></td>
-                      <td>
-                        <div style="display:flex; gap:8px;">
-                          <button class="btn btn-secondary btn-sm" onclick="openEditBranchModal('${b.id}')">
-                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Edit
-                          </button>
-                          <button class="btn btn-danger-soft btn-sm" onclick="deleteBranch('${b.id}')">
-                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  `;
-                }).join('') || '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-faint);">No branches configured</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `;
-
     case 'staff': {
       const isOwner = store.currentUser?.role === 'owner';
-      const userBranchIds = [store.currentUser?.primaryBranchId, ...(store.currentUser?.additionalBranchIds || [])].filter(Boolean);
 
       const visibleUsers = users.filter(u => {
         if (isOwner) return true;
-        // Managers can ONLY see Cashiers and Inventory Officers assigned to their branch (never managers or owners)
-        const isCashierOrInventory = u.role === 'cashier' || u.role === 'inventory_officer';
-        const isSameBranch = userBranchIds.length === 0 || userBranchIds.includes(u.primaryBranchId) || !u.primaryBranchId;
-        return isCashierOrInventory && isSameBranch;
+        // Managers can ONLY see Cashiers and Inventory Officers (never managers or owners)
+        return u.role === 'cashier' || u.role === 'inventory_officer';
       });
 
       return `
         <div class="section-card">
-          ${branches.length === 0 ? `
-            <div style="background:var(--accent-soft); border:1px solid var(--accent-border); border-radius:10px; padding:14px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-weight:700; color:var(--accent); font-size:13.5px; margin-bottom:2px;">📍 No Branches Configured Yet</div>
-                <div style="font-size:12px; color:var(--text-dim);">As overall business owner, please create your branches under Branch Management before registering staff.</div>
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="switchSettingsTab('branches')">+ Create First Branch</button>
-            </div>
-          ` : ''}
           <div class="section-header">
             <div>
               <div class="section-title">Staff Management & Security PINs</div>
-              <span class="section-subtitle">${isOwner ? 'Manage enterprise staff, branch access, roles, and PINs' : 'Manage your branch cashiers and inventory staff'}</span>
+              <span class="section-subtitle">${isOwner ? 'Create staff, assign roles, and manage passwords' : 'Manage cashiers and inventory staff'}</span>
             </div>
             <button class="btn btn-primary" onclick="openAddStaffModal()">+ Add Staff Account</button>
           </div>
@@ -235,8 +139,6 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                 <tr>
                   <th>Staff Member</th>
                   <th>Role</th>
-                  <th>Primary Branch</th>
-                  <th>Additional Branch Access</th>
                   <th>Security PIN</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -244,9 +146,6 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
               </thead>
               <tbody>
                 ${visibleUsers.length > 0 ? visibleUsers.map(u => {
-                  const primBranch = branches.find(b => b.id === u.primaryBranchId);
-                  const addBranches = (u.additionalBranchIds || []).map(id => branches.find(b => b.id === id)?.name).filter(Boolean);
-
                   return `
                     <tr>
                       <td>
@@ -254,17 +153,8 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                         <span style="font-size:11px; color:var(--text-dim);">${u.email || u.phone || ''}</span>
                       </td>
                       <td><span class="badge ${u.role === 'cashier' ? 'badge-info' : 'badge-primary'}" style="text-transform:uppercase;">${u.role.replace('_', ' ')}</span></td>
-                      <td>${(u.role || '').toLowerCase() === 'owner' ? '<span class="badge badge-secondary" style="background:var(--accent-soft); color:var(--accent);">All Branches (Overall Owner)</span>' : (primBranch ? primBranch.name : '<span style="color:var(--text-faint);">No Branch Assigned</span>')}</td>
-                      <td>${addBranches.length ? addBranches.map(n => `<span class="size-badge">${n}</span>`).join(' ') : '<span style="color:var(--text-faint);">None</span>'}</td>
                       <td>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                          <span id="staffPinVal_${u.id}" data-pin="${u.pin || u.pin_hash || '1234'}" style="font-family:monospace; letter-spacing:2px; font-size:13px; font-weight:800; color:var(--accent);">••••</span>
-                          ${isOwner ? `
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleStaffPinView('${u.id}')" title="Show/Hide Staff PIN" style="padding:3px 7px;">
-                              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                            </button>
-                          ` : ''}
-                        </div>
+                        <span style="font-family:monospace; letter-spacing:2px; font-size:13px; color:var(--text-faint);" title="Passwords are stored securely hashed and cannot be displayed. Use Reset to issue a new one.">••••••••</span>
                       </td>
                       <td><span class="badge ${u.status === 'INACTIVE' ? 'badge-danger' : 'badge-success'}">${u.status || 'ACTIVE'}</span></td>
                       <td>
@@ -277,7 +167,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                       </td>
                     </tr>
                   `;
-                }).join('') : '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-faint);">No cashier or inventory staff registered for this branch yet</td></tr>'}
+                }).join('') : '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-faint);">No staff registered yet</td></tr>'}
               </tbody>
             </table>
           </div>

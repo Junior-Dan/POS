@@ -76,6 +76,12 @@ window.renderReceiptHtml = function(sale) {
         <span>PAYMENT METHOD:</span>
         <span>${paymentMethod}</span>
       </div>
+      ${sale.mpesaCode || sale.mpesa_code ? `
+      <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; color:#059669;">
+        <span>M-PESA REF:</span>
+        <span>${sale.mpesaCode || sale.mpesa_code}</span>
+      </div>
+      ` : ''}
       
       <div style="border-bottom:1px dashed #444; margin:8px 0;"></div>
       

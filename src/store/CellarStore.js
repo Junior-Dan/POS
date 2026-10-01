@@ -171,16 +171,31 @@ export class CellarStore {
       }
     });
 
-    // Live-sync polling. The backend DB layer is synchronous (each query blocks
-    // the server's event loop), so polling too aggressively serializes behind
-    // user actions like saving staff. Poll gently and ONLY when logged in and the
-    // tab is visible.
+    // Recovery: immediately re-sync authoritative data when the tab regains
+    // focus or the network reconnects, so the dashboard can never sit on stale
+    // numbers after a disconnect or being backgrounded.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && this.currentUser && this.currentUser.id) this.syncLiveState();
+      });
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        if (this.currentUser && this.currentUser.id) this.syncLiveState();
+      });
+    }
+
+    // Live-sync polling for cross-device updates (e.g. owner dashboard on a
+    // different device than the cashier's POS). Same-browser tabs already get
+    // an instant push via BroadcastChannel/storage ping on each sale. The DB
+    // layer is synchronous, so we poll on a short-but-gentle interval, only when
+    // logged in AND the tab is visible.
     if (!this.pollingInterval) {
       this.pollingInterval = setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
         if (!this.currentUser || !this.currentUser.id) return;
         this.syncLiveState();
-      }, 20000);
+      }, 3000);
     }
   }
 
@@ -193,22 +208,42 @@ export class CellarStore {
     } catch (e) {}
   }
 
+  // Signature of overall store state (sales, stock, shifts, expenses, users) so we re-render whenever ANY data changes
+  _stateSignature() {
+    const list = this.sales || [];
+    let total = 0;
+    for (const s of list) total += Number(s.total || 0) + (s.refunded ? 1 : 0);
+
+    const prods = this.products || [];
+    let pStock = 0;
+    for (const p of prods) pStock += Number(p.stock !== undefined ? p.stock : (p.current_stock || 0));
+
+    const shiftId = this.currentShift?.id || '';
+    const shiftStatus = this.currentShift?.status || '';
+
+    const expList = this.expenses || [];
+    const userList = this.users || [];
+
+    return `${list.length}:${total}:${prods.length}:${pStock}:${shiftId}:${shiftStatus}:${expList.length}:${userList.length}`;
+  }
+
   async syncLiveState() {
     try {
-      const prevCount = (this.sales || []).length;
+      const prevSig = this._stateSignature();
       await Promise.all([
         this.fetchSales(),
         this.fetchProducts(),
-        this.fetchShift()
+        this.fetchShift(),
+        this.fetchExpenses(),
+        this.fetchUsers()
       ]);
-      const newCount = (this.sales || []).length;
-      if (newCount !== prevCount) {
+      const newSig = this._stateSignature();
+      if (window.triggerDashboardCharts) window.triggerDashboardCharts();
+      if (newSig !== prevSig) {
         this.notify();
-        if (window.triggerDashboardCharts) {
-          window.triggerDashboardCharts();
-        }
       }
     } catch (e) {
+      // A failed poll is non-fatal; the next tick (or focus/online event) recovers.
       console.warn("Sync error:", e);
     }
   }
@@ -379,45 +414,9 @@ export class CellarStore {
 
   async initStore() {
     this.loadLocalBackup();
-    // Load the public branch roster first so the login screen is populated
-    // even before the user authenticates.
     await this.fetchBranchLogin();
-    // Restore any prior session, then load protected data if authenticated.
     await this.restoreSession();
-
-    // A shared branch/staff invite link must open THAT organization's login —
-    // never a stale session from a different org left in this browser. If a link
-    // is being opened and the restored session belongs to a different org (or a
-    // personal ?staff link names someone else), drop the session and show the
-    // branch login screen instead.
-    try {
-      const hasLink = !!(this.loginBranch && (this.loginStaffRef || this._hasBranchParam()));
-      if (hasLink && this.currentUser && this.currentUser.id) {
-        const linkOrg = this.loginBranch.organizationId || null;
-        const sessionOrg = this.currentUser.organizationId || null;
-        const orgMismatch = linkOrg && sessionOrg && linkOrg !== sessionOrg;
-        const staffMismatch = this.loginStaffRef &&
-          String(this.currentUser.id).toLowerCase() !== String(this.loginStaffRef).toLowerCase() &&
-          String(this.currentUser.email || '').toLowerCase() !== String(this.loginStaffRef).toLowerCase();
-        if (orgMismatch || staffMismatch) {
-          clearAuthToken();
-          try {
-            sessionStorage.removeItem('cellar_session_auth');
-            sessionStorage.removeItem('cellar_authenticated_user');
-          } catch (e) {}
-          this.currentUser = null;
-        }
-      }
-    } catch (e) {}
-
     await this.loadAuthenticatedData();
-  }
-
-  _hasBranchParam() {
-    try {
-      if (typeof window === 'undefined' || !window.location) return false;
-      return new URLSearchParams(window.location.search).has('branch');
-    } catch (e) { return false; }
   }
 
   resetState() {
@@ -734,70 +733,40 @@ export class CellarStore {
     return { success: true };
   }
 
+  // The backend/database is the single source of truth for a sale. We persist
+  // FIRST, confirm the server accepted it, and only then refresh authoritative
+  // state and notify. A failed persist throws so the POS can surface the error
+  // and keep the cart — a sale that did not save must NEVER look successful,
+  // and we never fabricate a local "offline" sale (that caused phantom totals).
   async createSale(saleData) {
-    try {
-      const res = await fetch('/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...saleData,
-          cashier: this.currentUser || { id: 'U3', name: 'John Omondi' },
-          branchId: this.activeBranchId,
-          shiftId: this.currentShift?.id
-        })
-      });
-      const ct = res.headers.get('content-type') || '';
-      if (res.ok && ct.includes('application/json')) {
-        const data = await res.json();
-        await this.fetchSales();
-        await this.fetchProducts();
-        await this.fetchInventoryMovements();
-        await this.fetchCustomers();
-        await this.fetchAuditLogs();
-        this.saveLocalBackup();
-        this.broadcastUpdate();
-        return data.sale;
-      }
-    } catch (e) {
-      console.warn("API server notice, running local sale engine:", e);
-    }
-
-    const cashier = this.currentUser || { id: 'U3', name: 'John Omondi' };
-    const receiptNo = `REC-${Date.now().toString().slice(-6)}`;
-    const etimsCuNum = `CU-${Math.floor(10000000 + Math.random() * 90000000)}`;
-    const etimsControlCode = `${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}`;
-    
-    const sale = {
-      id: `SALE-${Date.now()}`,
-      receiptNo,
-      branchId: this.activeBranchId,
-      shiftId: this.currentShift?.id || "SHIFT-101",
-      cashierId: cashier.id,
-      cashierName: cashier.name,
-      items: saleData.items,
-      subtotal: saleData.subtotal,
-      discount: saleData.discount || 0,
-      tax: saleData.tax,
-      total: saleData.total,
-      paymentMethod: saleData.paymentMethod || 'CASH',
-      customer: saleData.customer || null,
-      etimsCuNum,
-      etimsControlCode,
-      timestamp: new Date().toISOString()
-    };
-
-    saleData.items.forEach(item => {
-      const prod = this.products.find(p => p.id === item.productId);
-      if (prod) {
-        prod.stock = Math.max(0, prod.stock - item.qty);
-      }
+    const res = await fetch('/api/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...saleData,
+        cashier: this.currentUser || null,
+        branchId: this.activeBranchId,
+        shiftId: this.currentShift?.id
+      })
     });
 
-    this.sales.unshift(sale);
+    const data = await readJsonBody(res);
+    if (!res.ok || !data.sale) {
+      throw new Error(data.error || `Sale could not be saved (HTTP ${res.status}).`);
+    }
+
+    // Persistence confirmed — pull the authoritative state back from the server.
+    await Promise.all([
+      this.fetchSales(),
+      this.fetchProducts(),
+      this.fetchInventoryMovements(),
+      this.fetchCustomers(),
+      this.fetchAuditLogs()
+    ]);
     this.saveLocalBackup();
     this.notify();
-    this.broadcastUpdate();
-    return sale;
+    this.broadcastUpdate(); // nudge other open tabs/dashboards to refresh now
+    return data.sale;
   }
 
   async processRefund(saleId, refundData) {
@@ -1106,10 +1075,7 @@ export class CellarStore {
   }
 
   getActiveBranch() {
-    if (this.activeBranchId === 'ALL') {
-      return { id: 'ALL', name: 'All Branches (Enterprise)' };
-    }
-    return (this.branches && this.branches.find(b => b.id === this.activeBranchId)) || (this.branches && this.branches[0]) || { id: null, name: 'Overall Business (No Branches Yet)', code: 'main' };
+    return (this.branches && this.branches.find(b => b.id === this.activeBranchId)) || (this.branches && this.branches[0]) || { id: 'BR-main', name: 'Main Branch', code: 'main' };
   }
 
   canUserAccessView(user, viewId) {

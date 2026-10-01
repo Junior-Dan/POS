@@ -178,8 +178,8 @@ export function renderDashboardView() {
                 <th>Action</th>
               </tr>
             </thead>
-            <tbody>
-              ${store.products.filter(p => p.stock > 10).slice(0, 4).map(p => `
+          <tbody id="dashSlowStockBody">
+              ${(store.products || []).filter(p => (p.stock !== undefined ? p.stock : (p.current_stock || 0)) > 10).slice(0, 4).map(p => `
                 <tr>
                   <td><strong>${p.brand || ''} ${p.name || 'Spirits Item'}</strong> ${p.size ? `(${p.size})` : ''}</td>
                   <td>${p.stock !== undefined ? p.stock : (p.current_stock || 0)}</td>
@@ -249,6 +249,20 @@ export function initDashboardCharts() {
           <td>KSh ${data.rev.toLocaleString()}</td>
         </tr>
       `).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">No sales recorded yet today</td></tr>';
+    }
+
+    // Real-time slow moving stock table update
+    const slowBody = document.getElementById('dashSlowStockBody');
+    if (slowBody) {
+      const slowProds = (store.products || []).filter(p => (p.stock !== undefined ? p.stock : (p.current_stock || 0)) > 10).slice(0, 4);
+      slowBody.innerHTML = slowProds.map(p => `
+        <tr>
+          <td><strong>${p.brand || ''} ${p.name || 'Spirits Item'}</strong> ${p.size ? `(${p.size})` : ''}</td>
+          <td>${p.stock !== undefined ? p.stock : (p.current_stock || 0)}</td>
+          <td><span class="badge badge-warning">Low Movement</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="switchTab('pos')">Promote</button></td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-faint);">All inventory moving normally</td></tr>';
     }
   } catch (e) {
     console.warn("Metrics update notice:", e);

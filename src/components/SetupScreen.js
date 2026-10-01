@@ -1,39 +1,34 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderAuthLandingScreen(overrideMode = null) {
-  const urlParams = new URLSearchParams(window.location.search);
-  const hasBranchQuery = urlParams.has('branch');
-
   const rosterLoaded = store.rosterLoaded === true;
-  const userCount = (store.loginUsers || []).length;
+  const userList = Array.isArray(store.loginUsers) && store.loginUsers.length > 0
+    ? store.loginUsers
+    : (store.users || []);
+
   const realOwnerExists = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
-    (store.loginUsers || []).some(u => (u.role || '').toLowerCase() === 'owner');
+    userList.some(u => (u.role || '').toLowerCase() === 'owner');
 
   let cachedOwnerExists = false;
   try { cachedOwnerExists = localStorage.getItem('cellar_owner_exists') === '1'; } catch (e) {}
 
-  // If no users exist in the database (or zero roster users loaded), no account exists yet!
-  const hasExistingOwner = (rosterLoaded && userCount === 0) ? false : (realOwnerExists || cachedOwnerExists);
+  const hasExistingOwner = (rosterLoaded && userList.length === 0) ? false : (realOwnerExists || cachedOwnerExists);
 
-  let isBranchLogin = false;
   let isRegisterSetup = false;
-
   const effectiveMode = overrideMode || window.currentAuthTab;
 
-  if (hasBranchQuery) {
-    isBranchLogin = true;
-  } else if (effectiveMode === 'setup') {
+  if (effectiveMode === 'setup') {
     isRegisterSetup = true;
   } else if (effectiveMode === 'login') {
-    isRegisterSetup = false; // Main email login
+    isRegisterSetup = false;
   } else if (!hasExistingOwner) {
     isRegisterSetup = true;
   } else {
-    isRegisterSetup = false; // Main email login
+    isRegisterSetup = false;
   }
 
-  const activeBranch = store.loginBranch || store.getActiveBranch() || { name: 'Main Branch', code: 'cbd' };
-  const userList = Array.isArray(store.loginUsers) ? store.loginUsers : [];
+  const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Celler POS';
+  const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
 
   return `
     <div class="welcome-setup-container">
@@ -44,19 +39,18 @@ export function renderAuthLandingScreen(overrideMode = null) {
             <div class="welcome-logo-badge">
               <img src="/logo.jpeg" alt="Celler POS Logo" class="sys-logo-img" />
             </div>
-            <span class="welcome-brand-name">${store.loginBranch?.businessName || store.businessProfile?.name || 'Celler POS'}</span>
+            <span class="welcome-brand-name">${bizName}</span>
           </div>
 
           <div class="auth-pane-body">
-            ${!isBranchLogin ? `
+            ${!hasExistingOwner ? `
               <div class="auth-tab-switcher">
-                <button type="button" class="auth-tab-btn ${isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('setup')">Create Account</button>
-                <button type="button" class="auth-tab-btn ${!isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('login')">Log In</button>
+                <button type="button" class="auth-tab-btn active" onclick="switchAuthMode('setup')">Owner Setup</button>
               </div>
             ` : ''}
 
-            ${isRegisterSetup ? `
-              <!-- CREATE ACCOUNT SETUP FORM (NO BRANCH INPUTS OR PINS) -->
+            ${isRegisterSetup && !hasExistingOwner ? `
+              <!-- CREATE INITIAL OWNER ACCOUNT SETUP FORM -->
               <div class="auth-header-section">
                 <h1 class="welcome-title">Create Owner Account</h1>
                 <p class="welcome-subtitle">Set up your business and owner account credentials</p>
@@ -65,7 +59,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Celler POS" value="${store.businessProfile?.name || 'Celler POS'}" required>
+                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Celler POS" value="${bizName}" required>
                 </div>
 
                 <div class="form-row">
@@ -98,79 +92,31 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <div id="setupErrorMsg" class="setup-error-msg"></div>
 
                 <button type="submit" class="welcome-submit-btn">
-                  <span>Create Account & Open Dashboard</span>
+                  <span>Create Owner Account & Open Dashboard</span>
                   <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
-
-                <div class="auth-switch-prompt">
-                  <span>Already registered?</span>
-                  <button type="button" class="auth-switch-link" onclick="switchAuthMode('login')">Log In</button>
-                </div>
               </form>
-            ` : isBranchLogin ? `
-              <!-- SHARED UNIQUE BRANCH TERMINAL LOGIN (CUSTOM BUSINESS NAME + EMAIL & PASSWORD / PIN) -->
-              <div class="auth-header-section">
-                <h1 class="welcome-title">${store.loginBranch?.businessName || store.businessProfile?.name || 'Celler POS'}</h1>
-                <p class="welcome-subtitle">
-                  📍 ${(store.loginBranch?.name || activeBranch.name).toUpperCase()} TERMINAL (${(store.loginBranch?.code || activeBranch.code).toUpperCase()})
-                </p>
-              </div>
-
-              <div class="auth-mode-content">
-                ${(() => {
-                  const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
-                  if (activeRoster.length === 0) {
-                    return `
-                      <div style="text-align:center; padding:16px; margin-bottom:12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px;">
-                        <div style="font-size:13px; color:#b91c1c; font-weight:700; margin-bottom:4px;">
-                          ${rosterLoaded ? 'No staff accounts for this terminal' : 'Loading staff accounts…'}
-                        </div>
-                        ${rosterLoaded ? `<div style="font-size:12px; color:#64748b;">Ask your owner to add you to this branch, or double-check your login link.</div>` : ''}
-                      </div>`;
-                  }
-                  return `
-                    <!-- STAFF ACCOUNT PICKER + PIN (no email typing on shared terminals) -->
-                    <form onsubmit="event.preventDefault(); submitBranchTerminalLogin();" class="welcome-setup-form">
-                      <div class="form-group">
-                        <label class="form-label">SELECT YOUR ACCOUNT *</label>
-                        <select class="form-select" id="branchStaffSelect">
-                          ${activeRoster.map(u => `<option value="${u.id}">${u.name} — ${(u.role || 'cashier').toUpperCase()}</option>`).join('')}
-                        </select>
-                      </div>
-
-                      <div class="form-group">
-                        <label class="form-label">PASSWORD / SECURITY PIN *</label>
-                        <div style="position:relative;">
-                          <input type="password" class="form-input" id="branchStaffCodeInput" placeholder="••••••••" style="padding-right:38px;" required>
-                          <button type="button" onclick="toggleBranchCodeVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">
-                            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div id="branchLoginErrorMsg" class="setup-error-msg"></div>
-
-                      <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
-                        Log In to Dashboard
-                      </button>
-                    </form>`;
-                })()}
-              </div>
             ` : `
-              <!-- MAIN STORE LOGIN (EMAIL / PHONE & PASSWORD) -->
+              <!-- UNIFIED SINGLE-BUSINESS SIGN IN FORM -->
               <div class="auth-header-section">
-                <h1 class="welcome-title">Welcome Back</h1>
-                <p class="welcome-subtitle">Enter your email or phone number and password to access your account.</p>
+                <h1 class="welcome-title">Sign In to your Account</h1>
+                <p class="welcome-subtitle">Enter your email and password to access your dashboard</p>
               </div>
 
+              <!-- EMAIL & PASSWORD LOGIN ONLY -->
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
                 <div class="form-group">
-                  <label class="form-label">Email Address or Phone Number *</label>
-                  <input type="text" class="form-input" id="loginEmailInput" placeholder="e.g. owner@celler.co.ke or 0722000111" required>
+                  <label class="form-label">Email Address *</label>
+                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@celler.co.ke or staff@celler.co.ke" required>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Password *</label>
+                  <div style="display:flex; justify-space-between; align-items:center; margin-bottom:4px;">
+                    <label class="form-label" style="margin:0;">Password *</label>
+                    <button type="button" onclick="openForgotPasswordModal()" style="background:none; border:none; color:#3b82f6; font-size:12px; font-weight:600; cursor:pointer; text-decoration:underline; padding:0; margin-left:auto;">
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div style="position:relative;">
                     <input type="password" class="form-input" id="loginPasswordInput" placeholder="••••••••" style="padding-right:38px;" required>
                     <button type="button" onclick="togglePasswordInputVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">
@@ -179,40 +125,26 @@ export function renderAuthLandingScreen(overrideMode = null) {
                   </div>
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; margin-top:2px;">
-                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#475569; font-weight:600;">
-                    <input type="checkbox" id="rememberMeCheckbox" checked style="accent-color:#4f46e5;">
-                    <span>Remember Me</span>
-                  </label>
-                  <a href="#" onclick="event.preventDefault(); alert('Please contact your administrator to reset your password or PIN.');" style="color:#4f46e5; font-weight:700; text-decoration:none;">Forgot Your Password?</a>
-                </div>
-
                 <div id="loginEmailErrorMsg" class="setup-error-msg"></div>
 
-                <button type="submit" class="welcome-submit-btn" style="margin-top:6px;">
-                  Log In
+                <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
+                  Sign In
                 </button>
-
-                <div class="auth-switch-prompt" style="margin-top:14px;">
-                  <span>Don't Have An Account?</span>
-                  <button type="button" class="auth-switch-link" onclick="switchAuthMode('setup')">Register Now.</button>
-                </div>
               </form>
             `}
           </div>
 
           <div class="welcome-footer-bar">
-            <span>Copyright © 2026 ${store.businessProfile?.name || 'Celler POS Enterprises LTD'}.</span>
-            <a href="#" onclick="event.preventDefault();" class="footer-link">Privacy Policy</a>
+            <span>Copyright © 2026 ${bizName}.</span>
           </div>
         </div>
 
-        <!-- RIGHT PANEL: HERO BANNER (MATCHING REFERENCE IMAGE) -->
+        <!-- RIGHT PANEL: HERO BANNER -->
         <div class="welcome-hero-pane">
           <div class="hero-pane-inner">
             <div class="hero-header-text">
               <h2 class="hero-title">Effortlessly manage your team and operations.</h2>
-              <p class="hero-subtitle">Log in to access your CRM dashboard and manage your team.</p>
+              <p class="hero-subtitle">Log in to access your POS dashboard and manage your branch operations.</p>
             </div>
 
             <!-- Graphic Dashboard Cards Showcase -->
@@ -222,12 +154,12 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <div class="hero-card-grid">
                   <div class="hero-stat-block">
                     <div class="hero-stat-title">Total Sales</div>
-                    <div class="hero-stat-val">$189,374</div>
+                    <div class="hero-stat-val">KSh 189,374</div>
                     <span class="hero-badge badge-up">↑ 12% vs last month</span>
                   </div>
                   <div class="hero-stat-block">
-                    <div class="hero-stat-title">Chat Performance</div>
-                    <div class="hero-stat-val">00:01:30</div>
+                    <div class="hero-stat-title">Register Status</div>
+                    <div class="hero-stat-val">ACTIVE</div>
                     <div class="hero-mini-chart">
                       <svg viewBox="0 0 100 30" fill="none" style="width:100%; height:26px;">
                         <path d="M0 22 Q 25 28, 50 12 T 100 8" stroke="#6366f1" stroke-width="2.5" fill="none"/>
@@ -259,22 +191,22 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <!-- Table Preview -->
                 <div class="hero-table-preview">
                   <div class="hero-table-row header">
-                    <span>Order ID</span>
-                    <span>Product Name</span>
-                    <span>Total Price</span>
+                    <span>Receipt</span>
+                    <span>Item</span>
+                    <span>Total</span>
                     <span>Status</span>
                   </div>
                   <div class="hero-table-row">
                     <span class="code">#SLR988719</span>
                     <span>Johnnie Walker Black 1L</span>
-                    <span>$48.00</span>
-                    <span class="status-pill status-paid">In Paid</span>
+                    <span>KSh 4,500</span>
+                    <span class="status-pill status-paid">PAID</span>
                   </div>
                   <div class="hero-table-row">
                     <span class="code">#SLR988720</span>
-                    <span>Glenfiddich 12 Year</span>
-                    <span>$65.00</span>
-                    <span class="status-pill status-pending">Pending</span>
+                    <span>Jameson 750ml</span>
+                    <span>KSh 3,000</span>
+                    <span class="status-pill status-paid">PAID</span>
                   </div>
                 </div>
               </div>
@@ -284,9 +216,8 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <div class="donut-card-header">
                   <div>
                     <div class="donut-card-title">Sales Categories</div>
-                    <div class="donut-card-sub">Your select product categories</div>
+                    <div class="donut-card-sub">Top categories by volume</div>
                   </div>
-                  <div class="donut-card-filter">Monthly ▾</div>
                 </div>
 
                 <div class="donut-chart-wrapper">
@@ -297,15 +228,15 @@ export function renderAuthLandingScreen(overrideMode = null) {
                     <circle cx="70" cy="70" r="52" stroke="#a855f7" stroke-width="14" fill="none" stroke-dasharray="35 327" stroke-dashoffset="-290" stroke-linecap="round"/>
                   </svg>
                   <div class="donut-center-info">
-                    <div class="donut-center-sub">Total Sales</div>
+                    <div class="donut-center-sub">Total Volume</div>
                     <div class="donut-center-num">6,248 Units</div>
                   </div>
                 </div>
 
                 <div class="donut-legend-list">
-                  <div class="legend-row"><span class="legend-dot dot-indigo"></span><span>Spirits & Whiskies</span><span class="legend-val">3,620 U</span></div>
-                  <div class="legend-row"><span class="legend-dot dot-blue"></span><span>Fine Wines</span><span class="legend-val">1,780 U</span></div>
-                  <div class="legend-row"><span class="legend-dot dot-purple"></span><span>Beer & Beverages</span><span class="legend-val">848 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-indigo"></span><span>Whiskies & Spirits</span><span class="legend-val">3,620 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-blue"></span><span>Wines</span><span class="legend-val">1,780 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-purple"></span><span>Beers & Softs</span><span class="legend-val">848 U</span></div>
                 </div>
               </div>
             </div>
@@ -315,4 +246,5 @@ export function renderAuthLandingScreen(overrideMode = null) {
     </div>
   `;
 }
+
 

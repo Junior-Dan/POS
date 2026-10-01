@@ -14,20 +14,6 @@ export function renderTopbar(currentUser = store.currentUser) {
   });
   const isoDateVal = currentDateObj.toISOString().split('T')[0];
 
-  // Branch selector options based on user role and assigned branches
-  let availableBranches = store.branches || [];
-  if (user.role !== 'owner') {
-    const allowedBranchIds = [user.primaryBranchId, user.branchId, ...(user.additionalBranchIds || [])].filter(Boolean);
-    availableBranches = (store.branches || []).filter(b => b && allowedBranchIds.includes(b.id));
-    if (availableBranches.length === 0) {
-      const active = store.getActiveBranch();
-      availableBranches = active ? [active] : [{ id: 'main', name: 'Overall Business (No Branches Yet)', code: 'main' }];
-    }
-  }
-
-  const activeBranch = store.getActiveBranch() || { name: 'Overall Business' };
-
-
   const notifications = store.notifications || [];
   const unreadCount = store.getUnreadNotificationsCount();
 
@@ -121,22 +107,16 @@ export function renderTopbar(currentUser = store.currentUser) {
         </div>
       </div>
 
-      <!-- Interactive Branch Switcher Dropdown (Company Name Top, Tiny Branch Below - Image 1 & 3) -->
-      <div class="topbar-branch-badge" id="topbarBranchContainer" title="Click to switch branch">
+      <!-- Business + Signed-in User Badge (single business, single branch) -->
+      <div class="topbar-branch-badge" id="topbarUserContainer">
         <img src="/logo.jpeg" class="topbar-logo-img" alt="Celler POS" />
-        
+
         <div class="topbar-branch-text-wrap">
           <span class="topbar-company-name">${bizName}</span>
-          <span class="topbar-branch-sub">${activeBranch.name}</span>
+          <span class="topbar-branch-sub">${user.name} • ${(user.role || '').toUpperCase()}</span>
         </div>
 
-        <select id="topbarBranchSelect" onchange="switchActiveBranch(this.value)" class="topbar-branch-select-overlay">
-          ${currentUser.role === 'owner' ? `<option value="ALL" ${store.activeBranchId === 'ALL' ? 'selected' : ''}>All Branches (Enterprise View)</option>` : ''}
-          ${availableBranches.map(b => `<option value="${b.id}" ${store.activeBranchId === b.id ? 'selected' : ''}>${b.name}</option>`).join('')}
-        </select>
-
         <div class="topbar-avatar-pill">${userInitials[0] || 'D'}</div>
-        <svg class="icon-sm chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
       </div>
     </div>
   </header>
