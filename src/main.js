@@ -389,9 +389,6 @@ function bindEvents() {
       if (window.triggerDashboardCharts) {
         window.triggerDashboardCharts();
       }
-      if (window.refreshActiveViews) {
-        window.refreshActiveViews();
-      }
     });
 
     setInterval(() => {
@@ -400,35 +397,6 @@ function bindEvents() {
       }
     }, 2000);
   }
-
-  window.refreshActiveViews = function() {
-    const viewsRoot = document.getElementById('views-root');
-    if (!viewsRoot) return;
-    const activeEl = document.activeElement;
-    const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
-    const activeModal = document.querySelector('.modal-overlay.active');
-    if (isTyping || activeModal) {
-      if (window.triggerDashboardCharts) window.triggerDashboardCharts();
-      return;
-    }
-    viewsRoot.innerHTML = `
-      ${renderDashboardView()}
-      ${renderPosView()}
-      ${renderProductsView()}
-      ${renderInventoryView()}
-      ${renderSalesView()}
-      ${renderShiftView()}
-      ${renderSuppliersView()}
-      ${renderPurchasesView()}
-      ${renderExpensesView()}
-      ${renderCustomersView()}
-      ${renderComplianceView()}
-      ${renderReportsView()}
-      ${renderAuditView()}
-      ${renderSettingsView()}
-    `;
-    switchTab(activeViewId);
-  };
 
   window.submitInitialSetup = async () => {
     const name = document.getElementById('setupNameInput')?.value.trim();
