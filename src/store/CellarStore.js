@@ -638,6 +638,38 @@ export class CellarStore {
 
   // --- API MUTATION METHODS ---
   async addProduct(productData) {
+    const tempId = productData.id || `P-${Date.now()}`;
+    const newProd = {
+      id: tempId,
+      brand: productData.brand || '',
+      name: productData.name || '',
+      category: productData.category || "Spirits",
+      size: productData.size || "750 ml",
+      abv: productData.abv !== undefined ? Number(productData.abv) : 40,
+      sku: productData.sku || `SKU-${Date.now()}`,
+      barcode: productData.barcode || `${Math.floor(1000000000000 + Math.random()*9000000000000)}`,
+      cost: productData.cost !== undefined ? Number(productData.cost) : 0,
+      cost_price: productData.cost !== undefined ? Number(productData.cost) : 0,
+      price: productData.price !== undefined ? Number(productData.price) : 0,
+      selling_price: productData.price !== undefined ? Number(productData.price) : 0,
+      stock: productData.stock !== undefined ? Number(productData.stock) : 0,
+      current_stock: productData.stock !== undefined ? Number(productData.stock) : 0,
+      reorder: productData.reorder !== undefined ? Number(productData.reorder) : 5,
+      reorder_level: productData.reorder !== undefined ? Number(productData.reorder) : 5,
+      active: true,
+      highValue: !!productData.highValue
+    };
+
+    const existingIdx = this.products.findIndex(p => p.id === tempId);
+    if (existingIdx >= 0) {
+      this.products[existingIdx] = newProd;
+    } else {
+      this.products.unshift(newProd);
+    }
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
     try {
       const res = await fetch('/api/products', {
         method: 'POST',
@@ -646,80 +678,103 @@ export class CellarStore {
       });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
-        const data = await res.json();
-        await this.fetchProducts();
-        await this.fetchInventoryMovements();
-        await this.fetchAuditLogs();
-        return data;
+        const saved = await res.json();
+        if (saved && saved.id) {
+          newProd.id = saved.id;
+        }
+        this.fetchInventoryMovements().catch(() => {});
+        this.fetchAuditLogs().catch(() => {});
+        return { product: newProd };
       }
-    } catch (e) {}
-
-    const newProd = {
-      id: `P-${Date.now()}`,
-      brand: productData.brand,
-      name: productData.name,
-      category: productData.category || "Spirits",
-      size: productData.size || "750ml",
-      abv: productData.abv || 40,
-      sku: productData.sku || `SKU-${Date.now()}`,
-      barcode: productData.barcode || `${Math.floor(1000000000000 + Math.random()*9000000000000)}`,
-      cost: productData.cost || 0,
-      price: productData.price || 0,
-      stock: productData.stock || 0,
-      reorder: productData.reorder || 5,
-      active: true,
-      highValue: productData.highValue || false
-    };
-    this.products.unshift(newProd);
-    this.saveLocalBackup();
-    this.notify();
-    this.broadcastUpdate();
+    } catch (e) {
+      console.warn("Add product sync notice:", e);
+    }
     return { product: newProd };
   }
 
   async updateProduct(id, productData) {
-    try {
-      const res = await fetch(`/api/products/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
-      });
-      const ct = res.headers.get('content-type') || '';
-      if (res.ok && ct.includes('application/json')) {
-        const data = await res.json();
-        await this.fetchProducts();
-        await this.fetchAuditLogs();
-        return data;
-      }
-    } catch (e) {}
-
     const prod = this.products.find(p => p.id === id);
     if (prod) {
-      Object.assign(prod, productData);
+      if (productData.brand !== undefined) prod.brand = productData.brand;
+      if (productData.name !== undefined) prod.name = productData.name;
+      if (productData.category !== undefined) prod.category = productData.category;
+      if (productData.size !== undefined) prod.size = productData.size;
+      if (productData.abv !== undefined) prod.abv = Number(productData.abv);
+      if (productData.sku !== undefined) prod.sku = productData.sku;
+      if (productData.barcode !== undefined) prod.barcode = productData.barcode;
+      if (productData.cost !== undefined) { prod.cost = Number(productData.cost); prod.cost_price = Number(productData.cost); }
+      if (productData.price !== undefined) { prod.price = Number(productData.price); prod.selling_price = Number(productData.price); }
+      if (productData.reorder !== undefined) { prod.reorder = Number(productData.reorder); prod.reorder_level = Number(productData.reorder); }
+      if (productData.highValue !== undefined) prod.highValue = !!productData.highValue;
+
       this.saveLocalBackup();
       this.notify();
       this.broadcastUpdate();
     }
+
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
+      });
+      if (res.ok) {
+        this.fetchAuditLogs().catch(() => {});
+      }
+    } catch (e) {
+      console.warn("Update product sync notice:", e);
+    }
     return { product: prod };
   }
 
-  async deactivateProduct(id) {
-    try {
-      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-      const ct = res.headers.get('content-type') || '';
-      if (res.ok && ct.includes('application/json')) {
-        const data = await res.json();
-        await this.fetchProducts();
-        return data;
-      }
-    } catch (e) {}
-
+  async updateProductStock(id, newStock, reason = 'Manual Stock Adjustment') {
     const prod = this.products.find(p => p.id === id);
-    if (prod) prod.active = false;
+    if (!prod) return;
+
+    const numStock = Number(newStock);
+    prod.stock = numStock;
+    prod.current_stock = numStock;
+
     this.saveLocalBackup();
     this.notify();
     this.broadcastUpdate();
+
+    try {
+      const res = await fetch('/api/inventory/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: id,
+          newStock: numStock,
+          reason,
+          userName: this.currentUser?.name
+        })
+      });
+      if (res.ok) {
+        this.fetchInventoryMovements().catch(() => {});
+        this.fetchAuditLogs().catch(() => {});
+      }
+    } catch (e) {
+      console.warn("Update stock sync notice:", e);
+    }
+  }
+
+  async deleteProduct(id) {
+    this.products = this.products.filter(p => p.id !== id);
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
+    try {
+      await fetch(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn("Delete product sync notice:", e);
+    }
     return { success: true };
+  }
+
+  async deactivateProduct(id) {
+    return this.deleteProduct(id);
   }
 
   async deleteAllProducts() {

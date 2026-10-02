@@ -22,6 +22,7 @@ import { renderCashModal } from './components/CashModal.js';
 import { renderMpesaModal } from './components/MpesaModal.js';
 import { renderReceiptModal } from './components/ReceiptModal.js';
 import { renderAddProductModal } from './components/AddProductModal.js';
+import { renderUpdateStockModal } from './components/UpdateStockModal.js';
 import { renderDamageBottleModal } from './components/DamageBottleModal.js';
 import { renderCashMovementModal } from './components/CashMovementModal.js';
 import { renderCloseShiftModal } from './components/CloseShiftModal.js';
@@ -133,6 +134,7 @@ export function initApp() {
       ${renderMpesaModal()}
       ${renderReceiptModal()}
       ${renderAddProductModal()}
+      ${renderUpdateStockModal()}
       ${renderDamageBottleModal()}
       ${renderCashMovementModal()}
       ${renderCloseShiftModal()}
@@ -736,7 +738,13 @@ function bindEvents() {
   window.submitSaveProduct = async () => {
     const brand = document.getElementById('prodBrandInput').value.trim();
     const name = document.getElementById('prodNameInput').value.trim();
-    const category = document.getElementById('prodCategorySelect').value;
+    let category = document.getElementById('prodCategorySelect').value;
+    if (category === '__custom__') {
+      category = (document.getElementById('prodCustomCategoryInput')?.value || '').trim();
+      if (!category) {
+        return alert("Please enter the custom category name!");
+      }
+    }
     const size = document.getElementById('prodSizeSelect').value;
     const abv = parseFloat(document.getElementById('prodAbvInput').value) || 0;
     const sku = document.getElementById('prodSkuInput').value.trim() || `SKU-${Date.now()}`;
@@ -763,6 +771,39 @@ function bindEvents() {
       alert("Product saved successfully!");
     } catch (e) {
       alert("Error saving product: " + e.message);
+    }
+  };
+
+  // Update Stock Modal Handlers
+  window.openUpdateStockModal = (id) => {
+    const p = store.products.find(x => x.id === id);
+    if (!p) return;
+    requestManagerAuth(`Update Stock Quantity for ${p.brand || ''} ${p.name || ''}`, () => {
+      document.getElementById('stockUpdateProdId').value = p.id;
+      document.getElementById('stockUpdateProdDisplay').textContent = `${p.brand || ''} ${p.name || ''} (${p.size || '750 ml'})`;
+      document.getElementById('stockUpdateQtyInput').value = p.stock !== undefined ? p.stock : (p.current_stock || 0);
+      document.getElementById('stockUpdateReasonInput').value = "";
+      window.openModal('updateStockModal');
+    });
+  };
+
+  window.submitStockUpdate = async () => {
+    const prodId = document.getElementById('stockUpdateProdId').value;
+    const newQty = parseInt(document.getElementById('stockUpdateQtyInput').value);
+    const reason = document.getElementById('stockUpdateReasonInput').value.trim() || "Manual Stock Adjustment";
+
+    if (!prodId) return;
+    if (isNaN(newQty) || newQty < 0) {
+      return alert("Please enter a valid non-negative quantity.");
+    }
+
+    try {
+      await store.updateProductStock(prodId, newQty, reason);
+      window.closeModal('updateStockModal');
+      initApp();
+      alert("Stock quantity updated successfully!");
+    } catch (e) {
+      alert("Error updating stock quantity: " + e.message);
     }
   };
 
