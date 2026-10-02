@@ -85,6 +85,12 @@ export class CellarStore {
     // restored or a PIN login succeeds.
     this.currentUser = null;
 
+    // While a user-initiated mutation (add/edit/stock) is in flight, pause the
+    // background live-sync poll so it can't overwrite the just-saved row with a
+    // momentarily-stale server snapshot (which previously forced a manual
+    // refresh before new/edited products showed up).
+    this._syncPauseCount = 0;
+
 
     this.businessProfile = {
       name: "Celler POS",
@@ -228,6 +234,8 @@ export class CellarStore {
   }
 
   async syncLiveState() {
+    // Don't clobber optimistic local state while a save is still committing.
+    if (this._syncPauseCount > 0) return;
     try {
       const prevSig = this._stateSignature();
       await Promise.all([
@@ -638,124 +646,148 @@ export class CellarStore {
 
   // --- API MUTATION METHODS ---
   async addProduct(productData) {
-    const tempId = productData.id || `P-${Date.now()}`;
-    const newProd = {
-      id: tempId,
-      brand: productData.brand || '',
-      name: productData.name || '',
-      category: productData.category || "Spirits",
-      size: productData.size || "750 ml",
-      abv: productData.abv !== undefined ? Number(productData.abv) : 40,
-      sku: productData.sku || `SKU-${Date.now()}`,
-      barcode: productData.barcode || `${Math.floor(1000000000000 + Math.random()*9000000000000)}`,
-      cost: productData.cost !== undefined ? Number(productData.cost) : 0,
-      cost_price: productData.cost !== undefined ? Number(productData.cost) : 0,
-      price: productData.price !== undefined ? Number(productData.price) : 0,
-      selling_price: productData.price !== undefined ? Number(productData.price) : 0,
-      stock: productData.stock !== undefined ? Number(productData.stock) : 0,
-      current_stock: productData.stock !== undefined ? Number(productData.stock) : 0,
-      reorder: productData.reorder !== undefined ? Number(productData.reorder) : 5,
-      reorder_level: productData.reorder !== undefined ? Number(productData.reorder) : 5,
-      active: true,
-      highValue: !!productData.highValue
-    };
-
-    const existingIdx = this.products.findIndex(p => p.id === tempId);
-    if (existingIdx >= 0) {
-      this.products[existingIdx] = newProd;
-    } else {
-      this.products.unshift(newProd);
-    }
-    this.saveLocalBackup();
-    this.notify();
-    this.broadcastUpdate();
-
+    this._syncPauseCount++;
     try {
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
-      });
-      const ct = res.headers.get('content-type') || '';
-      if (res.ok && ct.includes('application/json')) {
-        const saved = await res.json();
-        if (saved && saved.id) {
-          newProd.id = saved.id;
-        }
-        this.fetchInventoryMovements().catch(() => {});
-        this.fetchAuditLogs().catch(() => {});
-        return { product: newProd };
+      const tempId = productData.id || `P-${Date.now()}`;
+      const newProd = {
+        id: tempId,
+        brand: productData.brand || '',
+        name: productData.name || '',
+        category: productData.category || "Spirits",
+        size: productData.size || "750 ml",
+        abv: productData.abv !== undefined ? Number(productData.abv) : 40,
+        sku: productData.sku || `SKU-${Date.now()}`,
+        barcode: productData.barcode || `${Math.floor(1000000000000 + Math.random()*9000000000000)}`,
+        cost: productData.cost !== undefined ? Number(productData.cost) : 0,
+        cost_price: productData.cost !== undefined ? Number(productData.cost) : 0,
+        price: productData.price !== undefined ? Number(productData.price) : 0,
+        selling_price: productData.price !== undefined ? Number(productData.price) : 0,
+        stock: productData.stock !== undefined ? Number(productData.stock) : 0,
+        current_stock: productData.stock !== undefined ? Number(productData.stock) : 0,
+        reorder: productData.reorder !== undefined ? Number(productData.reorder) : 5,
+        reorder_level: productData.reorder !== undefined ? Number(productData.reorder) : 5,
+        active: true,
+        highValue: !!productData.highValue
+      };
+
+      const existingIdx = this.products.findIndex(p => p.id === tempId);
+      if (existingIdx >= 0) {
+        this.products[existingIdx] = newProd;
+      } else {
+        this.products.unshift(newProd);
       }
-    } catch (e) {
-      console.warn("Add product sync notice:", e);
-    }
-    return { product: newProd };
-  }
-
-  async updateProduct(id, productData) {
-    const prod = this.products.find(p => p.id === id);
-    if (prod) {
-      if (productData.brand !== undefined) prod.brand = productData.brand;
-      if (productData.name !== undefined) prod.name = productData.name;
-      if (productData.category !== undefined) prod.category = productData.category;
-      if (productData.size !== undefined) prod.size = productData.size;
-      if (productData.abv !== undefined) prod.abv = Number(productData.abv);
-      if (productData.sku !== undefined) prod.sku = productData.sku;
-      if (productData.barcode !== undefined) prod.barcode = productData.barcode;
-      if (productData.cost !== undefined) { prod.cost = Number(productData.cost); prod.cost_price = Number(productData.cost); }
-      if (productData.price !== undefined) { prod.price = Number(productData.price); prod.selling_price = Number(productData.price); }
-      if (productData.reorder !== undefined) { prod.reorder = Number(productData.reorder); prod.reorder_level = Number(productData.reorder); }
-      if (productData.highValue !== undefined) prod.highValue = !!productData.highValue;
-
       this.saveLocalBackup();
       this.notify();
       this.broadcastUpdate();
-    }
 
-    try {
-      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
-      });
-      if (res.ok) {
-        this.fetchAuditLogs().catch(() => {});
+      try {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const saved = await res.json();
+          if (saved && saved.id) {
+            newProd.id = saved.id;
+          }
+          // Pull the authoritative catalogue back so the new row is present and
+          // correct the instant the view re-renders — no manual refresh needed.
+          await this.fetchProducts();
+          this.fetchInventoryMovements().catch(() => {});
+          this.fetchAuditLogs().catch(() => {});
+          return { product: newProd };
+        }
+      } catch (e) {
+        console.warn("Add product sync notice:", e);
       }
-    } catch (e) {
-      console.warn("Update product sync notice:", e);
+      return { product: newProd };
+    } finally {
+      this._syncPauseCount = Math.max(0, this._syncPauseCount - 1);
     }
-    return { product: prod };
+  }
+
+  async updateProduct(id, productData) {
+    this._syncPauseCount++;
+    try {
+      const prod = this.products.find(p => p.id === id);
+      if (prod) {
+        if (productData.brand !== undefined) prod.brand = productData.brand;
+        if (productData.name !== undefined) prod.name = productData.name;
+        if (productData.category !== undefined) prod.category = productData.category;
+        if (productData.size !== undefined) prod.size = productData.size;
+        if (productData.abv !== undefined) prod.abv = Number(productData.abv);
+        if (productData.sku !== undefined) prod.sku = productData.sku;
+        if (productData.barcode !== undefined) prod.barcode = productData.barcode;
+        if (productData.cost !== undefined) { prod.cost = Number(productData.cost); prod.cost_price = Number(productData.cost); }
+        if (productData.price !== undefined) { prod.price = Number(productData.price); prod.selling_price = Number(productData.price); }
+        if (productData.reorder !== undefined) { prod.reorder = Number(productData.reorder); prod.reorder_level = Number(productData.reorder); }
+        if (productData.highValue !== undefined) prod.highValue = !!productData.highValue;
+
+        this.saveLocalBackup();
+        this.notify();
+        this.broadcastUpdate();
+      }
+
+      try {
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
+        });
+        if (res.ok) {
+          // Refresh from the server so the edited row reflects persisted values
+          // immediately, without waiting for a manual page refresh.
+          await this.fetchProducts();
+          this.fetchAuditLogs().catch(() => {});
+        }
+      } catch (e) {
+        console.warn("Update product sync notice:", e);
+      }
+      return { product: prod };
+    } finally {
+      this._syncPauseCount = Math.max(0, this._syncPauseCount - 1);
+    }
   }
 
   async updateProductStock(id, newStock, reason = 'Manual Stock Adjustment') {
     const prod = this.products.find(p => p.id === id);
     if (!prod) return;
 
-    const numStock = Number(newStock);
-    prod.stock = numStock;
-    prod.current_stock = numStock;
-
-    this.saveLocalBackup();
-    this.notify();
-    this.broadcastUpdate();
-
+    this._syncPauseCount++;
     try {
-      const res = await fetch('/api/inventory/adjust', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: id,
-          newStock: numStock,
-          reason,
-          userName: this.currentUser?.name
-        })
-      });
-      if (res.ok) {
-        this.fetchInventoryMovements().catch(() => {});
-        this.fetchAuditLogs().catch(() => {});
+      const numStock = Number(newStock);
+      prod.stock = numStock;
+      prod.current_stock = numStock;
+
+      this.saveLocalBackup();
+      this.notify();
+      this.broadcastUpdate();
+
+      try {
+        const res = await fetch('/api/inventory/adjust', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: id,
+            newStock: numStock,
+            reason,
+            userName: this.currentUser?.name
+          })
+        });
+        if (res.ok) {
+          // Refresh the catalogue so the adjusted stock value is authoritative
+          // on the next render without a manual refresh.
+          await this.fetchProducts();
+          this.fetchInventoryMovements().catch(() => {});
+          this.fetchAuditLogs().catch(() => {});
+        }
+      } catch (e) {
+        console.warn("Update stock sync notice:", e);
       }
-    } catch (e) {
-      console.warn("Update stock sync notice:", e);
+    } finally {
+      this._syncPauseCount = Math.max(0, this._syncPauseCount - 1);
     }
   }
 

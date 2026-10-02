@@ -41,7 +41,12 @@ import { renderResetPinModal } from './components/ResetPinModal.js';
 import { renderForgotPasswordModal } from './components/ForgotPasswordModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
-let activeViewId = 'dashboard';
+// Remember the last-opened view across reloads (per tab) so a refresh keeps the
+// user on the same page instead of snapping back to the Dashboard.
+function readPersistedView() {
+  try { return sessionStorage.getItem('cellar_active_view') || null; } catch (e) { return null; }
+}
+let activeViewId = readPersistedView() || 'dashboard';
 
 // Safely read a JSON body. Some responses (proxy 401s, gateway errors, empty
 // 204s, HTML error pages) have no/invalid JSON, which makes res.json() throw
@@ -77,6 +82,7 @@ window.logoutUser = () => {
   try {
     sessionStorage.removeItem('cellar_session_auth');
     sessionStorage.removeItem('cellar_authenticated_user');
+    sessionStorage.removeItem('cellar_active_view');
   } catch (e) {}
   initApp();
 };
@@ -1666,6 +1672,8 @@ export function switchTab(viewId) {
   }
 
   activeViewId = viewId;
+  // Persist so a page refresh reopens this same view instead of the Dashboard.
+  try { sessionStorage.setItem('cellar_active_view', viewId); } catch (e) {}
   document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
 
