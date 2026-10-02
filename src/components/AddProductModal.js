@@ -25,8 +25,9 @@ export function renderAddProductModal() {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Category</label>
-            <select class="form-select" id="prodCategorySelect">
-              <option value="Whisky">Whisky</option>
+            <select class="form-select" id="prodCategorySelect" onchange="toggleCustomCategoryInput(this)">
+              <option value="Spirits">Spirits</option>
+              <option value="Whisky" selected>Whisky</option>
               <option value="Vodka">Vodka</option>
               <option value="Gin">Gin</option>
               <option value="Cognac">Cognac</option>
@@ -41,6 +42,7 @@ export function renderAddProductModal() {
               <option value="Mixers">Mixers</option>
               <option value="Soft Drinks">Soft Drinks</option>
               <option value="Water">Water</option>
+              <option value="__custom__">+ Add Custom Category...</option>
             </select>
           </div>
           <div class="form-group">
@@ -56,6 +58,11 @@ export function renderAddProductModal() {
               <option value="1.5 L">1.5 L</option>
             </select>
           </div>
+        </div>
+
+        <div class="form-group" id="prodCustomCategoryContainer" style="display:none; margin-bottom:12px;">
+          <label class="form-label" style="color:var(--accent);">Custom Category Name</label>
+          <input type="text" class="form-input" id="prodCustomCategoryInput" placeholder="e.g. Single Malt Whisky, Craft Beer, Energy Drinks">
         </div>
 
         <div class="form-row">
@@ -110,3 +117,10 @@ export function renderAddProductModal() {
   </div>
   `;
 }
+
+window.toggleCustomCategoryInput = function(selectEl) {
+  const container = document.getElementById('prodCustomCategoryContainer');
+  if (container) {
+    container.style.display = selectEl.value === '__custom__' ? 'block' : 'none';
+  }
+};
