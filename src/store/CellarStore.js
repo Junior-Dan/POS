@@ -39,6 +39,15 @@ export async function readJsonBody(res) {
   }
 }
 
+// Optional backend base URL. When VITE_API_BASE is set at build time (e.g. a
+// remote Express backend hosted on Render), relative "/api/..." requests are
+// rewritten to "${VITE_API_BASE}/api/...". When unset/empty, requests stay
+// relative so local dev keeps using the Vite proxy and same-origin hosting
+// continues to work unchanged. The Render URL is never hardcoded here.
+const API_BASE = (import.meta.env.VITE_API_BASE || '')
+  .toString()
+  .replace(/\/+$/, '');
+
 if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
   window._cellarFetchPatched = true;
   const _origFetch = window.fetch.bind(window);
@@ -51,6 +60,12 @@ if (typeof window !== 'undefined' && !window._cellarFetchPatched) {
           const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined) || {});
           if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
           init = { ...init, headers };
+        }
+        // Point relative API calls at the configured backend origin, if any.
+        // Only rewrite plain relative "/api/..." strings — never an already
+        // absolute URL — so we can never double-prefix the base.
+        if (API_BASE && typeof input === 'string' && input.startsWith('/api/')) {
+          input = API_BASE + input;
         }
       }
     } catch (e) { /* fall through to normal fetch */ }
