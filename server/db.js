@@ -202,6 +202,12 @@ class DatabaseAdapter {
     // Adapt SQLite-specific syntax for PostgreSQL compatibility
     let pgSql = sql;
 
+    // SQLite's DATETIME type does not exist in PostgreSQL -> use TIMESTAMP.
+    // Word-boundary + case-insensitive so only the type keyword is rewritten
+    // (never a column/identifier that merely contains the substring). Supabase
+    // path only; the SQLite/Turso paths keep the original SQL untouched.
+    pgSql = pgSql.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
+
     // Convert SQLite PRAGMA statements (ignore on Postgres)
     if (pgSql.trim().toUpperCase().startsWith('PRAGMA')) {
       return [];

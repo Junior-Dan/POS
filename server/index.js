@@ -54,10 +54,12 @@ function ensureDbReady() {
   }
 }
 
-// Warm up the DB in the background so the first request is fast when the DB is
-// reachable. Deferred so it NEVER blocks server startup / the health check —
-// requests lazily (re)initialize via the guard middleware below if needed.
-setImmediate(() => { try { ensureDbReady(); } catch (e) {} });
+// NOTE: no eager startup warm-up. The DB layer initializes synchronously (it
+// shells out one subprocess per SQL statement), so running it at boot would
+// block the event loop and prevent the freshly-listening socket from accepting
+// the platform's port probe (seen on Render as "No open HTTP ports detected").
+// DB init happens lazily on the first /api request via the guard middleware
+// below; /api/health stays DB-independent so the port is detected immediately.
 
 // API Health Check (never requires the DB).
 app.get('/api/health', (req, res) => {
@@ -99,8 +101,10 @@ app.use('/api', (err, _req, res, next) => {
 });
 
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`Celler POS Backend Express Server listening on http://localhost:${PORT}`);
+  // Bind explicitly to 0.0.0.0 so container platforms (Render, Fly, etc.) can
+  // detect the open port on IPv4; the default host can bind IPv6-only.
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Celler POS Backend Express Server listening on 0.0.0.0:${PORT}`);
   });
 }
 
