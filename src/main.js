@@ -1266,6 +1266,19 @@ function bindEvents() {
       `;
     }
 
+    const branchSelect = document.getElementById('staffBranchSelect');
+    if (branchSelect) {
+      const branches = store.branches || [];
+      // Owners may pick any branch; managers can only add staff to their own.
+      const preferred = isOwner
+        ? (branches[0] && branches[0].id)
+        : (store.currentUser?.branchId || (branches[0] && branches[0].id));
+      branchSelect.innerHTML = branches.length
+        ? branches.map(b => `<option value="${b.id}" ${b.id === preferred ? 'selected' : ''}>${b.name}${b.code ? ` (${b.code})` : ''}</option>`).join('')
+        : `<option value="">No branches configured</option>`;
+      branchSelect.disabled = !isOwner;
+    }
+
     window.openModal('staffModal');
   };
 
@@ -1311,6 +1324,17 @@ function bindEvents() {
           <option value="inventory_officer" ${u.role === 'inventory_officer' ? 'selected' : ''}>INVENTORY OFFICER (Stock & purchasing)</option>
         `;
       }
+    }
+
+    const branchSelect = document.getElementById('staffBranchSelect');
+    if (branchSelect) {
+      const branches = store.branches || [];
+      const current = u.branchId || u.primaryBranchId || u.branch_id || '';
+      branchSelect.innerHTML = branches.length
+        ? branches.map(b => `<option value="${b.id}" ${b.id === current ? 'selected' : ''}>${b.name}${b.code ? ` (${b.code})` : ''}</option>`).join('')
+        : `<option value="">No branches configured</option>`;
+      // Only owners may move staff between branches (backend enforces this too).
+      branchSelect.disabled = !isOwner;
     }
 
     document.getElementById('staffStatusSelect').value = u.status || "ACTIVE";
@@ -1388,6 +1412,7 @@ function bindEvents() {
     const role = document.getElementById('staffRoleSelect')?.value || 'cashier';
     const status = document.getElementById('staffStatusSelect')?.value || 'ACTIVE';
     const pin = document.getElementById('staffPinInput')?.value.trim() || '';
+    const branchId = document.getElementById('staffBranchSelect')?.value || '';
     const errDiv = document.getElementById('staffModalErrorMsg');
 
     if (errDiv) errDiv.textContent = '';
@@ -1434,7 +1459,7 @@ function bindEvents() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, phone, email, role, status, pin })
+          body: JSON.stringify({ name, phone, email, role, status, pin, primaryBranchId: branchId })
         });
         const data = await readJsonSafe(res);
         if (!res.ok) throw new Error(data.error || `Failed to update staff (HTTP ${res.status}).`);
@@ -1447,7 +1472,7 @@ function bindEvents() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, phone, email, role, status, pin })
+          body: JSON.stringify({ name, phone, email, role, status, pin, primaryBranchId: branchId })
         });
         const data = await readJsonSafe(res);
         if (!res.ok) throw new Error(data.error || `Failed to create staff (HTTP ${res.status}).`);

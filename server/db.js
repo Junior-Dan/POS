@@ -415,7 +415,7 @@ const TENANT_TABLES = [
 ];
 
 function runTenantMigration() {
-  const MIGRATION_VERSION = '5';
+  const MIGRATION_VERSION = '6';
   let current = null;
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
@@ -460,6 +460,51 @@ function runTenantMigration() {
         }
       } catch (e) {}
     }
+  }
+
+  // --- v6: per-branch inventory -------------------------------------------
+  // Additive & idempotent. Adds stock_movements.branch_id, then seeds
+  // product_branch_stock from each product's existing current_stock against
+  // that organization's PRIMARY branch — so all existing quantities are
+  // preserved and attributed to the branch they already (implicitly) belonged
+  // to. SELECT-before-INSERT keeps it safe to re-run and portable across SQLite
+  // / Turso / Supabase (no INSERT OR IGNORE / ON CONFLICT reliance).
+  try { db.exec('ALTER TABLE stock_movements ADD COLUMN branch_id TEXT'); } catch (e) {}
+
+  let allOrgs = [];
+  try { allOrgs = db.prepare('SELECT id FROM organizations').all() || []; } catch (e) {}
+
+  for (const org of allOrgs) {
+    const oid = org.id;
+    if (!oid) continue;
+
+    // Primary branch for this org = earliest-created branch.
+    let primary = null;
+    try { primary = db.prepare('SELECT id FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(oid); } catch (e) {}
+    if (!primary || !primary.id) continue; // no branch yet -> leave stock as-is (safe)
+    const branchId = primary.id;
+
+    let prods = [];
+    try { prods = db.prepare('SELECT id, current_stock, min_stock, reorder_level FROM products WHERE organization_id = ?').all(oid) || []; } catch (e) {}
+
+    for (const p of prods) {
+      let exists = null;
+      try { exists = db.prepare('SELECT id FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(oid, p.id, branchId); } catch (e) {}
+      if (exists) continue; // already seeded -> idempotent skip
+      const pbsId = `PBS-${p.id}-${branchId}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 120);
+      try {
+        db.prepare(`INSERT INTO product_branch_stock (id, organization_id, product_id, branch_id, current_stock, min_stock, reorder_level)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+          .run(pbsId, oid, p.id, branchId, p.current_stock || 0, p.min_stock || 5, p.reorder_level || 10);
+      } catch (e) {}
+    }
+
+    // Stamp legacy stock movements (null / '' / legacy 'B1') with the primary branch.
+    const safeOid = String(oid).replaceAll("'", "''");
+    const safeBranch = String(branchId).replaceAll("'", "''");
+    try {
+      db.exec(`UPDATE stock_movements SET branch_id = '${safeBranch}' WHERE organization_id = '${safeOid}' AND (branch_id IS NULL OR branch_id = '' OR branch_id = 'B1')`);
+    } catch (e) {}
   }
 
   try {

@@ -30,13 +30,20 @@ export function renderStaffModal() {
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Assigned Role *</label>
-          <select class="form-select" id="staffRoleSelect">
-            <option value="manager">MANAGER (Operational admin)</option>
-            <option value="cashier" selected>CASHIER (POS & assigned drawer)</option>
-            <option value="inventory_officer">INVENTORY OFFICER (Stock & purchasing)</option>
-          </select>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Assigned Role *</label>
+            <select class="form-select" id="staffRoleSelect">
+              <option value="manager">MANAGER (Operational admin)</option>
+              <option value="cashier" selected>CASHIER (POS & assigned drawer)</option>
+              <option value="inventory_officer">INVENTORY OFFICER (Stock & purchasing)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Assigned Branch / Outlet *</label>
+            <select class="form-select" id="staffBranchSelect"></select>
+            <span style="font-size:10.5px; color:var(--text-faint);">Sales & shifts this staff records are attributed to this branch.</span>
+          </div>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">

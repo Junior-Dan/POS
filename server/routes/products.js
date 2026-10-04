@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
-import { authenticateSession } from './auth.js';
+import { authenticateSession, canAccessBranch } from './auth.js';
+import { ensureBranchStock, syncAggregate, branchExists, primaryBranchId } from '../branchStock.js';
 
 const router = express.Router();
 router.use(authenticateSession);
@@ -52,36 +53,70 @@ router.get('/', (req, res) => {
 
     const products = db.prepare(sql).all(...params);
 
+    // --- Resolve the branch view ------------------------------------------
+    // Non-owners always see ONLY their own branch's stock. Owners may request a
+    // specific branch (?branch=ID); without one (or ALL) they see the org-wide
+    // aggregate (products.current_stock), preserving the existing behaviour.
+    const orgId = req.authUser.organizationId;
+    let viewBranch = null;
+    if (req.authUser.role !== 'owner') {
+      viewBranch = req.authUser.branchId || null;
+    } else {
+      const requested = req.query.branch;
+      if (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested)) {
+        viewBranch = requested;
+      }
+    }
+
+    // When viewing a specific branch, overlay that branch's stock / min / reorder.
+    let branchStockMap = null;
+    if (viewBranch) {
+      branchStockMap = {};
+      const rows = db.prepare('SELECT product_id, current_stock, min_stock, reorder_level FROM product_branch_stock WHERE organization_id = ? AND branch_id = ?').all(orgId, viewBranch);
+      for (const r of rows) branchStockMap[r.product_id] = r;
+    }
+
     // Map fields to match existing frontend expectations with robust fallbacks
-    const mapped = products.map(p => ({
-      id: p.id,
-      brand: p.brand || 'Premium',
-      name: p.name || 'Spirits Item',
-      category: p.category || 'Whisky',
-      productType: p.product_type || 'retail',
-      unit: p.unit || 'bottle',
-      abv: p.abv || 40,
-      size: p.size || '750 ml',
-      caseUnits: p.case_units || 12,
-      barcode: p.barcode || 'N/A',
-      sku: p.sku || 'N/A',
-      cost: p.cost_price !== undefined ? p.cost_price : 0,
-      cost_price: p.cost_price !== undefined ? p.cost_price : 0,
-      price: p.selling_price !== undefined ? p.selling_price : 0,
-      selling_price: p.selling_price !== undefined ? p.selling_price : 0,
-      wholesalePrice: p.wholesale_price || 0,
-      minPrice: p.min_price || 0,
-      taxRate: p.tax_rate || 16,
-      stock: p.current_stock !== undefined ? p.current_stock : 10,
-      current_stock: p.current_stock !== undefined ? p.current_stock : 10,
-      minStock: p.min_stock || 5,
-      reorder: p.reorder_level || 5,
-      reorder_level: p.reorder_level || 5,
-      supplierId: p.supplier_id || 'SUP1',
-      supplierName: p.supplier_name || 'KBL Distributors',
-      highValue: Boolean(p.high_value),
-      active: p.active !== undefined ? Boolean(p.active) : true
-    }));
+    const mapped = products.map(p => {
+      const aggStock = p.current_stock !== undefined ? p.current_stock : 0;
+      const bs = branchStockMap ? branchStockMap[p.id] : null;
+      // In branch view a product with no row yet reads as 0 (lazily created on
+      // first stock-in), falling back to product-level min/reorder defaults.
+      const stockVal = viewBranch ? (bs ? bs.current_stock : 0) : aggStock;
+      const minStockVal = viewBranch && bs ? bs.min_stock : (p.min_stock || 5);
+      const reorderVal = viewBranch && bs ? bs.reorder_level : (p.reorder_level || 5);
+      return {
+        id: p.id,
+        brand: p.brand || 'Premium',
+        name: p.name || 'Spirits Item',
+        category: p.category || 'Whisky',
+        productType: p.product_type || 'retail',
+        unit: p.unit || 'bottle',
+        abv: p.abv || 40,
+        size: p.size || '750 ml',
+        caseUnits: p.case_units || 12,
+        barcode: p.barcode || 'N/A',
+        sku: p.sku || 'N/A',
+        cost: p.cost_price !== undefined ? p.cost_price : 0,
+        cost_price: p.cost_price !== undefined ? p.cost_price : 0,
+        price: p.selling_price !== undefined ? p.selling_price : 0,
+        selling_price: p.selling_price !== undefined ? p.selling_price : 0,
+        wholesalePrice: p.wholesale_price || 0,
+        minPrice: p.min_price || 0,
+        taxRate: p.tax_rate || 16,
+        stock: stockVal,
+        current_stock: stockVal,
+        aggregateStock: aggStock,
+        branchId: viewBranch || null,
+        minStock: minStockVal,
+        reorder: reorderVal,
+        reorder_level: reorderVal,
+        supplierId: p.supplier_id || 'SUP1',
+        supplierName: p.supplier_name || 'KBL Distributors',
+        highValue: Boolean(p.high_value),
+        active: p.active !== undefined ? Boolean(p.active) : true
+      };
+    });
 
     res.json(mapped);
   } catch (e) {
@@ -197,12 +232,24 @@ router.post('/', (req, res) => {
       p.highValue ? 1 : 0
     );
 
-    // Record initial stock movement
+    // Seed the starting stock into the OWNING branch (catalogue stays shared,
+    // quantity is per-branch). Non-owners seed their own branch; owners seed the
+    // branch they pass, else the org's primary branch. syncAggregate then keeps
+    // products.current_stock equal to the sum across branches.
+    const initBranch = (req.authUser.role !== 'owner')
+      ? req.authUser.branchId
+      : (branchExists(orgId, p.branchId) ? p.branchId : primaryBranchId(orgId));
+    if (initBranch) {
+      ensureBranchStock(orgId, id, initBranch, stock);
+      syncAggregate(orgId, id);
+    }
+
+    // Record initial stock movement (branch-scoped)
     if (stock > 0) {
       db.prepare(`
-        INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-        VALUES (?, ?, ?, ?, 'OPENING_STOCK', ?, 0, ?, 'NEW_PRODUCT', ?, 'Product Created Initial Stock')
-      `).run(`MOV-${Date.now()}`, orgId, id, `${p.brand || ''} ${p.name}`.trim(), stock, stock, p.userName || 'System');
+        INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
+        VALUES (?, ?, ?, ?, ?, 'OPENING_STOCK', ?, 0, ?, 'NEW_PRODUCT', ?, 'Product Created Initial Stock')
+      `).run(`MOV-${Date.now()}`, orgId, id, `${p.brand || ''} ${p.name}`.trim(), initBranch || null, stock, stock, p.userName || 'System');
     }
 
     // Audit log
