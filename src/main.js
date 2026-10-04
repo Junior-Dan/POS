@@ -1723,7 +1723,12 @@ function bindEvents() {
     if (!name) return alert("Please enter Branch Name!");
 
     try {
-      await store.createBranch({ id: editId, name, code, commodityType, location, phone, manager, operatingHours, status });
+      if (editId) {
+        // Edit → update in place (never create a duplicate branch).
+        await store.updateBranch(editId, { name, code, commodityType, location, phone, manager, operatingHours, status });
+      } else {
+        await store.createBranch({ name, code, commodityType, location, phone, manager, operatingHours, status });
+      }
       window.closeModal('branchModal');
       initApp();
       alert("Branch configured successfully!");

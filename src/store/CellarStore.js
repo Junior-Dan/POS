@@ -632,7 +632,8 @@ export class CellarStore {
           code,
           commodityType: branchData.commodityType,
           location: branchData.location,
-          phone: branchData.phone
+          phone: branchData.phone,
+          status: branchData.status
         })
       });
       if (!res.ok) {
@@ -643,6 +644,60 @@ export class CellarStore {
     }
 
     return { branch: newBranch };
+  }
+
+  // Update an existing branch IN PLACE (edit). Uses the dedicated PUT endpoint
+  // so the server updates the row rather than inserting a duplicate; the branch
+  // code is kept stable so its share-URL keeps working.
+  async updateBranch(id, branchData) {
+    if (!Array.isArray(this.branches)) this.branches = [];
+    const idx = this.branches.findIndex(b => b.id === id);
+    const existing = idx >= 0 ? this.branches[idx] : {};
+    const updated = {
+      ...existing,
+      id,
+      organizationId: this.currentUser?.organizationId || existing.organizationId,
+      name: branchData.name,
+      // Preserve the existing code on edit (never re-slug a live branch).
+      code: existing.code || branchData.code,
+      commodityType: branchData.commodityType,
+      location: branchData.location || '',
+      phone: branchData.phone || '',
+      manager: branchData.manager || existing.manager || '',
+      operatingHours: branchData.operatingHours || existing.operatingHours || '08:00 AM - 10:00 PM',
+      status: branchData.status || 'ACTIVE'
+    };
+
+    if (idx >= 0) {
+      this.branches[idx] = updated;
+    } else {
+      this.branches.push(updated);
+    }
+
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
+    try {
+      const res = await fetch(`/api/auth/branches/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: branchData.name,
+          location: branchData.location,
+          phone: branchData.phone,
+          status: branchData.status,
+          commodityType: branchData.commodityType
+        })
+      });
+      if (!res.ok) {
+        await this.saveBranches();
+      }
+    } catch (e) {
+      await this.saveBranches();
+    }
+
+    return { branch: updated };
   }
 
   async saveBranches() {
