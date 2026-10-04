@@ -39,6 +39,7 @@ import { renderCustomerModal } from './components/CustomerModal.js';
 import { renderStaffModal } from './components/StaffModal.js';
 import { renderResetPinModal } from './components/ResetPinModal.js';
 import { renderForgotPasswordModal } from './components/ForgotPasswordModal.js';
+import { renderBranchModal } from './components/BranchModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 // Remember the last-opened view across reloads (per tab) so a refresh keeps the
@@ -152,6 +153,7 @@ export function initApp() {
       ${renderStaffModal()}
       ${renderResetPinModal()}
       ${renderForgotPasswordModal()}
+      ${renderBranchModal()}
     </div>
   `;
 
@@ -1264,6 +1266,19 @@ function bindEvents() {
       `;
     }
 
+    const branchSelect = document.getElementById('staffBranchSelect');
+    if (branchSelect) {
+      const branches = store.branches || [];
+      // Owners may pick any branch; managers can only add staff to their own.
+      const preferred = isOwner
+        ? (branches[0] && branches[0].id)
+        : (store.currentUser?.branchId || (branches[0] && branches[0].id));
+      branchSelect.innerHTML = branches.length
+        ? branches.map(b => `<option value="${b.id}" ${b.id === preferred ? 'selected' : ''}>${b.name}${b.code ? ` (${b.code})` : ''}</option>`).join('')
+        : `<option value="">No branches configured</option>`;
+      branchSelect.disabled = !isOwner;
+    }
+
     window.openModal('staffModal');
   };
 
@@ -1309,6 +1324,17 @@ function bindEvents() {
           <option value="inventory_officer" ${u.role === 'inventory_officer' ? 'selected' : ''}>INVENTORY OFFICER (Stock & purchasing)</option>
         `;
       }
+    }
+
+    const branchSelect = document.getElementById('staffBranchSelect');
+    if (branchSelect) {
+      const branches = store.branches || [];
+      const current = u.branchId || u.primaryBranchId || u.branch_id || '';
+      branchSelect.innerHTML = branches.length
+        ? branches.map(b => `<option value="${b.id}" ${b.id === current ? 'selected' : ''}>${b.name}${b.code ? ` (${b.code})` : ''}</option>`).join('')
+        : `<option value="">No branches configured</option>`;
+      // Only owners may move staff between branches (backend enforces this too).
+      branchSelect.disabled = !isOwner;
     }
 
     document.getElementById('staffStatusSelect').value = u.status || "ACTIVE";
@@ -1386,6 +1412,7 @@ function bindEvents() {
     const role = document.getElementById('staffRoleSelect')?.value || 'cashier';
     const status = document.getElementById('staffStatusSelect')?.value || 'ACTIVE';
     const pin = document.getElementById('staffPinInput')?.value.trim() || '';
+    const branchId = document.getElementById('staffBranchSelect')?.value || '';
     const errDiv = document.getElementById('staffModalErrorMsg');
 
     if (errDiv) errDiv.textContent = '';
@@ -1432,7 +1459,7 @@ function bindEvents() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, phone, email, role, status, pin })
+          body: JSON.stringify({ name, phone, email, role, status, pin, primaryBranchId: branchId })
         });
         const data = await readJsonSafe(res);
         if (!res.ok) throw new Error(data.error || `Failed to update staff (HTTP ${res.status}).`);
@@ -1445,7 +1472,7 @@ function bindEvents() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, phone, email, role, status, pin })
+          body: JSON.stringify({ name, phone, email, role, status, pin, primaryBranchId: branchId })
         });
         const data = await readJsonSafe(res);
         if (!res.ok) throw new Error(data.error || `Failed to create staff (HTTP ${res.status}).`);
@@ -1649,6 +1676,90 @@ function bindEvents() {
     store.save();
     initApp();
     alert("System preferences saved!");
+  };
+
+  // Branch & Commodity Outlet Handlers
+  window.openAddBranchModal = () => {
+    document.getElementById('branchModalTitle').textContent = "Add New Branch / Commodity Outlet";
+    document.getElementById('branchEditId').value = "";
+    document.getElementById('branchNameInput').value = "";
+    document.getElementById('branchCodeInput').value = "";
+    document.getElementById('branchCommoditySelect').value = "Water & Beverages";
+    document.getElementById('branchCustomCommodityContainer').style.display = "none";
+    document.getElementById('branchLocationInput').value = "";
+    document.getElementById('branchPhoneInput').value = "";
+    document.getElementById('branchHoursInput').value = "08:00 AM - 10:00 PM";
+    document.getElementById('branchStatusSelect').value = "ACTIVE";
+
+    const mgrSelect = document.getElementById('branchManagerSelect');
+    if (mgrSelect) {
+      mgrSelect.innerHTML = `<option value="">-- Assign Manager (Optional) --</option>` +
+        (store.users || []).map(u => `<option value="${u.name}">${u.name} (${u.role})</option>`).join('');
+    }
+
+    window.openModal('branchModal');
+  };
+
+  window.openEditBranchModal = (id) => {
+    const b = (store.branches || []).find(x => x.id === id);
+    if (!b) return;
+    document.getElementById('branchModalTitle').textContent = `Edit Branch: ${b.name}`;
+    document.getElementById('branchEditId').value = b.id;
+    document.getElementById('branchNameInput').value = b.name || "";
+    document.getElementById('branchCodeInput').value = b.code || "";
+    
+    const commSelect = document.getElementById('branchCommoditySelect');
+    const existingType = b.commodityType || b.commodity_type || 'Water & Beverages';
+    const hasOpt = Array.from(commSelect.options).some(o => o.value === existingType);
+    if (hasOpt) {
+      commSelect.value = existingType;
+      document.getElementById('branchCustomCommodityContainer').style.display = "none";
+    } else {
+      commSelect.value = "__custom__";
+      document.getElementById('branchCustomCommodityContainer').style.display = "block";
+      document.getElementById('branchCustomCommodityInput').value = existingType;
+    }
+
+    document.getElementById('branchLocationInput').value = b.location || "";
+    document.getElementById('branchPhoneInput').value = b.phone || "";
+    document.getElementById('branchHoursInput').value = b.operatingHours || "08:00 AM - 10:00 PM";
+    document.getElementById('branchStatusSelect').value = b.status || "ACTIVE";
+
+    window.openModal('branchModal');
+  };
+
+  window.submitSaveBranch = async () => {
+    const name = document.getElementById('branchNameInput').value.trim();
+    const code = document.getElementById('branchCodeInput').value.trim();
+    let commodityType = document.getElementById('branchCommoditySelect').value;
+    if (commodityType === '__custom__') {
+      commodityType = (document.getElementById('branchCustomCommodityInput')?.value || '').trim();
+      if (!commodityType) {
+        return alert("Please enter the custom commodity name!");
+      }
+    }
+    const location = document.getElementById('branchLocationInput').value.trim();
+    const phone = document.getElementById('branchPhoneInput').value.trim();
+    const manager = document.getElementById('branchManagerSelect')?.value || "";
+    const operatingHours = document.getElementById('branchHoursInput').value.trim() || "08:00 AM - 10:00 PM";
+    const status = document.getElementById('branchStatusSelect').value;
+    const editId = document.getElementById('branchEditId').value;
+
+    if (!name) return alert("Please enter Branch Name!");
+
+    try {
+      if (editId) {
+        // Edit → update in place (never create a duplicate branch).
+        await store.updateBranch(editId, { name, code, commodityType, location, phone, manager, operatingHours, status });
+      } else {
+        await store.createBranch({ name, code, commodityType, location, phone, manager, operatingHours, status });
+      }
+      window.closeModal('branchModal');
+      initApp();
+      alert("Branch configured successfully!");
+    } catch (e) {
+      alert("Error saving branch: " + e.message);
+    }
   };
 
   // Global Universal Topbar Search Logic

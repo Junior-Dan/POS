@@ -607,23 +607,26 @@ router.get('/branch-info', (req, res) => {
 // 5. CREATE BRANCH (OWNER ONLY)
 // ---------------------------------------------------------------------------
 router.post('/branches', authenticateSession, requireRole('owner'), (req, res) => {
-  const { name, location, phone, code } = req.body;
+  const { name, location, phone, code, commodityType, status } = req.body;
   if (!name) return res.status(400).json({ error: 'Branch name is required.' });
 
   const orgId = req.authUser.organizationId;
   // Globally-unique code so the branch's share URL is unambiguous across orgs.
   const generatedCode = uniqueBranchCode(code || name);
   const branchId = `BR-${generatedCode}`;
+  const branchStatus = status || 'ACTIVE';
 
   try {
     db.prepare(`
       INSERT INTO branches (id, organization_id, name, code, location, phone, status)
-      VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `).run(branchId, orgId, name, generatedCode, location || '', phone || '');
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(branchId, orgId, name, generatedCode, location || '', phone || '', branchStatus);
 
-    // Keep this org's settings.branches array in sync for the frontend.
+    // Keep this org's settings.branches array in sync for the frontend. The
+    // settings blob is free-form JSON, so commodityType persists here without a
+    // schema change (this is the array the UI reloads store.branches from).
     const currentBranches = getOrgSetting(orgId, 'branches') || [];
-    currentBranches.push({ id: branchId, organizationId: orgId, name, code: generatedCode, location: location || '', phone: phone || '', status: 'ACTIVE' });
+    currentBranches.push({ id: branchId, organizationId: orgId, name, code: generatedCode, commodityType: commodityType || '', location: location || '', phone: phone || '', status: branchStatus });
     setOrgSetting(orgId, 'branches', currentBranches);
 
     db.prepare(`
@@ -631,7 +634,65 @@ router.post('/branches', authenticateSession, requireRole('owner'), (req, res) =
       VALUES (?, ?, ?, ?, 'owner', ?, 'Create Branch', ?, '-', ?, 'New branch created')
     `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.name, branchId, name, generatedCode.toUpperCase());
 
-    res.status(201).json({ success: true, branch: { id: branchId, organizationId: orgId, name, code: generatedCode, location, phone } });
+    res.status(201).json({ success: true, branch: { id: branchId, organizationId: orgId, name, code: generatedCode, commodityType: commodityType || '', location, phone, status: branchStatus } });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5b. UPDATE BRANCH IN PLACE (OWNER ONLY)
+// Editing must update the existing branch — never insert a duplicate. The code
+// (share-URL slug) is intentionally left unchanged so existing links keep
+// working. commodityType is persisted in the settings.branches blob.
+// ---------------------------------------------------------------------------
+router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res) => {
+  const { id } = req.params;
+  const { name, location, phone, status, commodityType } = req.body;
+  const orgId = req.authUser.organizationId;
+
+  // Normalize undefined -> null so COALESCE keeps the existing column value.
+  const nz = (v) => (v === undefined ? null : v);
+
+  try {
+    const existing = db.prepare('SELECT * FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').get(id, orgId);
+    if (existing) {
+      db.prepare(`
+        UPDATE branches
+        SET name = COALESCE(?, name),
+            location = COALESCE(?, location),
+            phone = COALESCE(?, phone),
+            status = COALESCE(?, status),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND organization_id = ?
+      `).run(nz(name), nz(location), nz(phone), nz(status), id, orgId);
+    }
+
+    // Update the frontend-facing settings.branches array in place (matched by
+    // id, or by code when the row predates stable ids).
+    const branches = getOrgSetting(orgId, 'branches') || [];
+    const existingCode = existing && existing.code ? String(existing.code).toLowerCase() : null;
+    const idx = branches.findIndex(b =>
+      b.id === id || (existingCode && b.code && String(b.code).toLowerCase() === existingCode));
+    const merged = {
+      ...(idx >= 0 ? branches[idx] : {}),
+      id,
+      organizationId: orgId,
+      ...(name !== undefined ? { name } : {}),
+      ...(location !== undefined ? { location } : {}),
+      ...(phone !== undefined ? { phone } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(commodityType !== undefined ? { commodityType } : {})
+    };
+    if (idx >= 0) branches[idx] = merged; else branches.push(merged);
+    setOrgSetting(orgId, 'branches', branches);
+
+    db.prepare(`
+      INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
+      VALUES (?, ?, ?, ?, 'owner', ?, 'Update Branch', ?, '-', ?, 'Branch details updated')
+    `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.name, id, merged.name || id, merged.commodityType || '-');
+
+    res.json({ success: true, branch: merged });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, findUserByPin, canAccessBranch } from './auth.js';
+import { getBranchStock, adjustBranchStock, branchExists } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -189,28 +190,49 @@ router.post('/', (req, res) => {
 
   // Execute sale creation in an atomic database transaction
   const processSaleTransaction = db.transaction(() => {
-    // 1. Validate Stock for all items (scoped to this organization's catalogue)
+    // 0. Resolve the branch this sale deducts from.
+    //    - Scoped users (cashier/manager/inventory_officer) are bound to their
+    //      OWN assigned branch; a client-supplied branch is never trusted.
+    //    - Owners must EXPLICITLY select a real branch — never silently fall
+    //      back to B1 or the primary branch.
+    let effectiveBranch;
+    if (req.authUser && req.authUser.role !== 'owner') {
+      effectiveBranch = req.authUser.branchId;
+      if (!effectiveBranch) {
+        throw new Error('Your account is not assigned to a branch. Ask the owner to assign one before selling.');
+      }
+    } else {
+      effectiveBranch = branchId;
+      if (!effectiveBranch || effectiveBranch === 'ALL') {
+        throw new Error('Please select a specific branch before completing a sale.');
+      }
+      if (!branchExists(orgId, effectiveBranch)) {
+        throw new Error('Selected branch was not found for your organization.');
+      }
+    }
+    if (!canAccessBranch(req.authUser, effectiveBranch)) {
+      throw new Error('You do not have access to the selected branch.');
+    }
+
+    // 1. Validate per-BRANCH stock for all items (no cross-branch borrowing).
     for (const item of items) {
-      const product = db.prepare('SELECT id, name, current_stock, cost_price, active FROM products WHERE id = ? AND organization_id = ?').get(item.id || item.productId, orgId);
+      const pId = item.id || item.productId;
+      const product = db.prepare('SELECT id, name, active FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
       if (!product) {
-        throw new Error(`Product '${item.name || item.id}' not found in database.`);
+        throw new Error(`Product '${item.name || pId}' not found in database.`);
       }
       if (!product.active) {
         throw new Error(`Product '${product.name}' is inactive and cannot be sold.`);
       }
-      if (product.current_stock < item.qty) {
-        throw new Error(`Insufficient stock for '${product.name}'. Required: ${item.qty}, Available: ${product.current_stock}.`);
+      const branchStock = Number(getBranchStock(orgId, pId, effectiveBranch).current_stock);
+      if (branchStock < item.qty) {
+        throw new Error(`Insufficient stock for '${product.name}' at this branch. Required: ${item.qty}, Available: ${branchStock}.`);
       }
     }
 
     // 2. Generate Receipt Number and Sale ID
     const receiptNo = `REC-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
     const saleId = `SALE-${Date.now()}`;
-    // Never trust a client-supplied branch for a scoped user: bind the sale to
-    // the authenticated user's branch (owners may transact on any branch).
-    const effectiveBranch = (req.authUser && req.authUser.role !== 'owner' && req.authUser.branchId)
-      ? req.authUser.branchId
-      : (branchId || (req.authUser && req.authUser.branchId) || 'B1');
     const cashierId = cashier?.id || 'U3';
     const cashierName = cashier?.name || req.authUser?.name || 'Cashier';
     const customerId = customer?.id || 'C1';
@@ -246,7 +268,7 @@ router.post('/', (req, res) => {
     // 4. Create Sale Items, Deduct Stock & Record Inventory Movement
     for (const item of items) {
       const pId = item.id || item.productId;
-      const product = db.prepare('SELECT current_stock, cost_price, name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
+      const product = db.prepare('SELECT cost_price, name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
       const unitPrice = parseFloat(item.price || item.unitPrice || 0);
       const costSnapshot = parseFloat(product.cost_price || 0);
       const itemTotal = unitPrice * item.qty;
@@ -257,22 +279,22 @@ router.post('/', (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(`SI-${Date.now()}-${Math.floor(Math.random()*1000)}`, orgId, saleId, pId, product.name, item.qty, unitPrice, costSnapshot, itemTotal);
 
-      // Deduct Inventory Stock
-      const newStock = product.current_stock - item.qty;
-      db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(newStock, pId, orgId);
+      // Deduct THIS branch's stock (also re-syncs products.current_stock aggregate).
+      const { previous, next } = adjustBranchStock(orgId, pId, effectiveBranch, -item.qty);
 
-      // Record Stock Movement
+      // Record branch-scoped Stock Movement
       db.prepare(`
-        INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-        VALUES (?, ?, ?, ?, 'SALE', ?, ?, ?, ?, ?, 'POS Sale Completed')
+        INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
+        VALUES (?, ?, ?, ?, ?, 'SALE', ?, ?, ?, ?, ?, 'POS Sale Completed')
       `).run(
         `MOV-${Date.now()}-${Math.floor(Math.random()*1000)}`,
         orgId,
         pId,
         product.name,
+        effectiveBranch,
         item.qty,
-        product.current_stock,
-        newStock,
+        previous,
+        next,
         receiptNo,
         cashierName
       );
@@ -387,24 +409,25 @@ router.post('/:id/refund', (req, res) => {
       WHERE id = ?
     `).run(amountToRefund, reason || 'Customer Refund', sale.id);
 
-    // Restore Inventory Stock and record movements
+    // Restore stock to the ORIGINAL sale's branch and record movements.
+    const refundBranch = sale.branch_id;
     for (const item of items) {
-      const product = db.prepare('SELECT current_stock, name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
+      const product = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
       if (product) {
-        const newStock = product.current_stock + item.qty;
-        db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(newStock, item.product_id, orgId);
+        const { previous, next } = adjustBranchStock(orgId, item.product_id, refundBranch, item.qty);
 
         db.prepare(`
-          INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-          VALUES (?, ?, ?, ?, 'RETURN', ?, ?, ?, ?, ?, ?)
+          INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
+          VALUES (?, ?, ?, ?, ?, 'RETURN', ?, ?, ?, ?, ?, ?)
         `).run(
           `MOV-${Date.now()}-${Math.floor(Math.random()*1000)}`,
           orgId,
           item.product_id,
           product.name,
+          refundBranch,
           item.qty,
-          product.current_stock,
-          newStock,
+          previous,
+          next,
           sale.receipt_no,
           manager.name,
           `Sale Refund: ${reason || 'Customer Return'}`

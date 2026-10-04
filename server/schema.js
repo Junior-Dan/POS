@@ -159,6 +159,7 @@ export const SCHEMA_STATEMENTS = [
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     product_id TEXT NOT NULL,
     product_name TEXT NOT NULL,
+    branch_id TEXT,
     type TEXT NOT NULL,
     qty INTEGER NOT NULL,
     previous_stock INTEGER,
@@ -166,6 +167,24 @@ export const SCHEMA_STATEMENTS = [
     ref TEXT,
     user_name TEXT,
     reason TEXT
+  )`,
+
+  // Per-branch inventory. The product catalogue stays shared org-wide (products
+  // table); the authoritative quantity for each (product, branch) lives here.
+  // products.current_stock is kept as the org-wide aggregate (sum of all
+  // branches) for backward compatibility. UNIQUE(product_id, branch_id) is the
+  // integrity backstop; code always SELECT-checks before INSERT so the path is
+  // safe across SQLite / Turso / Supabase (no INSERT OR IGNORE needed).
+  `CREATE TABLE IF NOT EXISTS product_branch_stock (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    product_id TEXT NOT NULL,
+    branch_id TEXT NOT NULL,
+    current_stock INTEGER NOT NULL DEFAULT 0,
+    min_stock INTEGER DEFAULT 5,
+    reorder_level INTEGER DEFAULT 10,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(product_id, branch_id)
   )`,
 
   `CREATE TABLE IF NOT EXISTS cash_movements (

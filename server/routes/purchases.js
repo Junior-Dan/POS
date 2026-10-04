@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, requireRole } from './auth.js';
+import { adjustBranchStock, branchExists, primaryBranchId } from '../branchStock.js';
 
 const router = express.Router();
 router.use(authenticateSession);
@@ -119,6 +120,11 @@ router.post('/:id/receive', (req, res) => {
 
     const poItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ? AND organization_id = ?').all(po.id, orgId);
 
+    // Credit the PO's own branch. Guard against legacy/invalid branch ids
+    // ('B1', 'ALL', null) by falling back to the org's primary branch so the
+    // received stock always lands on a real branch.
+    const receiveBranch = branchExists(orgId, po.branch_id) ? po.branch_id : primaryBranchId(orgId);
+
     for (const item of poItems) {
       // Find override qty or use ordered qty
       const override = itemsReceived ? itemsReceived.find(i => i.productId === item.product_id) : null;
@@ -127,27 +133,29 @@ router.post('/:id/receive', (req, res) => {
       // Update PO Item received count
       db.prepare('UPDATE purchase_items SET qty_received = ? WHERE id = ? AND organization_id = ?').run(qtyToReceive, item.id, orgId);
 
-      // Increase Inventory Stock automatically
-      const product = db.prepare('SELECT current_stock, name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
-      if (product) {
-        const prevStock = product.current_stock;
-        const newStock = prevStock + qtyToReceive;
+      // Increase Inventory Stock automatically — credited to the PO's branch.
+      const product = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
+      if (product && receiveBranch) {
+        // Keep the catalogue cost_price in sync (cost is org-wide), then credit
+        // the branch quantity (which re-syncs products.current_stock aggregate).
+        db.prepare('UPDATE products SET cost_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?')
+          .run(item.unit_cost, item.product_id, orgId);
 
-        db.prepare('UPDATE products SET current_stock = ?, cost_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?')
-          .run(newStock, item.unit_cost, item.product_id, orgId);
+        const { previous, next } = adjustBranchStock(orgId, item.product_id, receiveBranch, qtyToReceive);
 
         // Record Inventory Movement
         db.prepare(`
-          INSERT INTO stock_movements (id, organization_id, product_id, product_name, type, qty, previous_stock, new_stock, ref, user_name, reason)
-          VALUES (?, ?, ?, ?, 'PURCHASE', ?, ?, ?, ?, ?, 'Stock Received from PO')
+          INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
+          VALUES (?, ?, ?, ?, ?, 'PURCHASE', ?, ?, ?, ?, ?, 'Stock Received from PO')
         `).run(
           `MOV-${Date.now()}-${Math.floor(Math.random()*1000)}`,
           orgId,
           item.product_id,
           product.name,
+          receiveBranch,
           qtyToReceive,
-          prevStock,
-          newStock,
+          previous,
+          next,
           po.po_number,
           userName || req.authUser.name || 'Inventory Officer'
         );

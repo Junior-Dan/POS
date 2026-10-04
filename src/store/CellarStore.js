@@ -479,7 +479,13 @@ export class CellarStore {
   }
 
   async fetchProducts() {
-    const data = await this.safeFetchJson('/api/products?activeOnly=false');
+    // When a specific branch is active, ask for that branch's stock; 'ALL'
+    // (owner org-wide view) or no branch returns the aggregate — preserving the
+    // original single-branch behaviour.
+    const bid = (this.activeBranchId && this.activeBranchId !== 'ALL')
+      ? `&branch=${encodeURIComponent(this.activeBranchId)}`
+      : '';
+    const data = await this.safeFetchJson(`/api/products?activeOnly=false${bid}`);
     if (data && Array.isArray(data)) {
       this.products = data.map(p => ({
         ...p,
@@ -591,6 +597,113 @@ export class CellarStore {
       if (s.systemPreferences) this.systemPreferences = s.systemPreferences;
       this.notify();
     }
+  }
+
+  async createBranch(branchData) {
+    const rawCode = branchData.code || branchData.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+    const code = rawCode.toLowerCase();
+    const id = branchData.id || `BR-${code}-${Date.now()}`;
+    const newBranch = {
+      id,
+      organizationId: this.currentUser?.organizationId,
+      name: branchData.name,
+      code,
+      commodityType: branchData.commodityType || 'Water & Beverages',
+      location: branchData.location || '',
+      phone: branchData.phone || '',
+      manager: branchData.manager || '',
+      operatingHours: branchData.operatingHours || '08:00 AM - 10:00 PM',
+      status: branchData.status || 'ACTIVE'
+    };
+
+    if (!Array.isArray(this.branches)) this.branches = [];
+    const idx = this.branches.findIndex(b => b.id === id || (b.code && b.code.toLowerCase() === code));
+    if (idx >= 0) {
+      this.branches[idx] = newBranch;
+    } else {
+      this.branches.push(newBranch);
+    }
+
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
+    try {
+      const res = await fetch('/api/auth/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          name: branchData.name,
+          code,
+          commodityType: branchData.commodityType,
+          location: branchData.location,
+          phone: branchData.phone,
+          status: branchData.status
+        })
+      });
+      if (!res.ok) {
+        await this.saveBranches();
+      }
+    } catch (e) {
+      await this.saveBranches();
+    }
+
+    return { branch: newBranch };
+  }
+
+  // Update an existing branch IN PLACE (edit). Uses the dedicated PUT endpoint
+  // so the server updates the row rather than inserting a duplicate; the branch
+  // code is kept stable so its share-URL keeps working.
+  async updateBranch(id, branchData) {
+    if (!Array.isArray(this.branches)) this.branches = [];
+    const idx = this.branches.findIndex(b => b.id === id);
+    const existing = idx >= 0 ? this.branches[idx] : {};
+    const updated = {
+      ...existing,
+      id,
+      organizationId: this.currentUser?.organizationId || existing.organizationId,
+      name: branchData.name,
+      // Preserve the existing code on edit (never re-slug a live branch).
+      code: existing.code || branchData.code,
+      commodityType: branchData.commodityType,
+      location: branchData.location || '',
+      phone: branchData.phone || '',
+      manager: branchData.manager || existing.manager || '',
+      operatingHours: branchData.operatingHours || existing.operatingHours || '08:00 AM - 10:00 PM',
+      status: branchData.status || 'ACTIVE'
+    };
+
+    if (idx >= 0) {
+      this.branches[idx] = updated;
+    } else {
+      this.branches.push(updated);
+    }
+
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
+    try {
+      const res = await fetch(`/api/auth/branches/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: branchData.name,
+          location: branchData.location,
+          phone: branchData.phone,
+          status: branchData.status,
+          commodityType: branchData.commodityType
+        })
+      });
+      if (!res.ok) {
+        await this.saveBranches();
+      }
+    } catch (e) {
+      await this.saveBranches();
+    }
+
+    return { branch: updated };
   }
 
   async saveBranches() {
@@ -773,7 +886,10 @@ export class CellarStore {
             productId: id,
             newStock: numStock,
             reason,
-            userName: this.currentUser?.name
+            userName: this.currentUser?.name,
+            // Owners act on the selected branch; the server forces a scoped
+            // user to their own branch regardless of what is sent here.
+            branchId: this.activeBranchId
           })
         });
         if (res.ok) {
@@ -826,13 +942,26 @@ export class CellarStore {
   // and keep the cart — a sale that did not save must NEVER look successful,
   // and we never fabricate a local "offline" sale (that caused phantom totals).
   async createSale(saleData) {
+    // Owners must sell against a specific branch — never a silent B1/primary
+    // default. Convenience: if the org has exactly one branch, use it so
+    // single-branch setups keep working without a manual pick.
+    let saleBranch = this.activeBranchId;
+    const isOwner = (this.currentUser?.role || '').toLowerCase() === 'owner';
+    if (isOwner && (!saleBranch || saleBranch === 'ALL')) {
+      if (Array.isArray(this.branches) && this.branches.length === 1) {
+        saleBranch = this.branches[0].id;
+      } else {
+        throw new Error('Please select a branch before completing a sale.');
+      }
+    }
+
     const res = await fetch('/api/sales', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...saleData,
         cashier: this.currentUser || null,
-        branchId: this.activeBranchId,
+        branchId: saleBranch,
         shiftId: this.currentShift?.id
       })
     });
@@ -983,7 +1112,10 @@ export class CellarStore {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...damageData,
-          userName: this.currentUser?.name || 'Manager'
+          userName: this.currentUser?.name || 'Manager',
+          // Owners act on the selected branch; scoped users are forced to their
+          // own branch server-side regardless of this value.
+          branchId: damageData.branchId || this.activeBranchId
         })
       });
       const ct = res.headers.get('content-type') || '';

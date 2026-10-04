@@ -19,6 +19,7 @@ export function renderSettingsView() {
 
   const tabs = [
     { id: "staff", label: "Staff Management", icon: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>` },
+    { id: "branches", label: "Branches & Outlets", icon: `<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>` },
     { id: "business", label: "Business Profile", icon: `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>` },
     { id: "receipt", label: "Receipt Settings", icon: `<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="8" x2="16" y1="8" y2="8"/><line x1="8" x2="16" y1="12" y2="12"/><line x1="8" x2="12" y1="16" y2="16"/>` },
     { id: "payment", label: "Payment Settings", icon: `<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>` },
@@ -60,6 +61,52 @@ export function renderSettingsView() {
 
 function renderSettingsTabContentHtml(tab, profile, branches, users, payment, receipt, shift, security, pref, setup) {
   switch (tab) {
+    case 'branches':
+      return `
+        <div class="section-card">
+          <div class="section-header">
+            <div>
+              <div class="section-title">Branches & Commodity Outlets</div>
+              <span class="section-subtitle">Manage multi-store locations, water depots, and commodity outlets</span>
+            </div>
+            <button class="btn btn-primary" onclick="openAddBranchModal()">+ Add New Branch / Outlet</button>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Branch & Code</th>
+                  <th>Commodity Focus</th>
+                  <th>Location / Address</th>
+                  <th>Contact Phone</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${branches.length > 0 ? branches.map(b => `
+                  <tr>
+                    <td>
+                      <strong>${b.name}</strong><br>
+                      <span style="font-family:monospace; font-size:11px; color:var(--text-dim);">CODE: ${b.code || b.id}</span>
+                    </td>
+                    <td><span class="badge badge-info" style="font-size:11px;">${b.commodityType || b.commodity_type || 'Liquor & General'}</span></td>
+                    <td>${b.location || 'N/A'}</td>
+                    <td>${b.phone || 'N/A'}</td>
+                    <td><span class="badge ${b.status === 'INACTIVE' ? 'badge-danger' : 'badge-success'}">${b.status || 'ACTIVE'}</span></td>
+                    <td>
+                      <div style="display:flex; gap:6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="openEditBranchModal('${b.id}')">Edit</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') : `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-faint);">No custom branches configured yet</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
     case 'business':
       return `
         <div class="section-card">
