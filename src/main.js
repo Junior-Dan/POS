@@ -1651,6 +1651,116 @@ function bindEvents() {
     alert("System preferences saved!");
   };
 
+  // Global Universal Topbar Search Logic
+  const globalInput = document.getElementById('globalSearchInput');
+  const globalPopover = document.getElementById('globalSearchResultsPopover');
+
+  window.handleGlobalSearchSelect = (productId) => {
+    if (globalPopover) globalPopover.style.display = 'none';
+    if (globalInput) globalInput.value = '';
+    
+    if (store.canUserAccessView(store.currentUser, 'pos')) {
+      switchTab('pos');
+      if (window.addToCart) {
+        window.addToCart(productId);
+      }
+    } else {
+      switchTab('products');
+    }
+  };
+
+  if (globalInput) {
+    const handleGlobalSearch = () => {
+      const q = globalInput.value.trim().toLowerCase();
+
+      // Synchronize with POS search input if on POS view
+      const posInput = document.getElementById('posSearchInput');
+      if (posInput && activeViewId === 'pos') {
+        posInput.value = globalInput.value;
+        const grid = document.getElementById('posProductGrid');
+        if (grid && window.renderProductGridHtml) {
+          grid.innerHTML = window.renderProductGridHtml();
+        }
+      }
+
+      // Synchronize with Products Table filter if on Products view
+      if (activeViewId === 'products') {
+        const rows = document.querySelectorAll('#productsTableBody tr');
+        rows.forEach(row => {
+          const text = row.textContent.toLowerCase();
+          row.style.display = !q || text.includes(q) ? '' : 'none';
+        });
+      }
+
+      // Show floating popover results if query is typed
+      if (!q || !globalPopover) {
+        if (globalPopover) globalPopover.style.display = 'none';
+        return;
+      }
+
+      const matches = (store.products || []).filter(p => {
+        if (!p.active) return false;
+        const nameStr = (p.name || '').toLowerCase();
+        const brandStr = (p.brand || '').toLowerCase();
+        const catStr = (p.category || '').toLowerCase();
+        const skuStr = (p.sku || '').toLowerCase();
+        const barcodeStr = String(p.barcode || '').toLowerCase();
+        return nameStr.includes(q) || brandStr.includes(q) || catStr.includes(q) || skuStr.includes(q) || barcodeStr.includes(q);
+      }).slice(0, 8);
+
+      if (matches.length === 0) {
+        globalPopover.innerHTML = `<div style="padding:12px; text-align:center; color:var(--text-faint); font-size:12px;">No matching products found</div>`;
+      } else {
+        globalPopover.innerHTML = matches.map(p => {
+          const price = p.price !== undefined ? p.price : (p.selling_price || 0);
+          const stock = p.stock !== undefined ? p.stock : (p.current_stock || 0);
+          return `
+            <div class="global-search-item" onclick="handleGlobalSearchSelect('${p.id}')">
+              <div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">${p.brand || ''} ${p.name || ''}</div>
+                <div style="font-size:11px; color:var(--text-faint);">${p.category || 'Spirits'} • ${p.size || '750ml'} • SKU: ${p.sku || 'N/A'}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-weight:800; font-size:13px; color:var(--accent);">KSh ${Number(price).toLocaleString()}</div>
+                <div style="font-size:10.5px; color:${stock > 0 ? 'var(--green-text)' : 'var(--red-text)'};">${stock > 0 ? `Stock: ${stock}` : 'Out of stock'}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      globalPopover.style.display = 'block';
+    };
+
+    globalInput.addEventListener('input', handleGlobalSearch);
+    globalInput.addEventListener('focus', handleGlobalSearch);
+
+    globalInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const q = globalInput.value.trim().toLowerCase();
+        if (!q) return;
+        if (globalPopover) globalPopover.style.display = 'none';
+        
+        if (activeViewId !== 'pos') {
+          switchTab('pos');
+        }
+        const posInput = document.getElementById('posSearchInput');
+        if (posInput) {
+          posInput.value = globalInput.value;
+          const grid = document.getElementById('posProductGrid');
+          if (grid && window.renderProductGridHtml) {
+            grid.innerHTML = window.renderProductGridHtml();
+          }
+        }
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.global-search-container') && globalPopover) {
+        globalPopover.style.display = 'none';
+      }
+    });
+  }
+
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.key === '/') {

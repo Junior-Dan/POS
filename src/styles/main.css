@@ -296,6 +296,35 @@ svg.icon-lg { width: 24px; height: 24px; }
 .global-search-input:focus { background: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .global-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; display: flex; align-items: center; }
 
+.global-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 360px;
+  background: #ffffff;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.18);
+  max-height: 380px;
+  overflow-y: auto;
+  z-index: 1000;
+  padding: 6px;
+}
+.global-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-soft);
+}
+.global-search-item:last-child { border-bottom: none; }
+.global-search-item:hover {
+  background: #f1f5f9;
+}
+
 /* Date Pill Dropdown */
 .topbar-date-pill {
   position: relative;

@@ -38,7 +38,8 @@ export function renderTopbar(currentUser = store.currentUser) {
         <span class="global-search-icon">
           <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </span>
-        <input type="text" class="global-search-input" id="globalSearchInput" placeholder="Search a product...">
+        <input type="text" class="global-search-input" id="globalSearchInput" placeholder="Search a product..." autocomplete="off">
+        <div class="global-search-results" id="globalSearchResultsPopover" style="display:none;"></div>
       </div>
 
       <!-- Custom Date Dropdown Pill with Popover Modal -->

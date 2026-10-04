@@ -275,6 +275,7 @@ function renderProductGridHtml() {
     `;
   }).join('') || '<div style="grid-column: span 3; text-align:center; padding:40px; color:var(--text-faint);">No matching products found</div>';
 }
+window.renderProductGridHtml = renderProductGridHtml;
 
 function renderCartItemsHtml() {
   if (currentCart.length === 0) {
