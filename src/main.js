@@ -39,6 +39,7 @@ import { renderCustomerModal } from './components/CustomerModal.js';
 import { renderStaffModal } from './components/StaffModal.js';
 import { renderResetPinModal } from './components/ResetPinModal.js';
 import { renderForgotPasswordModal } from './components/ForgotPasswordModal.js';
+import { renderBranchModal } from './components/BranchModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
 // Remember the last-opened view across reloads (per tab) so a refresh keeps the
@@ -152,6 +153,7 @@ export function initApp() {
       ${renderStaffModal()}
       ${renderResetPinModal()}
       ${renderForgotPasswordModal()}
+      ${renderBranchModal()}
     </div>
   `;
 
@@ -1649,6 +1651,85 @@ function bindEvents() {
     store.save();
     initApp();
     alert("System preferences saved!");
+  };
+
+  // Branch & Commodity Outlet Handlers
+  window.openAddBranchModal = () => {
+    document.getElementById('branchModalTitle').textContent = "Add New Branch / Commodity Outlet";
+    document.getElementById('branchEditId').value = "";
+    document.getElementById('branchNameInput').value = "";
+    document.getElementById('branchCodeInput').value = "";
+    document.getElementById('branchCommoditySelect').value = "Water & Beverages";
+    document.getElementById('branchCustomCommodityContainer').style.display = "none";
+    document.getElementById('branchLocationInput').value = "";
+    document.getElementById('branchPhoneInput').value = "";
+    document.getElementById('branchHoursInput').value = "08:00 AM - 10:00 PM";
+    document.getElementById('branchStatusSelect').value = "ACTIVE";
+
+    const mgrSelect = document.getElementById('branchManagerSelect');
+    if (mgrSelect) {
+      mgrSelect.innerHTML = `<option value="">-- Assign Manager (Optional) --</option>` +
+        (store.users || []).map(u => `<option value="${u.name}">${u.name} (${u.role})</option>`).join('');
+    }
+
+    window.openModal('branchModal');
+  };
+
+  window.openEditBranchModal = (id) => {
+    const b = (store.branches || []).find(x => x.id === id);
+    if (!b) return;
+    document.getElementById('branchModalTitle').textContent = `Edit Branch: ${b.name}`;
+    document.getElementById('branchEditId').value = b.id;
+    document.getElementById('branchNameInput').value = b.name || "";
+    document.getElementById('branchCodeInput').value = b.code || "";
+    
+    const commSelect = document.getElementById('branchCommoditySelect');
+    const existingType = b.commodityType || b.commodity_type || 'Water & Beverages';
+    const hasOpt = Array.from(commSelect.options).some(o => o.value === existingType);
+    if (hasOpt) {
+      commSelect.value = existingType;
+      document.getElementById('branchCustomCommodityContainer').style.display = "none";
+    } else {
+      commSelect.value = "__custom__";
+      document.getElementById('branchCustomCommodityContainer').style.display = "block";
+      document.getElementById('branchCustomCommodityInput').value = existingType;
+    }
+
+    document.getElementById('branchLocationInput').value = b.location || "";
+    document.getElementById('branchPhoneInput').value = b.phone || "";
+    document.getElementById('branchHoursInput').value = b.operatingHours || "08:00 AM - 10:00 PM";
+    document.getElementById('branchStatusSelect').value = b.status || "ACTIVE";
+
+    window.openModal('branchModal');
+  };
+
+  window.submitSaveBranch = async () => {
+    const name = document.getElementById('branchNameInput').value.trim();
+    const code = document.getElementById('branchCodeInput').value.trim();
+    let commodityType = document.getElementById('branchCommoditySelect').value;
+    if (commodityType === '__custom__') {
+      commodityType = (document.getElementById('branchCustomCommodityInput')?.value || '').trim();
+      if (!commodityType) {
+        return alert("Please enter the custom commodity name!");
+      }
+    }
+    const location = document.getElementById('branchLocationInput').value.trim();
+    const phone = document.getElementById('branchPhoneInput').value.trim();
+    const manager = document.getElementById('branchManagerSelect')?.value || "";
+    const operatingHours = document.getElementById('branchHoursInput').value.trim() || "08:00 AM - 10:00 PM";
+    const status = document.getElementById('branchStatusSelect').value;
+    const editId = document.getElementById('branchEditId').value;
+
+    if (!name) return alert("Please enter Branch Name!");
+
+    try {
+      await store.createBranch({ id: editId, name, code, commodityType, location, phone, manager, operatingHours, status });
+      window.closeModal('branchModal');
+      initApp();
+      alert("Branch configured successfully!");
+    } catch (e) {
+      alert("Error saving branch: " + e.message);
+    }
   };
 
   // Global Universal Topbar Search Logic

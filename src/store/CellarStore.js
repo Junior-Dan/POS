@@ -593,6 +593,58 @@ export class CellarStore {
     }
   }
 
+  async createBranch(branchData) {
+    const rawCode = branchData.code || branchData.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+    const code = rawCode.toLowerCase();
+    const id = branchData.id || `BR-${code}-${Date.now()}`;
+    const newBranch = {
+      id,
+      organizationId: this.currentUser?.organizationId,
+      name: branchData.name,
+      code,
+      commodityType: branchData.commodityType || 'Water & Beverages',
+      location: branchData.location || '',
+      phone: branchData.phone || '',
+      manager: branchData.manager || '',
+      operatingHours: branchData.operatingHours || '08:00 AM - 10:00 PM',
+      status: branchData.status || 'ACTIVE'
+    };
+
+    if (!Array.isArray(this.branches)) this.branches = [];
+    const idx = this.branches.findIndex(b => b.id === id || (b.code && b.code.toLowerCase() === code));
+    if (idx >= 0) {
+      this.branches[idx] = newBranch;
+    } else {
+      this.branches.push(newBranch);
+    }
+
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
+    try {
+      const res = await fetch('/api/auth/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          name: branchData.name,
+          code,
+          commodityType: branchData.commodityType,
+          location: branchData.location,
+          phone: branchData.phone
+        })
+      });
+      if (!res.ok) {
+        await this.saveBranches();
+      }
+    } catch (e) {
+      await this.saveBranches();
+    }
+
+    return { branch: newBranch };
+  }
+
   async saveBranches() {
     try {
       await fetch('/api/settings/branches', {

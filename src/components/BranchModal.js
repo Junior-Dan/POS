@@ -1,28 +1,44 @@
 export function renderBranchModal() {
   return `
   <div class="modal-overlay" id="branchModal">
-    <div class="modal-card" style="max-width: 520px;">
+    <div class="modal-card" style="max-width: 540px;">
       <div class="modal-header">
         <div class="modal-title">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span id="branchModalTitle">Add New Branch</span>
+          <span id="branchModalTitle">Add New Branch / Commodity Outlet</span>
         </div>
         <button class="modal-close" onclick="closeModal('branchModal')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
         <input type="hidden" id="branchEditId" value="">
 
         <div style="display:grid; grid-template-columns: 2fr 1fr; gap:12px;">
           <div class="form-group">
-            <label class="form-label">Branch Name *</label>
-            <input type="text" class="form-input" id="branchNameInput" placeholder="e.g. Westlands Branch">
+            <label class="form-label">Branch Outlet Name *</label>
+            <input type="text" class="form-input" id="branchNameInput" placeholder="e.g. Westlands Water Depot">
           </div>
           <div class="form-group">
             <label class="form-label">Branch Code *</label>
-            <input type="text" class="form-input" id="branchCodeInput" placeholder="e.g. NBO-WST">
+            <input type="text" class="form-input" id="branchCodeInput" placeholder="e.g. WATER-01">
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Primary Commodity Focus / Store Type</label>
+          <select class="form-select" id="branchCommoditySelect" onchange="toggleBranchCustomCommodity(this)">
+            <option value="Liquor & Spirits">Liquor & Spirits (Wine, Whisky, Beer)</option>
+            <option value="Water & Beverages" selected>Water & Non-Alcoholic Beverages (Refills, Bottled Water)</option>
+            <option value="General Commodities">General Commodities / FMCG Retail</option>
+            <option value="Snacks & Soft Drinks">Snacks & Soft Drinks</option>
+            <option value="__custom__">+ Add Custom Commodity Focus...</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="branchCustomCommodityContainer" style="display:none;">
+          <label class="form-label" style="color:var(--accent);">Custom Commodity Name</label>
+          <input type="text" class="form-input" id="branchCustomCommodityInput" placeholder="e.g. Purified Mineral Water, Dairy Products, Bakery">
         </div>
 
         <div class="form-group">
@@ -44,7 +60,7 @@ export function renderBranchModal() {
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
           <div class="form-group">
             <label class="form-label">Operating Hours</label>
-            <input type="text" class="form-input" id="branchHoursInput" placeholder="e.g. 08:00 AM - 11:00 PM">
+            <input type="text" class="form-input" id="branchHoursInput" placeholder="e.g. 08:00 AM - 10:00 PM">
           </div>
           <div class="form-group">
             <label class="form-label">Operational Status</label>
@@ -63,3 +79,10 @@ export function renderBranchModal() {
   </div>
   `;
 }
+
+window.toggleBranchCustomCommodity = function(selectEl) {
+  const container = document.getElementById('branchCustomCommodityContainer');
+  if (container) {
+    container.style.display = selectEl.value === '__custom__' ? 'block' : 'none';
+  }
+};
