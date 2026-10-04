@@ -387,8 +387,15 @@ export class CellarStore {
         this.businessProfile = { ...this.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
       }
       // Owners view all branches; staff are scoped to their own branch.
-      this.activeBranchId = data.user.branchId ||
-        ((data.user.role || '').toLowerCase() === 'owner' ? 'ALL' : this.activeBranchId);
+      const isOwner = (data.user.role || '').toLowerCase() === 'owner';
+      this.activeBranchId = data.user.branchId || (isOwner ? 'ALL' : this.activeBranchId);
+      // Owners: restore the branch they were last viewing across a refresh.
+      if (isOwner) {
+        try {
+          const saved = sessionStorage.getItem('cellar_active_branch');
+          if (saved) this.activeBranchId = saved;
+        } catch (e) {}
+      }
       try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       return true;
     }
@@ -467,8 +474,18 @@ export class CellarStore {
   }
 
   // --- API FETCHERS ---
+  // Branch query string for the active branch. Empty for ALL / unset (owner
+  // org-wide view). For non-owners the server ignores this and forces their own
+  // branch, so sending it is always safe.
+  _branchQS() {
+    return (this.activeBranchId && this.activeBranchId !== 'ALL')
+      ? `branch=${encodeURIComponent(this.activeBranchId)}`
+      : '';
+  }
+
   async fetchUsers() {
-    const data = await this.safeFetchJson('/api/auth/users');
+    const q = this._branchQS();
+    const data = await this.safeFetchJson(`/api/auth/users${q ? '?' + q : ''}`);
     if (data && Array.isArray(data)) {
       this.users = data.map(u => ({
         ...u,
@@ -516,7 +533,8 @@ export class CellarStore {
   }
 
   async fetchSales() {
-    const data = await this.safeFetchJson('/api/sales');
+    const q = this._branchQS();
+    const data = await this.safeFetchJson(`/api/sales${q ? '?' + q : ''}`);
     if (data && Array.isArray(data)) {
       this.sales = data;
       this.saveLocalBackup();
@@ -525,7 +543,12 @@ export class CellarStore {
   }
 
   async fetchShift() {
-    const data = await this.safeFetchJson('/api/shift/current');
+    // Shift endpoint scopes by branchId (owner selected branch); non-owners are
+    // forced to their own branch server-side.
+    const bid = (this.activeBranchId && this.activeBranchId !== 'ALL')
+      ? `?branchId=${encodeURIComponent(this.activeBranchId)}`
+      : '';
+    const data = await this.safeFetchJson(`/api/shift/current${bid}`);
     if (data) {
       this.currentShift = data;
       this.cashMovements = data.cashMovements || [];
@@ -535,7 +558,8 @@ export class CellarStore {
   }
 
   async fetchInventoryMovements() {
-    const data = await this.safeFetchJson('/api/inventory/movements');
+    const q = this._branchQS();
+    const data = await this.safeFetchJson(`/api/inventory/movements${q ? '?' + q : ''}`);
     if (data) {
       this.stockMovements = data;
       this.notify();
@@ -543,7 +567,8 @@ export class CellarStore {
   }
 
   async fetchExpenses() {
-    const data = await this.safeFetchJson('/api/expenses');
+    const q = this._branchQS();
+    const data = await this.safeFetchJson(`/api/expenses${q ? '?' + q : ''}`);
     if (data) {
       this.expenses = data;
       this.notify();
@@ -551,7 +576,8 @@ export class CellarStore {
   }
 
   async fetchPurchases() {
-    const data = await this.safeFetchJson('/api/purchases');
+    const q = this._branchQS();
+    const data = await this.safeFetchJson(`/api/purchases${q ? '?' + q : ''}`);
     if (data) {
       this.purchases = data;
       this.notify();
@@ -559,7 +585,8 @@ export class CellarStore {
   }
 
   async fetchAuditLogs() {
-    const data = await this.safeFetchJson('/api/audit-logs');
+    const q = this._branchQS();
+    const data = await this.safeFetchJson(`/api/audit-logs${q ? '?' + q : ''}`);
     if (data) {
       this.auditLogs = data;
       this.notify();
@@ -1145,7 +1172,10 @@ export class CellarStore {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...expenseData,
-          user: this.currentUser?.name || 'Manager'
+          user: this.currentUser?.name || 'Manager',
+          // Expenses are branch-owned; owners log against the active branch,
+          // scoped users are forced to their own branch server-side.
+          branchId: expenseData.branchId || this.activeBranchId
         })
       });
       const ct = res.headers.get('content-type') || '';
@@ -1291,6 +1321,20 @@ export class CellarStore {
   setActiveBranch(branchId) {
     this.activeBranchId = branchId;
     this.notify();
+  }
+
+  // Owner-only: switch the ENTIRE app context to another branch (or 'ALL').
+  // Persists the choice and reloads every branch-scoped dataset so sales,
+  // inventory, purchases, expenses, staff, shifts, audit and reports all follow.
+  async switchBranch(branchId) {
+    // Only owners may switch; everyone else is permanently pinned server-side.
+    if ((this.currentUser?.role || '').toLowerCase() !== 'owner') return;
+    this.activeBranchId = branchId;
+    try { sessionStorage.setItem('cellar_active_branch', branchId); } catch (e) {}
+    this.notify();
+    await this.loadAuthenticatedData();
+    this.notify();
+    this.broadcastUpdate();
   }
 
   getActiveBranch() {
@@ -1543,7 +1587,12 @@ export class CellarStore {
 
   getBrandProfitabilityMatrix() {
     const brandMap = {};
-    this.sales.forEach(s => {
+    // Branch-scope the sales (this.sales is already server-scoped to the active
+    // branch; this is a defensive client filter so ALL aggregates, a selected
+    // branch shows only its own, matching getTodaySales()).
+    const scoped = (this.sales || []).filter(s =>
+      this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId);
+    scoped.forEach(s => {
       s.items.forEach(i => {
         const prod = this.products.find(p => p.id === (i.productId || i.id));
         const brand = prod ? prod.brand : "Unknown";

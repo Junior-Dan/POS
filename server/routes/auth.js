@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '../db.js';
 import { getOrgSetting, setOrgSetting, uniqueBranchCode } from '../tenant.js';
+import { crossBranchDenied } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -703,18 +704,24 @@ router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res
 // ---------------------------------------------------------------------------
 router.get('/users', authenticateSession, requireRole('owner', 'manager'), (req, res) => {
   const auth = req.authUser;
+  if (crossBranchDenied(auth, req.query.branch)) {
+    return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
+  }
+  const cols = `SELECT id, organization_id as organizationId, branch_id as branchId, name, role, email, phone, status, active, created_at as createdAt FROM users`;
   let rows;
   if (auth.role === 'owner') {
-    rows = db.prepare(`
-      SELECT id, organization_id as organizationId, branch_id as branchId, name, role, email, phone, status, active, created_at as createdAt
-      FROM users WHERE organization_id = ? ORDER BY created_at ASC
-    `).all(auth.organizationId || 'ORG-1');
+    // Owner: whole org, or a single selected branch when ?branch=ID is given
+    // (ALL / omitted = every branch). Owner accounts (branch_id NULL) are always
+    // included so the owner can always manage themselves.
+    const requested = req.query.branch;
+    if (requested && requested !== 'ALL') {
+      rows = db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', requested);
+    } else {
+      rows = db.prepare(`${cols} WHERE organization_id = ? ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
+    }
   } else {
-    // Manager: only their own branch staff.
-    rows = db.prepare(`
-      SELECT id, organization_id as organizationId, branch_id as branchId, name, role, email, phone, status, active, created_at as createdAt
-      FROM users WHERE branch_id = ? ORDER BY created_at ASC
-    `).all(auth.branchId);
+    // Manager: only their own branch staff (client branch input ignored).
+    rows = db.prepare(`${cols} WHERE branch_id = ? ORDER BY created_at ASC`).all(auth.branchId);
   }
   res.json(rows); // pin / pin_hash intentionally excluded
 });

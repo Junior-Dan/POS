@@ -26,6 +26,49 @@ export function primaryBranchId(orgId) {
   }
 }
 
+// Resolve the branch a READ should be scoped to.
+//  - Non-owner: ALWAYS their own assigned branch (client input ignored).
+//  - Owner: the requested branch, or null = ALL (org-wide aggregate view).
+// Returns { branch, all }. `branch` is null when `all` is true.
+export function resolveViewBranch(authUser, requestedBranch) {
+  if (!authUser) return { branch: null, all: false };
+  if (authUser.role !== 'owner') return { branch: authUser.branchId || null, all: false };
+  if (!requestedBranch || requestedBranch === 'ALL') return { branch: null, all: true };
+  return { branch: requestedBranch, all: false };
+}
+
+// True when a NON-owner is explicitly addressing a branch that is not their own
+// (a forged branch id). Owners are never cross-branch-denied.
+export function crossBranchDenied(authUser, requested) {
+  return authUser && authUser.role !== 'owner'
+    && requested && requested !== 'ALL'
+    && requested !== authUser.branchId;
+}
+
+// Resolve the branch a WRITE must land on, or throw. Scoped users are forced to
+// their own branch and REJECTED if they forge a different branch id; owners must
+// pass a real, accessible branch (never ALL). `canAccess` is auth.canAccessBranch,
+// passed in to avoid a cycle. Thrown errors carry `.status` for the route.
+export function assertWriteBranch(authUser, orgId, requestedBranch, canAccess) {
+  if (authUser.role !== 'owner') {
+    if (!authUser.branchId) { const e = new Error('Your account is not assigned to a branch.'); e.status = 403; throw e; }
+    if (crossBranchDenied(authUser, requestedBranch)) {
+      const e = new Error('Access denied: you cannot operate on another branch.'); e.status = 403; throw e;
+    }
+    return authUser.branchId;
+  }
+  if (!requestedBranch || requestedBranch === 'ALL') {
+    throw new Error('Please select a specific branch for this operation.');
+  }
+  if (!branchExists(orgId, requestedBranch)) {
+    throw new Error('Selected branch was not found for your organization.');
+  }
+  if (canAccess && !canAccess(authUser, requestedBranch)) {
+    throw new Error('You do not have access to the selected branch.');
+  }
+  return requestedBranch;
+}
+
 // True if branchId is a real branch belonging to this org.
 export function branchExists(orgId, branchId) {
   if (!branchId) return false;

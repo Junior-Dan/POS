@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, findUserByPin, canAccessBranch } from './auth.js';
-import { getBranchStock, adjustBranchStock, branchExists } from '../branchStock.js';
+import { getBranchStock, adjustBranchStock, branchExists, crossBranchDenied } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -10,13 +10,21 @@ router.use(authenticateSession);
 // GET sales list with filters
 router.get('/', (req, res) => {
   try {
-    const { startDate, endDate, cashierId, paymentMethod, customerId, branchId: requestedBranch } = req.query;
+    if (crossBranchDenied(req.authUser, req.query.branch) || crossBranchDenied(req.authUser, req.query.branchId)) {
+      return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
+    }
+    const { startDate, endDate, cashierId, paymentMethod, customerId } = req.query;
+    // Accept either ?branch= (standard) or legacy ?branchId=.
+    const requestedBranch = (req.query.branch && req.query.branch !== 'ALL')
+      ? req.query.branch
+      : (req.query.branchId && req.query.branchId !== 'ALL' ? req.query.branchId : null);
 
     let sql = `SELECT * FROM sales WHERE organization_id = ?`;
     const params = [req.authUser.organizationId];
 
-    // Enforce branch isolation for non-owners
-    const branchId = (req.authUser && req.authUser.role !== 'owner') ? req.authUser.branchId : (requestedBranch || null);
+    // Enforce branch isolation for non-owners (their own branch always);
+    // owners filter by the selected branch, or see all when none/ALL.
+    const branchId = (req.authUser && req.authUser.role !== 'owner') ? req.authUser.branchId : requestedBranch;
     if (branchId) {
       sql += ` AND branch_id = ?`;
       params.push(branchId);

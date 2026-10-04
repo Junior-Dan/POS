@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, requireRole } from './auth.js';
-import { adjustBranchStock, branchExists, primaryBranchId } from '../branchStock.js';
+import { adjustBranchStock, branchExists, primaryBranchId, resolveViewBranch, crossBranchDenied } from '../branchStock.js';
 
 const router = express.Router();
 router.use(authenticateSession);
@@ -10,7 +10,17 @@ router.use(requireRole('owner', 'manager', 'inventory_officer'));
 // GET purchases list
 router.get('/', (req, res) => {
   try {
-    const purchases = db.prepare('SELECT * FROM purchases WHERE organization_id = ? ORDER BY created_at DESC').all(req.authUser.organizationId);
+    if (crossBranchDenied(req.authUser, req.query.branch)) {
+      return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
+    }
+    // Branch isolation: non-owners see only their branch; owners see the
+    // selected branch (?branch=ID) or all branches when none/ALL.
+    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    let sql = 'SELECT * FROM purchases WHERE organization_id = ?';
+    const params = [req.authUser.organizationId];
+    if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
+    sql += ' ORDER BY created_at DESC';
+    const purchases = db.prepare(sql).all(...params);
     const getItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ? AND organization_id = ?');
 
     const result = purchases.map(p => ({
@@ -44,6 +54,9 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   const { supplierId, supplierName, dateIssued, deliveryDate, items, notes, totalValue, branchId } = req.body;
 
+  if (crossBranchDenied(req.authUser, branchId)) {
+    return res.status(403).json({ error: 'Access denied: you cannot create a purchase order for another branch.' });
+  }
   if (!supplierId || !items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Supplier ID and items list are required to issue purchase order." });
   }
