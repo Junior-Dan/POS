@@ -84,6 +84,7 @@ window.logoutUser = () => {
     sessionStorage.removeItem('cellar_session_auth');
     sessionStorage.removeItem('cellar_authenticated_user');
     sessionStorage.removeItem('cellar_active_view');
+    sessionStorage.removeItem('cellar_active_branch');
   } catch (e) {}
   initApp();
 };
@@ -340,6 +341,18 @@ function bindEvents() {
 
   window.markAllNotificationsRead = () => {
     store.markNotificationsRead();
+    initApp();
+  };
+
+  // Owner-only: switch the whole app to another branch (or ALL). Reloads every
+  // branch-scoped dataset, then re-renders the active view with the new context.
+  window.switchActiveBranch = async (branchId) => {
+    if ((store.currentUser?.role || '').toLowerCase() !== 'owner') return;
+    try {
+      await store.switchBranch(branchId);
+    } catch (e) {
+      console.warn('Branch switch notice:', e);
+    }
     initApp();
   };
 

@@ -228,6 +228,7 @@ export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS expenses (
     id TEXT PRIMARY KEY,
     organization_id TEXT,
+    branch_id TEXT,
     category TEXT NOT NULL,
     amount REAL NOT NULL,
     description TEXT,

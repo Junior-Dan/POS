@@ -415,7 +415,7 @@ const TENANT_TABLES = [
 ];
 
 function runTenantMigration() {
-  const MIGRATION_VERSION = '6';
+  const MIGRATION_VERSION = '7';
   let current = null;
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
@@ -427,6 +427,8 @@ function runTenantMigration() {
   try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) {}
   try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT'); } catch (e) {}
   try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT'); } catch (e) {}
+  // v7: expenses become branch-owned.
+  try { db.exec('ALTER TABLE expenses ADD COLUMN branch_id TEXT'); } catch (e) {}
 
   if (current === MIGRATION_VERSION) return;
 
@@ -499,12 +501,19 @@ function runTenantMigration() {
       } catch (e) {}
     }
 
-    // Stamp legacy stock movements (null / '' / legacy 'B1') with the primary branch.
+    // --- v7: remap legacy branch ids on EVERY branch-owned table ----------
+    // Existing single-branch data may carry branch_id NULL / '' / 'B1' (the old
+    // schema default). Remap those to the real primary branch so the records do
+    // NOT disappear once branch filtering is enforced. Rows already bound to a
+    // real branch are left untouched. Idempotent (re-running changes nothing).
     const safeOid = String(oid).replaceAll("'", "''");
     const safeBranch = String(branchId).replaceAll("'", "''");
-    try {
-      db.exec(`UPDATE stock_movements SET branch_id = '${safeBranch}' WHERE organization_id = '${safeOid}' AND (branch_id IS NULL OR branch_id = '' OR branch_id = 'B1')`);
-    } catch (e) {}
+    const LEGACY = `(branch_id IS NULL OR branch_id = '' OR branch_id = 'B1')`;
+    for (const t of ['stock_movements', 'sales', 'shifts', 'purchases', 'audit_logs', 'expenses']) {
+      try {
+        db.exec(`UPDATE ${t} SET branch_id = '${safeBranch}' WHERE organization_id = '${safeOid}' AND ${LEGACY}`);
+      } catch (e) {}
+    }
   }
 
   try {

@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, findUserByPin, requireRole, canAccessBranch } from './auth.js';
-import { getBranchStock, setBranchStock, adjustBranchStock, branchExists } from '../branchStock.js';
+import { getBranchStock, setBranchStock, adjustBranchStock, branchExists, crossBranchDenied } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -17,6 +17,10 @@ function resolveTargetBranch(req, orgId, requestedBranch) {
   if (req.authUser.role !== 'owner') {
     const b = req.authUser.branchId;
     if (!b) throw new Error('Your account is not assigned to a branch.');
+    // A scoped user forging a different branch id is rejected outright.
+    if (crossBranchDenied(req.authUser, requestedBranch)) {
+      throw new Error('Access denied: you cannot operate on another branch.');
+    }
     return b;
   }
   const b = requestedBranch;
@@ -29,6 +33,9 @@ function resolveTargetBranch(req, orgId, requestedBranch) {
 // GET inventory stock movements log (branch-scoped)
 router.get('/movements', (req, res) => {
   try {
+    if (crossBranchDenied(req.authUser, req.query.branch)) {
+      return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
+    }
     const { productId, type, branch: requestedBranch } = req.query;
     let sql = `SELECT * FROM stock_movements WHERE organization_id = ?`;
     const params = [req.authUser.organizationId];

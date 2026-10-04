@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession } from './auth.js';
+import { resolveViewBranch, crossBranchDenied } from '../branchStock.js';
 
 const router = express.Router();
 router.use(authenticateSession); // any authenticated staff (POS needs customer lookup)
@@ -41,11 +42,21 @@ router.post('/', (req, res) => {
   }
 });
 
-// GET Customer purchase history
+// GET Customer purchase history (customers are shared, but their SALES are
+// branch-scoped: staff only see their branch's sales; owner sees selected
+// branch or all).
 router.get('/:id/sales', (req, res) => {
   const { id } = req.params;
   try {
-    const sales = db.prepare('SELECT * FROM sales WHERE customer_id = ? AND organization_id = ? ORDER BY created_at DESC').all(id, req.authUser.organizationId);
+    if (crossBranchDenied(req.authUser, req.query.branch)) {
+      return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
+    }
+    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    let sql = 'SELECT * FROM sales WHERE customer_id = ? AND organization_id = ?';
+    const params = [id, req.authUser.organizationId];
+    if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
+    sql += ' ORDER BY created_at DESC';
+    const sales = db.prepare(sql).all(...params);
     res.json(sales);
   } catch (e) {
     res.status(500).json({ error: e.message });

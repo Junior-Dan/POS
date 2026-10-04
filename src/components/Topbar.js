@@ -17,6 +17,22 @@ export function renderTopbar(currentUser = store.currentUser) {
   const notifications = store.notifications || [];
   const unreadCount = store.getUnreadNotificationsCount();
 
+  // Branch context control. Owners get a switcher (incl. ALL BRANCHES); staff
+  // see their assigned branch as a fixed, read-only label and can never switch.
+  const isOwner = (user.role || '').toLowerCase() === 'owner';
+  const branchList = store.branches || [];
+  const branchSwitcherHtml = isOwner
+    ? `
+      <select id="topbarBranchSwitcher" onchange="switchActiveBranch(this.value)" title="Switch branch context"
+        style="padding:7px 10px; border-radius:20px; border:1px solid var(--border-soft, #e2e8f0); background:var(--surface, #fff); font-size:12px; font-weight:700; color:var(--text-main, #0f172a); cursor:pointer; max-width:200px;">
+        <option value="ALL" ${store.activeBranchId === 'ALL' ? 'selected' : ''}>🏢 ALL BRANCHES</option>
+        ${branchList.map(b => `<option value="${b.id}" ${store.activeBranchId === b.id ? 'selected' : ''}>📍 ${b.name}</option>`).join('')}
+      </select>`
+    : (() => {
+        const b = branchList.find(x => x.id === store.activeBranchId);
+        return `<span title="Your assigned branch" style="padding:7px 12px; border-radius:20px; background:var(--accent-soft, #eef2ff); color:var(--accent, #4f46e5); font-size:12px; font-weight:700;">📍 ${b ? b.name : 'Your Branch'}</span>`;
+      })();
+
   const notifItemsHtml = notifications.length > 0 ? notifications.map(n => `
     <div class="notif-item ${!n.read ? 'unread' : ''}">
       <div class="notif-icon ${n.type === 'shift' ? 'shift' : n.type === 'cash' ? 'cash' : 'alert'}">
@@ -82,6 +98,9 @@ export function renderTopbar(currentUser = store.currentUser) {
     </div>
 
     <div class="top-header-right">
+      <!-- Branch context switcher (owner) / fixed branch (staff) -->
+      ${branchSwitcherHtml}
+
       <!-- Logout Button -->
       <button class="topbar-icon-btn" id="logoutBtn" onclick="logoutUser()" title="Log out of account">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
