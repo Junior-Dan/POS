@@ -54,7 +54,10 @@ export function renderTopbar(currentUser = store.currentUser) {
         <span class="global-search-icon">
           <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </span>
-        <input type="text" class="global-search-input" id="globalSearchInput" placeholder="Search a product..." autocomplete="off">
+        <!-- type=search + the ignore hints stop Chrome autofill and password
+             managers (1Password/LastPass/Bitwarden) from dropping the saved
+             login email into this box. autocomplete="off" alone is ignored. -->
+        <input type="search" class="global-search-input" id="globalSearchInput" name="celler-product-search" placeholder="Search a product..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore>
         <div class="global-search-results" id="globalSearchResultsPopover" style="display:none;"></div>
       </div>
 
