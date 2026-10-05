@@ -883,7 +883,10 @@ export class CellarStore {
         const res = await fetch('/api/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...productData, userName: this.currentUser?.name })
+          // Seed the new product into the branch currently being viewed so it is
+          // visible ONLY there (not silently assigned to the primary branch).
+          // Non-owners are pinned to their own branch server-side regardless.
+          body: JSON.stringify({ ...productData, branchId: productData.branchId || this.activeBranchId, userName: this.currentUser?.name })
         });
         const ct = res.headers.get('content-type') || '';
         if (res.ok && ct.includes('application/json')) {
