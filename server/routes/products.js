@@ -18,9 +18,28 @@ router.use((req, res, next) => {
 router.get('/', (req, res) => {
   try {
     const { category, search, activeOnly } = req.query;
+    const orgId = req.authUser.organizationId;
+
+    // --- Resolve the branch view ------------------------------------------
+    // Products are NOT shared across branches: a product belongs to a branch
+    // only if it has a product_branch_stock row there (created when that branch
+    // first stocks it). A brand-new branch therefore starts EMPTY.
+    //  - Non-owners always see ONLY their own branch's products.
+    //  - Owners may request a specific branch (?branch=ID); without one (or ALL)
+    //    they get the org-wide management view (every product, aggregate stock).
+    let viewBranch = null;
+    if (req.authUser.role !== 'owner') {
+      viewBranch = req.authUser.branchId || null;
+    } else {
+      const requested = req.query.branch;
+      if (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested)) {
+        viewBranch = requested;
+      }
+    }
+
     let sql = `
-      SELECT p.*, s.name as supplier_name 
-      FROM products p 
+      SELECT p.*, s.name as supplier_name
+      FROM products p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
     `;
     const params = [];
@@ -28,7 +47,14 @@ router.get('/', (req, res) => {
 
     // Tenant isolation: only this organization's products.
     conditions.push('p.organization_id = ?');
-    params.push(req.authUser.organizationId);
+    params.push(orgId);
+
+    // Branch isolation: when scoped to a branch, only that branch's own
+    // products (those with a stock row for it) — never the shared catalogue.
+    if (viewBranch) {
+      conditions.push('EXISTS (SELECT 1 FROM product_branch_stock pbs WHERE pbs.product_id = p.id AND pbs.branch_id = ? AND pbs.organization_id = ?)');
+      params.push(viewBranch, orgId);
+    }
 
     if (activeOnly !== 'false') {
       conditions.push('p.active = 1');
@@ -52,21 +78,6 @@ router.get('/', (req, res) => {
     sql += ' ORDER BY p.name ASC';
 
     const products = db.prepare(sql).all(...params);
-
-    // --- Resolve the branch view ------------------------------------------
-    // Non-owners always see ONLY their own branch's stock. Owners may request a
-    // specific branch (?branch=ID); without one (or ALL) they see the org-wide
-    // aggregate (products.current_stock), preserving the existing behaviour.
-    const orgId = req.authUser.organizationId;
-    let viewBranch = null;
-    if (req.authUser.role !== 'owner') {
-      viewBranch = req.authUser.branchId || null;
-    } else {
-      const requested = req.query.branch;
-      if (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested)) {
-        viewBranch = requested;
-      }
-    }
 
     // When viewing a specific branch, overlay that branch's stock / min / reorder.
     let branchStockMap = null;
@@ -127,16 +138,40 @@ router.get('/', (req, res) => {
 // GET product by Barcode or SKU or ID
 router.get('/lookup/:query', (req, res) => {
   const { query } = req.params;
+  const orgId = req.authUser.organizationId;
   try {
     const product = db.prepare(`
       SELECT p.*, s.name as supplier_name
       FROM products p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
       WHERE p.organization_id = ? AND (p.barcode = ? OR p.sku = ? OR p.id = ?)
-    `).get(req.authUser.organizationId, query, query, query);
+    `).get(orgId, query, query, query);
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
+    }
+
+    // Branch isolation: scope the lookup to the caller's branch. Non-owners are
+    // bound to their own branch; owners may target one via ?branch=ID. A product
+    // that doesn't belong to that branch is "not found" here — and the branch's
+    // own stock is reported, not the org-wide aggregate.
+    let viewBranch = null;
+    if (req.authUser.role !== 'owner') {
+      viewBranch = req.authUser.branchId || null;
+    } else {
+      const requested = req.query.branch;
+      if (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested)) {
+        viewBranch = requested;
+      }
+    }
+
+    let stockVal = product.current_stock;
+    if (viewBranch) {
+      const bs = db.prepare('SELECT current_stock FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, product.id, viewBranch);
+      if (!bs) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      stockVal = bs.current_stock;
     }
 
     res.json({
@@ -156,7 +191,7 @@ router.get('/lookup/:query', (req, res) => {
       wholesalePrice: product.wholesale_price || 0,
       minPrice: product.min_price || 0,
       taxRate: product.tax_rate || 16,
-      stock: product.current_stock,
+      stock: stockVal,
       minStock: product.min_stock || 5,
       reorder: product.reorder_level || 10,
       supplierId: product.supplier_id,
