@@ -366,7 +366,6 @@ export function initDb() {
       console.warn("Supabase schema init notice:", e.message);
     }
     runTenantMigration();
-    backfillOrphanBranchStock();
     return;
   }
 
@@ -374,7 +373,6 @@ export function initDb() {
     console.log(`Turso Cloud database engine active: ${db.tursoUrl}`);
     db.execBatch(SCHEMA_STATEMENTS);
     runTenantMigration();
-    backfillOrphanBranchStock();
     return;
   }
 
@@ -413,7 +411,6 @@ export function initDb() {
   }
 
   runTenantMigration();
-  backfillOrphanBranchStock();
   console.log(`SQLite database engine active: ${databasePath}`);
 }
 
@@ -528,50 +525,4 @@ function runTenantMigration() {
   try {
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('__schema_v', ?)").run(MIGRATION_VERSION);
   } catch (e) {}
-}
-
-// Self-healing, idempotent branch-stock repair. Runs on EVERY boot (all
-// engines), independent of the one-time migration-version gate above.
-//
-// The products table is a shared catalogue; a product is only VISIBLE to a
-// branch-scoped user (cashier/manager) when it has a product_branch_stock row
-// for that branch. Any product with NO per-branch row AT ALL is an "orphan" —
-// e.g. a legacy product that predates per-branch inventory, or one whose org
-// had no branch row when the v6 migration ran (that migration is one-time, so
-// it never retried). Such orphans are invisible to everyone except the owner's
-// org-wide ALL view — which is exactly the "cashier can't see the products but
-// the owner can" bug.
-//
-// Here we attribute each orphan to its org's PRIMARY (earliest) branch, using
-// the product's current_stock as the opening quantity. Products that ALREADY
-// have at least one per-branch row are left untouched, so correctly
-// branch-scoped products are never re-shared and brand-new branches stay empty.
-export function backfillOrphanBranchStock() {
-  let allOrgs = [];
-  try { allOrgs = db.prepare('SELECT id FROM organizations').all() || []; } catch (e) { return; }
-
-  for (const org of allOrgs) {
-    const oid = org.id;
-    if (!oid) continue;
-
-    let primary = null;
-    try { primary = db.prepare('SELECT id FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(oid); } catch (e) {}
-    if (!primary || !primary.id) continue; // no branch yet -> nothing to attribute to
-    const branchId = primary.id;
-
-    let prods = [];
-    try { prods = db.prepare('SELECT id, current_stock, min_stock, reorder_level FROM products WHERE organization_id = ?').all(oid) || []; } catch (e) {}
-
-    for (const p of prods) {
-      let anyRow = null;
-      try { anyRow = db.prepare('SELECT 1 AS x FROM product_branch_stock WHERE organization_id = ? AND product_id = ? LIMIT 1').get(oid, p.id); } catch (e) {}
-      if (anyRow) continue; // already attributed to some branch -> leave as-is
-      const pbsId = `PBS-${p.id}-${branchId}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 120);
-      try {
-        db.prepare(`INSERT INTO product_branch_stock (id, organization_id, product_id, branch_id, current_stock, min_stock, reorder_level)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(pbsId, oid, p.id, branchId, p.current_stock || 0, p.min_stock || 5, p.reorder_level || 10);
-      } catch (e) {}
-    }
-  }
 }

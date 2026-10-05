@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '../db.js';
 import { getOrgSetting, setOrgSetting, uniqueBranchCode } from '../tenant.js';
-import { crossBranchDenied } from '../branchStock.js';
+import { crossBranchDenied, resolveViewBranch } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -736,14 +736,15 @@ router.get('/users', authenticateSession, requireRole('owner', 'manager'), (req,
   const cols = `SELECT id, organization_id as organizationId, branch_id as branchId, name, role, email, phone, status, active, created_at as createdAt FROM users`;
   let rows;
   if (auth.role === 'owner') {
-    // Owner: whole org, or a single selected branch when ?branch=ID is given
-    // (ALL / omitted = every branch). Owner accounts (branch_id NULL) are always
-    // included so the owner can always manage themselves.
-    const requested = req.query.branch;
-    if (requested && requested !== 'ALL') {
-      rows = db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', requested);
+    // Each branch stands alone (no aggregate "ALL"): the owner sees exactly one
+    // branch's staff at a time — the requested branch, or the primary branch as
+    // a fallback. Owner accounts (branch_id NULL) are always included so the
+    // owner can always manage themselves from any branch view.
+    const { branch } = resolveViewBranch(auth, req.query.branch);
+    if (branch) {
+      rows = db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', branch);
     } else {
-      rows = db.prepare(`${cols} WHERE organization_id = ? ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
+      rows = db.prepare(`${cols} WHERE organization_id = ? AND role = 'owner' ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
     }
   } else {
     // Manager: only their own branch staff (client branch input ignored).

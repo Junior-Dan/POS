@@ -559,7 +559,12 @@ function bindEvents() {
       }
       try { sessionStorage.setItem('cellar_authenticated_user', data.user.id); } catch (e) {}
 
-      store.activeBranchId = data.user.branchId || (String(data.user.role||"").toLowerCase() === "owner" ? "ALL" : store.activeBranchId);
+      // No aggregate "ALL": staff are pinned to their branch; the owner is
+      // resolved to a concrete branch (last-viewed or primary) by
+      // store.resolveActiveBranch() once branches load in loadAuthenticatedData.
+      store.activeBranchId = (String(data.user.role||"").toLowerCase() === "owner")
+        ? null
+        : (data.user.branchId || store.activeBranchId);
 
       const roleMap = {
         owner: 'dashboard',

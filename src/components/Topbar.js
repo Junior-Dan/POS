@@ -17,15 +17,15 @@ export function renderTopbar(currentUser = store.currentUser) {
   const notifications = store.notifications || [];
   const unreadCount = store.getUnreadNotificationsCount();
 
-  // Branch context control. Owners get a switcher (incl. ALL BRANCHES); staff
-  // see their assigned branch as a fixed, read-only label and can never switch.
+  // Branch context control. Each branch stands alone (no aggregate view): owners
+  // get a switcher to view ONE branch at a time; staff see their assigned branch
+  // as a fixed, read-only label and can never switch.
   const isOwner = (user.role || '').toLowerCase() === 'owner';
   const branchList = store.branches || [];
   const branchSwitcherHtml = isOwner
     ? `
       <select id="topbarBranchSwitcher" onchange="switchActiveBranch(this.value)" title="Switch branch context"
         style="padding:7px 10px; border-radius:20px; border:1px solid var(--border-soft, #e2e8f0); background:var(--surface, #fff); font-size:12px; font-weight:700; color:var(--text-main, #0f172a); cursor:pointer; max-width:200px;">
-        <option value="ALL" ${store.activeBranchId === 'ALL' ? 'selected' : ''}>🏢 ALL BRANCHES</option>
         ${branchList.map(b => `<option value="${b.id}" ${store.activeBranchId === b.id ? 'selected' : ''}>📍 ${b.name}</option>`).join('')}
       </select>`
     : (() => {

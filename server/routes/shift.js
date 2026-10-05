@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, requireRole, findUserByPin } from './auth.js';
+import { resolveViewBranch, primaryBranchId } from '../branchStock.js';
 
 const router = express.Router();
 router.use(authenticateSession);
@@ -12,7 +13,9 @@ router.use(requireRole('owner', 'manager', 'cashier'));
 router.get('/current', (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
-    const branchId = (req.authUser.role !== 'owner') ? req.authUser.branchId : (req.query.branchId || null);
+    // Each branch has its own drawer; owners view one branch at a time (the
+    // requested branch, or the primary branch) — never an org-wide shift.
+    const { branch: branchId } = resolveViewBranch(req.authUser, req.query.branchId || req.query.branch);
     let shift;
     if (branchId) {
       shift = db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId);
@@ -54,7 +57,7 @@ router.post('/open', (req, res) => {
   const orgId = req.authUser.organizationId;
   const effectiveBranch = (req.authUser.role !== 'owner' && req.authUser.branchId)
     ? req.authUser.branchId
-    : (branchId || req.authUser.branchId || 'B1');
+    : (branchId || req.authUser.branchId || primaryBranchId(orgId));
 
   try {
     // Close existing active shift if any (this org + this branch)
@@ -112,7 +115,7 @@ router.post('/cash-movement', (req, res) => {
   }
 
   try {
-    const branchId = (req.authUser.role !== 'owner') ? req.authUser.branchId : null;
+    const { branch: branchId } = resolveViewBranch(req.authUser, req.body.branchId || req.body.branch);
     const activeShift = branchId
       ? db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
       : db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
@@ -158,7 +161,7 @@ router.post('/close', (req, res) => {
   }
 
   try {
-    const branchId = (req.authUser.role !== 'owner') ? req.authUser.branchId : null;
+    const { branch: branchId } = resolveViewBranch(req.authUser, req.body.branchId || req.body.branch);
     const shift = shiftId
       ? db.prepare('SELECT * FROM shifts WHERE id = ? AND organization_id = ?').get(shiftId, orgId)
       : (branchId
@@ -234,8 +237,10 @@ router.post('/close', (req, res) => {
 router.get('/history', (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
-    const shifts = (req.authUser.role !== 'owner')
-      ? db.prepare('SELECT * FROM shifts WHERE organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId, req.authUser.branchId)
+    // Branch-scoped history (no org-wide aggregate): owners view one branch.
+    const { branch: branchId } = resolveViewBranch(req.authUser, req.query.branchId || req.query.branch);
+    const shifts = branchId
+      ? db.prepare('SELECT * FROM shifts WHERE organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId, branchId)
       : db.prepare('SELECT * FROM shifts WHERE organization_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId);
     res.json(shifts);
   } catch (e) {

@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, findUserByPin, canAccessBranch } from './auth.js';
-import { getBranchStock, adjustBranchStock, branchExists, crossBranchDenied } from '../branchStock.js';
+import { getBranchStock, adjustBranchStock, branchExists, crossBranchDenied, resolveViewBranch } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -15,16 +15,14 @@ router.get('/', (req, res) => {
     }
     const { startDate, endDate, cashierId, paymentMethod, customerId } = req.query;
     // Accept either ?branch= (standard) or legacy ?branchId=.
-    const requestedBranch = (req.query.branch && req.query.branch !== 'ALL')
-      ? req.query.branch
-      : (req.query.branchId && req.query.branchId !== 'ALL' ? req.query.branchId : null);
+    const requestedBranch = req.query.branch || req.query.branchId;
 
     let sql = `SELECT * FROM sales WHERE organization_id = ?`;
     const params = [req.authUser.organizationId];
 
-    // Enforce branch isolation for non-owners (their own branch always);
-    // owners filter by the selected branch, or see all when none/ALL.
-    const branchId = (req.authUser && req.authUser.role !== 'owner') ? req.authUser.branchId : requestedBranch;
+    // Every branch stands alone (no aggregate "ALL"): non-owners are pinned to
+    // their own branch; owners view one branch at a time (requested or primary).
+    const { branch: branchId } = resolveViewBranch(req.authUser, requestedBranch);
     if (branchId) {
       sql += ` AND branch_id = ?`;
       params.push(branchId);

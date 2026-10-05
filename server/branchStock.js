@@ -27,14 +27,22 @@ export function primaryBranchId(orgId) {
 }
 
 // Resolve the branch a READ should be scoped to.
+//
+// There is NO aggregate "ALL" view: every branch stands alone, so a read is
+// ALWAYS scoped to exactly one branch.
 //  - Non-owner: ALWAYS their own assigned branch (client input ignored).
-//  - Owner: the requested branch, or null = ALL (org-wide aggregate view).
-// Returns { branch, all }. `branch` is null when `all` is true.
+//  - Owner: the requested branch, or the org's primary branch as a fallback
+//    (a stale/legacy 'ALL' request is treated as "no branch requested").
+// `all` is retained in the return shape for call-site compatibility but is now
+// always false.
 export function resolveViewBranch(authUser, requestedBranch) {
   if (!authUser) return { branch: null, all: false };
   if (authUser.role !== 'owner') return { branch: authUser.branchId || null, all: false };
-  if (!requestedBranch || requestedBranch === 'ALL') return { branch: null, all: true };
-  return { branch: requestedBranch, all: false };
+  const orgId = authUser.organizationId;
+  if (requestedBranch && requestedBranch !== 'ALL' && branchExists(orgId, requestedBranch)) {
+    return { branch: requestedBranch, all: false };
+  }
+  return { branch: primaryBranchId(orgId), all: false };
 }
 
 // True when a NON-owner is explicitly addressing a branch that is not their own

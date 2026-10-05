@@ -401,15 +401,17 @@ export class CellarStore {
       if (data.user.organizationName) {
         this.businessProfile = { ...this.businessProfile, name: data.user.organizationName, receiptName: String(data.user.organizationName).toUpperCase() };
       }
-      // Owners view all branches; staff are scoped to their own branch.
+      // Every branch stands alone — there is no aggregate "ALL" view. Staff are
+      // pinned to their own branch; owners view ONE branch at a time. The exact
+      // branch is resolved once branches load (see resolveActiveBranch): the
+      // last-viewed branch if still valid, otherwise the primary branch.
       const isOwner = (data.user.role || '').toLowerCase() === 'owner';
-      this.activeBranchId = data.user.branchId || (isOwner ? 'ALL' : this.activeBranchId);
-      // Owners: restore the branch they were last viewing across a refresh.
       if (isOwner) {
-        try {
-          const saved = sessionStorage.getItem('cellar_active_branch');
-          if (saved) this.activeBranchId = saved;
-        } catch (e) {}
+        let saved = null;
+        try { saved = sessionStorage.getItem('cellar_active_branch'); } catch (e) {}
+        this.activeBranchId = (saved && saved !== 'ALL') ? saved : null;
+      } else {
+        this.activeBranchId = data.user.branchId || this.activeBranchId;
       }
       try { sessionStorage.setItem('cellar_session_auth', 'true'); } catch (e) {}
       return true;
@@ -440,6 +442,26 @@ export class CellarStore {
     } catch (err) {
       console.warn("API server fetch notice, using local backup", err);
     }
+    // Branches are now loaded — pin the owner to a concrete branch (no "ALL").
+    this.resolveActiveBranch();
+  }
+
+  // Ensure activeBranchId is a real branch. Staff are pinned server-side, so
+  // this only resolves the owner's view: keep the last-viewed branch when it is
+  // still valid, otherwise fall back to the primary (first) branch. There is no
+  // aggregate "ALL" — each branch is viewed on its own.
+  resolveActiveBranch() {
+    const isOwner = (this.currentUser?.role || '').toLowerCase() === 'owner';
+    if (!isOwner) return;
+    const branches = Array.isArray(this.branches) ? this.branches : [];
+    const valid = this.activeBranchId && this.activeBranchId !== 'ALL'
+      && branches.some(b => b.id === this.activeBranchId);
+    if (!valid) {
+      this.activeBranchId = branches.length ? branches[0].id : null;
+    }
+    try {
+      if (this.activeBranchId) sessionStorage.setItem('cellar_active_branch', this.activeBranchId);
+    } catch (e) {}
   }
 
   async initStore() {
@@ -1360,7 +1382,7 @@ export class CellarStore {
     this.notify();
   }
 
-  // Owner-only: switch the ENTIRE app context to another branch (or 'ALL').
+  // Owner-only: switch the ENTIRE app context to another (standalone) branch.
   // Persists the choice and reloads every branch-scoped dataset so sales,
   // inventory, purchases, expenses, staff, shifts, audit and reports all follow.
   async switchBranch(branchId) {
@@ -1479,7 +1501,7 @@ export class CellarStore {
     return this.sales.filter(s => {
       const k = this.kenyaParts(s.timestamp || s.created_at);
       const matchesDate = k.y === ty && k.m === tm && k.day === td;
-      const matchesBranch = this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId;
+      const matchesBranch = !s.branchId || s.branchId === this.activeBranchId;
       return matchesDate && matchesBranch;
     });
   }
@@ -1625,10 +1647,10 @@ export class CellarStore {
   getBrandProfitabilityMatrix() {
     const brandMap = {};
     // Branch-scope the sales (this.sales is already server-scoped to the active
-    // branch; this is a defensive client filter so ALL aggregates, a selected
-    // branch shows only its own, matching getTodaySales()).
+    // branch; this is a defensive client filter so a selected branch shows only
+    // its own sales, matching getTodaySales()). No aggregate "ALL" view.
     const scoped = (this.sales || []).filter(s =>
-      this.activeBranchId === 'ALL' || !s.branchId || s.branchId === this.activeBranchId);
+      !s.branchId || s.branchId === this.activeBranchId);
     scoped.forEach(s => {
       s.items.forEach(i => {
         const prod = this.products.find(p => p.id === (i.productId || i.id));

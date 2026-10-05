@@ -25,16 +25,16 @@ router.get('/', (req, res) => {
     // only if it has a product_branch_stock row there (created when that branch
     // first stocks it). A brand-new branch therefore starts EMPTY.
     //  - Non-owners always see ONLY their own branch's products.
-    //  - Owners may request a specific branch (?branch=ID); without one (or ALL)
-    //    they get the org-wide management view (every product, aggregate stock).
+    //  - Owners view ONE branch at a time (no aggregate "ALL"): the requested
+    //    branch, or the org's primary branch as a fallback.
     let viewBranch = null;
     if (req.authUser.role !== 'owner') {
       viewBranch = req.authUser.branchId || null;
     } else {
       const requested = req.query.branch;
-      if (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested)) {
-        viewBranch = requested;
-      }
+      viewBranch = (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested))
+        ? requested
+        : primaryBranchId(orgId);
     }
 
     let sql = `
@@ -152,17 +152,18 @@ router.get('/lookup/:query', (req, res) => {
     }
 
     // Branch isolation: scope the lookup to the caller's branch. Non-owners are
-    // bound to their own branch; owners may target one via ?branch=ID. A product
-    // that doesn't belong to that branch is "not found" here — and the branch's
-    // own stock is reported, not the org-wide aggregate.
+    // bound to their own branch; owners target one via ?branch=ID, falling back
+    // to the primary branch (no aggregate "ALL"). A product that doesn't belong
+    // to that branch is "not found" here — and the branch's own stock is
+    // reported, not an org-wide aggregate.
     let viewBranch = null;
     if (req.authUser.role !== 'owner') {
       viewBranch = req.authUser.branchId || null;
     } else {
       const requested = req.query.branch;
-      if (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested)) {
-        viewBranch = requested;
-      }
+      viewBranch = (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested))
+        ? requested
+        : primaryBranchId(orgId);
     }
 
     let stockVal = product.current_stock;

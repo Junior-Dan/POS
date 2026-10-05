@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { authenticateSession, findUserByPin, requireRole, canAccessBranch } from './auth.js';
-import { getBranchStock, setBranchStock, adjustBranchStock, branchExists, crossBranchDenied } from '../branchStock.js';
+import { getBranchStock, setBranchStock, adjustBranchStock, branchExists, crossBranchDenied, resolveViewBranch } from '../branchStock.js';
 
 const router = express.Router();
 
@@ -40,14 +40,12 @@ router.get('/movements', (req, res) => {
     let sql = `SELECT * FROM stock_movements WHERE organization_id = ?`;
     const params = [req.authUser.organizationId];
 
-    // Branch isolation: non-owners only ever see their own branch. Owners may
-    // optionally filter by a branch; omitting it shows all branches.
-    if (req.authUser.role !== 'owner') {
+    // Branch isolation (no aggregate "ALL"): non-owners only ever see their own
+    // branch; owners view one branch at a time (requested or primary).
+    const { branch: viewBranch } = resolveViewBranch(req.authUser, requestedBranch);
+    if (viewBranch) {
       sql += ` AND branch_id = ?`;
-      params.push(req.authUser.branchId);
-    } else if (requestedBranch && requestedBranch !== 'ALL') {
-      sql += ` AND branch_id = ?`;
-      params.push(requestedBranch);
+      params.push(viewBranch);
     }
 
     if (productId) {
