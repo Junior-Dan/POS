@@ -97,6 +97,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                     <td>
                       <div style="display:flex; gap:6px;">
                         <button class="btn btn-secondary btn-sm" onclick="openEditBranchModal('${b.id}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteBranch('${b.id}')">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -209,7 +210,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                           <button class="btn btn-secondary btn-sm" onclick="shareStaffLoginLink('${u.id}')" title="Share Custom Business Login Link">🔗 Share Link</button>
                           <button class="btn btn-secondary btn-sm" onclick="openEditStaffModal('${u.id}')">Edit</button>
                           <button class="btn btn-primary btn-sm" onclick="openResetPinModal('${u.id}')" style="background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-border);">Reset PIN</button>
-                          <button class="btn btn-danger btn-sm" onclick="deleteStaff('${u.id}')">Deactivate</button>
+                          <button class="btn btn-danger btn-sm" onclick="deleteStaff('${u.id}')"${u.id === store.currentUser?.id ? ' disabled title="You cannot delete your own account" style="opacity:0.5; cursor:not-allowed;"' : ''}>Delete</button>
                         </div>
                       </td>
                     </tr>

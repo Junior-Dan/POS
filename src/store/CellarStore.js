@@ -763,6 +763,28 @@ export class CellarStore {
     }
   }
 
+  async deleteBranch(id) {
+    if (!Array.isArray(this.branches)) this.branches = [];
+    this.branches = this.branches.filter(b => b.id !== id && b.code !== id);
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
+
+    try {
+      await fetch(`/api/auth/branches/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${this.currentUser?.token || ''}`
+        }
+      });
+    } catch (e) {
+      console.warn("API server delete branch notice", e);
+    }
+    await this.saveBranches();
+    return { success: true };
+  }
+
+
   async saveBusinessProfile(profileData) {
     this.businessProfile = { ...(this.businessProfile || {}), ...profileData };
     try {

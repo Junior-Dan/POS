@@ -57,7 +57,7 @@ export function renderTopbar(currentUser = store.currentUser) {
         <!-- type=search + the ignore hints stop Chrome autofill and password
              managers (1Password/LastPass/Bitwarden) from dropping the saved
              login email into this box. autocomplete="off" alone is ignored. -->
-        <input type="search" class="global-search-input" id="globalSearchInput" name="celler-product-search" placeholder="Search a product..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore>
+        <input type="search" class="global-search-input" id="globalSearchInput" name="celler-product-search" value="" placeholder="Search a product..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore>
         <div class="global-search-results" id="globalSearchResultsPopover" style="display:none;"></div>
       </div>
 

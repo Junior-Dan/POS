@@ -1529,33 +1529,80 @@ function bindEvents() {
   window.deleteStaff = async (id) => {
     const u = store.users.find(x => x.id === id);
     if (!u) return;
-    const isOwner = store.currentUser?.role === 'owner';
-    if (!isOwner && (u.role === 'manager' || u.role === 'owner')) {
-      return alert("Access Denied: Only the Business Owner can deactivate Manager or Owner accounts!");
+    const currentUser = store.currentUser;
+    const isOwner = (currentUser?.role || '').toLowerCase() === 'owner';
+
+    // Only owner can delete staff accounts
+    if (!isOwner) {
+      return alert("Access Denied: Only the Business Owner can delete staff accounts!");
     }
 
-    const token = getAuthToken() || store.currentUser?.token || '';
+    // Owner cannot delete himself
+    if (u.id === currentUser?.id || (u.email && currentUser?.email && u.email.toLowerCase() === currentUser.email.toLowerCase())) {
+      return alert("Access Denied: You cannot delete your own account!");
+    }
+
+    const token = getAuthToken() || currentUser?.token || '';
     if (!token) {
       alert("Session expired. Please log in with your PIN to perform staff management.");
       window.logoutUser();
       return;
     }
 
-    if (confirm(`Deactivate staff account "${u.name}"?`)) {
+    if (confirm(`Delete staff account "${u.name}"?`)) {
       try {
-        await fetch(`/api/auth/users/${id}`, {
-          method: 'PUT',
+        const res = await fetch(`/api/auth/users/${id}`, {
+          method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ status: "INACTIVE", active: 0 })
+          }
         });
-        store.logAudit("Deactivated Staff Account", u.name, "-", "-", "Account Deactivated");
+        if (!res.ok) {
+          await fetch(`/api/auth/users/${id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: "DELETED", active: 0 })
+          });
+        }
+        store.logAudit("Deleted Staff Account", u.name, "-", "-", "Account Deleted");
         await store.fetchUsers();
         initApp();
       } catch (e) {
-        alert("Error deactivating staff: " + e.message);
+        alert("Error deleting staff: " + e.message);
+      }
+    }
+  };
+
+  window.deleteBranch = async (id) => {
+    const b = (store.branches || []).find(x => x.id === id || x.code === id);
+    if (!b) return;
+
+    const currentUser = store.currentUser;
+    const isOwner = (currentUser?.role || '').toLowerCase() === 'owner';
+
+    if (!isOwner) {
+      return alert("Access Denied: Only the Business Owner can delete branches!");
+    }
+
+    const token = getAuthToken() || currentUser?.token || '';
+    if (!token) {
+      alert("Session expired. Please log in with your PIN to perform branch management.");
+      window.logoutUser();
+      return;
+    }
+
+    if (confirm(`Are you sure you want to delete branch "${b.name}"?`)) {
+      try {
+        await store.deleteBranch(id);
+        store.logAudit("Deleted Branch", b.name || id, "-", "-", "Branch Deleted");
+        await store.fetchSettings();
+        initApp();
+      } catch (e) {
+        alert("Error deleting branch: " + e.message);
       }
     }
   };
@@ -1794,6 +1841,7 @@ function bindEvents() {
   };
 
   if (globalInput) {
+    globalInput.value = '';
     const handleGlobalSearch = () => {
       const q = globalInput.value.trim().toLowerCase();
 
