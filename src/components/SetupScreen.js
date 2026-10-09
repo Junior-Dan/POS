@@ -27,7 +27,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
     isRegisterSetup = false;
   }
 
-  const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Celler POS';
+  const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS';
   const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
 
   return `
@@ -37,7 +37,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
         <div class="welcome-auth-pane">
           <div class="welcome-brand-header">
             <div class="welcome-logo-badge">
-              <img src="/logo.jpeg" alt="Celler POS Logo" class="sys-logo-img" />
+              <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
             </div>
             <span class="welcome-brand-name">${bizName}</span>
           </div>
@@ -59,7 +59,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Celler POS" value="${bizName}" required>
+                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cellar POS" value="${bizName}" required>
                 </div>
 
                 <div class="form-row">
@@ -75,7 +75,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
 
                 <div class="form-group">
                   <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@celler.co.ke" required>
+                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke" required>
                 </div>
 
                 <div class="form-row">
@@ -107,7 +107,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@celler.co.ke or staff@celler.co.ke" required>
+                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@cellar.co.ke or staff@cellar.co.ke" required>
                 </div>
 
                 <div class="form-group">

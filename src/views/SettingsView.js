@@ -118,8 +118,8 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
             <div class="form-group">
               <label class="form-label">Business Name *</label>
-              <input type="text" class="form-input" id="setBizName" value="${profile.name || ''}" placeholder="e.g. Celler POS">
-              <span style="font-size:11px; color:var(--text-faint);">Official registered business identity (CELLER remains software branding).</span>
+              <input type="text" class="form-input" id="setBizName" value="${profile.name || ''}" placeholder="e.g. Cellar POS">
+              <span style="font-size:11px; color:var(--text-faint);">Official registered business identity (CELLAR remains software branding).</span>
             </div>
             <div class="form-group">
               <label class="form-label">Business Phone Number *</label>
@@ -127,7 +127,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
             </div>
             <div class="form-group">
               <label class="form-label">Business Email</label>
-              <input type="email" class="form-input" id="setBizEmail" value="${profile.email || ''}" placeholder="e.g. info@celler.co.ke">
+              <input type="email" class="form-input" id="setBizEmail" value="${profile.email || ''}" placeholder="e.g. info@cellar.co.ke">
             </div>
             <div class="form-group">
               <label class="form-label">Physical Headquarters Address *</label>
@@ -293,7 +293,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
               </div>
             </div>
             <div style="background:#fff; color:#000; padding:16px; border-radius:var(--radius-md); font-family:monospace; font-size:12px; border:1px solid #ccc;">
-              <div style="text-align:center; font-weight:bold; font-size:14px;">${receipt.headerText || 'CELLER POS'}</div>
+              <div style="text-align:center; font-weight:bold; font-size:14px;">${receipt.headerText || 'CELLAR POS'}</div>
               <div style="text-align:center;">Kenyatta Avenue, Nairobi CBD</div>
               <div style="text-align:center;">TEL: 0722 000 111 | PIN: P051234567S</div>
               <div style="border-bottom:1px dashed #000; margin:8px 0;"></div>
@@ -304,7 +304,7 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
               <div style="display:flex; justify-content:space-between;"><span>1x Johnnie Walker Black 750ml</span><span>KSh 3,800</span></div>
               <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:8px;"><span>TOTAL PAID (CASH)</span><span>KSh 3,800</span></div>
               <div style="border-bottom:1px dashed #000; margin:8px 0;"></div>
-              <div style="text-align:center; font-size:11px; font-style:italic;">${receipt.footerText || 'Thank you for shopping at Celler POS!'}</div>
+              <div style="text-align:center; font-size:11px; font-style:italic;">${receipt.footerText || 'Thank you for shopping at Cellar POS!'}</div>
             </div>
           </div>
         </div>

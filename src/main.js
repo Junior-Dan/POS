@@ -425,7 +425,7 @@ function bindEvents() {
     const email = document.getElementById('setupEmailInput')?.value.trim() || "";
     const password = document.getElementById('setupPasswordInput')?.value.trim() || document.getElementById('setupPinInput')?.value.trim() || "";
     const confirmPassword = document.getElementById('setupConfirmPasswordInput')?.value.trim() || document.getElementById('setupConfirmPinInput')?.value.trim() || "";
-    const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Celler POS";
+    const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Cellar POS";
     const err = document.getElementById('setupErrorMsg');
 
     if (!name) {
@@ -1394,7 +1394,7 @@ function bindEvents() {
       };
     }
 
-    const bizName = store.businessProfile?.name || 'Celler POS';
+    const bizName = store.businessProfile?.name || 'Cellar POS';
 
     const pass = suppliedPin || user.temporaryPassword || user.pin || '••••';
 
@@ -1532,31 +1532,41 @@ function bindEvents() {
   };
 
   window.deleteStaff = async (id) => {
-    const u = store.users.find(x => x.id === id);
+    const u = (store.users || []).find(x => String(x.id) === String(id));
     if (!u) return;
     const currentUser = store.currentUser;
-    const isOwner = (currentUser?.role || '').toLowerCase() === 'owner';
+    const role = (currentUser?.role || '').toLowerCase();
+    const isOwner = role === 'owner';
+    const isManager = role === 'manager';
 
-    // Only owner can delete staff accounts
-    if (!isOwner) {
-      return alert("Access Denied: Only the Business Owner can delete staff accounts!");
+    if (!isOwner && !isManager) {
+      return alert("Access Denied: You do not have permission to delete staff accounts!");
     }
 
-    // Owner cannot delete himself
-    if (u.id === currentUser?.id || (u.email && currentUser?.email && u.email.toLowerCase() === currentUser.email.toLowerCase())) {
+    if (isManager && !['cashier', 'inventory_officer'].includes((u.role || '').toLowerCase())) {
+      return alert("Access Denied: Managers can only delete Cashiers or Inventory Officers!");
+    }
+
+    // Cannot delete own account
+    if (String(u.id) === String(currentUser?.id) || (u.email && currentUser?.email && u.email.toLowerCase() === currentUser.email.toLowerCase())) {
       return alert("Access Denied: You cannot delete your own account!");
+    }
+
+    // Cannot delete owner account
+    if ((u.role || '').toLowerCase() === 'owner') {
+      return alert("Access Denied: Owner accounts cannot be deleted!");
     }
 
     const token = getAuthToken() || currentUser?.token || '';
     if (!token) {
-      alert("Session expired. Please log in with your PIN to perform staff management.");
+      alert("Session expired. Please log in again to perform staff management.");
       window.logoutUser();
       return;
     }
 
-    if (confirm(`Delete staff account "${u.name}"?`)) {
+    if (confirm(`Are you sure you want to delete staff account "${u.name}"?`)) {
       try {
-        const res = await fetch(`/api/auth/users/${id}`, {
+        const res = await fetch(`/api/auth/users/${encodeURIComponent(id)}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -1564,7 +1574,8 @@ function bindEvents() {
           }
         });
         if (!res.ok) {
-          await fetch(`/api/auth/users/${id}`, {
+          const data = await readJsonSafe(res);
+          const putRes = await fetch(`/api/auth/users/${encodeURIComponent(id)}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -1572,9 +1583,15 @@ function bindEvents() {
             },
             body: JSON.stringify({ status: "DELETED", active: 0 })
           });
+          if (!putRes.ok) {
+            const putData = await readJsonSafe(putRes);
+            throw new Error(putData.error || data.error || "Failed to delete staff account.");
+          }
         }
+        await store.deleteStaff(id);
         store.logAudit("Deleted Staff Account", u.name, "-", "-", "Account Deleted");
         await store.fetchUsers();
+        await store.fetchBranchLogin();
         initApp();
       } catch (e) {
         alert("Error deleting staff: " + e.message);
@@ -1673,8 +1690,8 @@ function bindEvents() {
       showCashierName,
       showTaxBreakdown: true,
       printCopies,
-      headerText: headerText || "CELLER POS",
-      footerText: footerText || "Thank you for shopping at Celler POS!"
+      headerText: headerText || "CELLAR POS",
+      footerText: footerText || "Thank you for shopping at Cellar POS!"
     };
 
     store.logAudit("Updated Receipt Settings", "POS Receipt", "-", `Header: ${headerText}`, "Receipt Settings Saved");

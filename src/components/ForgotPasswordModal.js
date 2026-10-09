@@ -16,7 +16,7 @@ export function renderForgotPasswordModal() {
 
         <div class="form-group">
           <label class="form-label" style="font-weight:700;">Email Address *</label>
-          <input type="email" class="form-input" id="forgotEmailInput" placeholder="e.g. owner@celler.co.ke" required style="font-size:14px;">
+          <input type="email" class="form-input" id="forgotEmailInput" placeholder="e.g. owner@cellar.co.ke" required style="font-size:14px;">
         </div>
 
         <div id="forgotStep2Area" style="display:none; flex-direction:column; gap:12px; padding-top:12px; border-top:1px dashed var(--border-soft);">

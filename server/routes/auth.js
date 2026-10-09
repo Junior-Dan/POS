@@ -567,7 +567,7 @@ router.get('/branch-info', (req, res) => {
     branchUsers = [];
   }
 
-  let orgName = 'Celler POS';
+  let orgName = 'Cellar POS';
   try {
     const org = db.prepare('SELECT name FROM organizations ORDER BY created_at ASC LIMIT 1').get();
     if (org && org.name) orgName = org.name;
@@ -742,13 +742,13 @@ router.get('/users', authenticateSession, requireRole('owner', 'manager'), (req,
     // owner can always manage themselves from any branch view.
     const { branch } = resolveViewBranch(auth, req.query.branch);
     if (branch) {
-      rows = db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', branch);
+      rows = db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', branch);
     } else {
-      rows = db.prepare(`${cols} WHERE organization_id = ? AND role = 'owner' ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
+      rows = db.prepare(`${cols} WHERE organization_id = ? AND role = 'owner' AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
     }
   } else {
     // Manager: only their own branch staff (client branch input ignored).
-    rows = db.prepare(`${cols} WHERE branch_id = ? ORDER BY created_at ASC`).all(auth.branchId);
+    rows = db.prepare(`${cols} WHERE branch_id = ? AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.branchId);
   }
   res.json(rows); // pin / pin_hash intentionally excluded
 });
@@ -984,13 +984,14 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
 });
 
 // ---------------------------------------------------------------------------
-// 8b. DELETE USER (OWNER ONLY - CANNOT DELETE SELF OR OTHER OWNER)
+// 8b. DELETE USER (CANNOT DELETE SELF OR OWNER)
 // ---------------------------------------------------------------------------
-router.delete('/users/:id', authenticateSession, requireRole('owner'), (req, res) => {
+router.delete('/users/:id', authenticateSession, requireRole('owner', 'manager'), (req, res) => {
   const { id } = req.params;
   try {
     const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    if (!existing) return res.status(404).json({ error: 'User not found' });
+    const guard = canManageTarget(req.authUser, existing);
+    if (!guard.ok) return res.status(guard.code).json({ error: guard.error });
 
     if ((existing.role || '').toLowerCase() === 'owner') {
       return res.status(403).json({ error: 'Owner accounts cannot be deleted.' });
@@ -1007,8 +1008,8 @@ router.delete('/users/:id', authenticateSession, requireRole('owner'), (req, res
 
     db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
-      VALUES (?, ?, ?, ?, 'owner', ?, 'Delete Staff Account', ?, '-', 'DELETED', 'Staff account deleted')
-    `).run(`AUD-${Date.now()}`, req.authUser.organizationId, new Date().toISOString(), req.authUser.name, existing.branch_id || '-', existing.name);
+      VALUES (?, ?, ?, ?, ?, ?, 'Delete Staff Account', ?, '-', 'DELETED', 'Staff account deleted')
+    `).run(`AUD-${Date.now()}`, req.authUser.organizationId || 'ORG-MAIN', new Date().toISOString(), req.authUser.name, req.authUser.role, existing.branch_id || '-', existing.name);
 
     res.json({ success: true });
   } catch (e) {

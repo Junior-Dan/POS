@@ -63,7 +63,7 @@ function ensureDbReady() {
 
 // API Health Check (never requires the DB).
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', dbReady, message: 'Celler POS API Engine is running cleanly.' });
+  res.json({ status: 'ok', dbReady, message: 'Cellar POS API Engine is running cleanly.' });
 });
 
 // Gate all data/auth routes on the DB being ready; self-heals on later requests.
@@ -104,7 +104,7 @@ if (!process.env.VERCEL) {
   // Bind explicitly to 0.0.0.0 so container platforms (Render, Fly, etc.) can
   // detect the open port on IPv4; the default host can bind IPv6-only.
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Celler POS Backend Express Server listening on 0.0.0.0:${PORT}`);
+    console.log(`Cellar POS Backend Express Server listening on 0.0.0.0:${PORT}`);
   });
 }
 

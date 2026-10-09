@@ -108,13 +108,13 @@ export class CellarStore {
 
 
     this.businessProfile = {
-      name: "Celler POS",
+      name: "Cellar POS",
       phone: "0722 000 111",
-      email: "info@celler.co.ke",
+      email: "info@cellar.co.ke",
       address: "Kenyatta Avenue, Nairobi CBD",
       kraPin: "P051234567S",
       regNo: "CPR/2024/99182",
-      receiptName: "CELLER POS",
+      receiptName: "CELLAR POS",
       receiptPhone: "0722 000 111",
       receiptAddress: "Kenyatta Avenue, Nairobi CBD"
     };
@@ -132,8 +132,8 @@ export class CellarStore {
       showCashierName: true,
       showTaxBreakdown: true,
       printCopies: 1,
-      headerText: "CELLER POS",
-      footerText: "Thank you for shopping at Celler POS! Quality Wines & Spirits."
+      headerText: "CELLAR POS",
+      footerText: "Thank you for shopping at Cellar POS! Quality Wines & Spirits."
     };
 
     this.shiftSettings = {
@@ -803,6 +803,19 @@ export class CellarStore {
       console.warn("API server delete branch notice", e);
     }
     await this.saveBranches();
+    return { success: true };
+  }
+
+  async deleteStaff(id) {
+    if (Array.isArray(this.users)) {
+      this.users = this.users.filter(u => String(u.id) !== String(id));
+    }
+    if (Array.isArray(this.loginUsers)) {
+      this.loginUsers = this.loginUsers.filter(u => String(u.id) !== String(id));
+    }
+    this.saveLocalBackup();
+    this.notify();
+    this.broadcastUpdate();
     return { success: true };
   }
 

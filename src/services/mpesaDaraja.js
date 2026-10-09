@@ -1,5 +1,5 @@
 export class MpesaDarajaService {
-  static initiateStkPush(phoneNumber, amount, accountReference = "CELLER-POS") {
+  static initiateStkPush(phoneNumber, amount, accountReference = "CELLAR-POS") {
     console.log(`[Daraja API] Initiating STK Push to ${phoneNumber} for KSh ${amount} (${accountReference})`);
     return {
       MerchantRequestID: `MR-${Date.now()}`,

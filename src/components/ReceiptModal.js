@@ -50,9 +50,9 @@ window.renderReceiptHtml = function(sale) {
 
   container.innerHTML = `
     <div style="text-align:center; font-family:'Courier New', monospace; font-size:12px; color:#111; line-height:1.4;">
-      <img src="/logo.jpeg" style="width:48px; height:48px; object-fit:contain; border-radius:6px; margin:0 auto 4px auto; display:block;" alt="Celler POS" />
-      <div style="font-size:10px; color:#666; font-family:sans-serif; letter-spacing:0.5px; font-weight:700;">CELLER POS ENTERPRISE</div>
-      <div style="font-weight:900; font-size:15px; letter-spacing:1px; text-transform:uppercase; margin-top:2px;">${receipt.headerText || profile.receiptName || profile.name || 'CELLER POS'}</div>
+      <img src="/logo.jpeg" style="width:48px; height:48px; object-fit:contain; border-radius:6px; margin:0 auto 4px auto; display:block;" alt="Cellar POS" />
+      <div style="font-size:10px; color:#666; font-family:sans-serif; letter-spacing:0.5px; font-weight:700;">CELLAR POS ENTERPRISE</div>
+      <div style="font-weight:900; font-size:15px; letter-spacing:1px; text-transform:uppercase; margin-top:2px;">${receipt.headerText || profile.receiptName || profile.name || 'CELLAR POS'}</div>
       <div style="font-size:11px; color:#444; font-weight:bold;">${branch.name}</div>
       <div style="font-size:10px; color:#444;">${branch.location || profile.address || 'Nairobi'}</div>
       <div style="font-size:10px; color:#444;">TEL: ${profile.phone || '0722 000 111'} | KRA PIN: ${profile.kraPin || 'P051234567S'}</div>

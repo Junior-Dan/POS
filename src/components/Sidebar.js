@@ -3,7 +3,7 @@ import { store } from '../store/CellarStore.js';
 export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
-  const bizName = store.businessProfile?.name || "Celler POS";
+  const bizName = store.businessProfile?.name || "Cellar POS";
 
   // Navigation tabs with role permission validation
   const allNavItems = [
@@ -34,10 +34,10 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
     <div class="sidebar-header">
       <div class="brand-box">
         <div class="brand-logo-wrap">
-          <img src="/logo.jpeg" alt="Celler POS Logo" class="brand-logo-img" />
+          <img src="/logo.jpeg" alt="Cellar POS Logo" class="brand-logo-img" />
         </div>
         <div class="brand-info-wrap">
-          <div class="brand-title">CELLER POS</div>
+          <div class="brand-title">CELLAR POS</div>
         </div>
       </div>
       <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">

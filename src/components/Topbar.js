@@ -2,7 +2,7 @@ import { store } from '../store/CellarStore.js';
 
 export function renderTopbar(currentUser = store.currentUser) {
   const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
-  const bizName = store.businessProfile?.name || "Celler POS";
+  const bizName = store.businessProfile?.name || "Cellar POS";
   const userInitials = (user.name || "David Kamau").split(' ').map(n => n[0]).join('');
   
   const currentDateObj = store.getSelectedDateObj();
@@ -57,7 +57,7 @@ export function renderTopbar(currentUser = store.currentUser) {
         <!-- type=search + the ignore hints stop Chrome autofill and password
              managers (1Password/LastPass/Bitwarden) from dropping the saved
              login email into this box. autocomplete="off" alone is ignored. -->
-        <input type="search" class="global-search-input" id="globalSearchInput" name="celler-product-search" value="" placeholder="Search a product..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore>
+        <input type="search" class="global-search-input" id="globalSearchInput" name="cellar-product-search" value="" placeholder="Search a product..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore>
         <div class="global-search-results" id="globalSearchResultsPopover" style="display:none;"></div>
       </div>
 
@@ -132,7 +132,7 @@ export function renderTopbar(currentUser = store.currentUser) {
 
       <!-- Business + Signed-in User Badge (single business, single branch) -->
       <div class="topbar-branch-badge" id="topbarUserContainer">
-        <img src="/logo.jpeg" class="topbar-logo-img" alt="Celler POS" />
+        <img src="/logo.jpeg" class="topbar-logo-img" alt="Cellar POS" />
 
         <div class="topbar-branch-text-wrap">
           <span class="topbar-company-name">${bizName}</span>
