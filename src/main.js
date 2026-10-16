@@ -379,6 +379,9 @@ function bindEvents() {
   if (notifBtn && notifPopover) {
     notifBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      document.getElementById('calendarPopover')?.classList.remove('active');
+      document.getElementById('branchPopover')?.classList.remove('active');
+      document.getElementById('topbarBranchBtn')?.classList.remove('open');
       notifPopover.classList.toggle('active');
     });
 
@@ -388,6 +391,47 @@ function bindEvents() {
       }
     });
   }
+
+  // Branch Switcher Popover Handlers
+  const branchBtn = document.getElementById('topbarBranchBtn');
+  const branchPopover = document.getElementById('branchPopover');
+  if (branchBtn && branchPopover) {
+    document.addEventListener('click', (e) => {
+      if (branchPopover && branchPopover.classList.contains('active') && !branchPopover.contains(e.target) && !branchBtn.contains(e.target)) {
+        branchPopover.classList.remove('active');
+        branchBtn.classList.remove('open');
+      }
+    });
+  }
+
+  window.toggleBranchPopover = () => {
+    const popover = document.getElementById('branchPopover');
+    const btn = document.getElementById('topbarBranchBtn');
+    if (!popover || !btn) return;
+    const isOpen = popover.classList.contains('active');
+    document.getElementById('calendarPopover')?.classList.remove('active');
+    document.getElementById('notificationsPopover')?.classList.remove('active');
+
+    if (isOpen) {
+      popover.classList.remove('active');
+      btn.classList.remove('open');
+    } else {
+      popover.classList.add('active');
+      btn.classList.add('open');
+    }
+  };
+
+  window.selectBranchContext = async (branchId) => {
+    document.getElementById('branchPopover')?.classList.remove('active');
+    document.getElementById('topbarBranchBtn')?.classList.remove('open');
+    await window.switchActiveBranch(branchId);
+  };
+
+  window.openCreateBranchFromDropdown = () => {
+    document.getElementById('branchPopover')?.classList.remove('active');
+    document.getElementById('topbarBranchBtn')?.classList.remove('open');
+    window.openAddBranchModal();
+  };
 
   window.markAllNotificationsRead = () => {
     store.markNotificationsRead();

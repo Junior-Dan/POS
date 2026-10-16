@@ -680,78 +680,260 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: none !important;
 }
 
-/* User Badge Pill & Topbar Branch Switcher */
-.topbar-branch-badge {
+/* ==========================================================================
+   Modern Custom Branch Switcher Pill & Popover Card
+   ========================================================================== */
+.topbar-branch-pill {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: #f4f5f8;
-  border: 1px solid var(--border-soft);
+  gap: 7px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border-soft, #e2e8f0);
   border-radius: 20px;
-  padding: 4px 10px 4px 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.topbar-branch-badge:hover { background: #e2e8f0; }
-
-.topbar-branch-text-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.2;
-  user-select: none;
-}
-.topbar-company-name {
+  padding: 6px 12px;
   font-size: 12px;
   font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-}
-.topbar-branch-sub {
-  font-size: 9.5px;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
+  color: var(--text, #0f172a);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.topbar-branch-select-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 10;
+.topbar-branch-pill:hover {
+  background: var(--surface-hover, #f8fafc);
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
-.topbar-user-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 6px 3px 10px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+
+.topbar-branch-pill.open {
+  border-color: var(--accent, #4f46e5);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
-.topbar-user-badge:hover { background: #f1f5f9; }
-.topbar-user-name { font-size: 12.5px; font-weight: 600; color: #64748b; }
-.topbar-avatar-pill {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 11.5px;
+
+.topbar-branch-pill.fixed-staff {
+  background: var(--accent-soft, #eef2ff);
+  color: var(--accent, #4f46e5);
+  border-color: rgba(79, 70, 229, 0.2);
+  cursor: default;
+}
+.topbar-branch-pill.fixed-staff:hover {
+  box-shadow: none;
+}
+
+.branch-pill-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(255, 86, 48, 0.35);
+  color: var(--accent, #4f46e5);
+  flex-shrink: 0;
 }
-.topbar-user-badge .chevron, .topbar-branch-badge .chevron { color: #94a3b8; }
+.branch-pill-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.branch-pill-name {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.1px;
+}
+
+.branch-chevron {
+  color: #94a3b8;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.topbar-branch-pill.open .branch-chevron {
+  transform: rotate(180deg);
+  color: var(--accent, #4f46e5);
+}
+
+/* Branch Popover Dropdown Card */
+.custom-branch-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 270px;
+  background: #ffffff;
+  border: 1px solid var(--border-soft, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 16px 36px -4px rgba(15, 23, 42, 0.16), 0 4px 12px rgba(15, 23, 42, 0.06);
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 120;
+  cursor: default;
+  animation: branchPopoverIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.custom-branch-popover.active {
+  display: flex;
+}
+
+@keyframes branchPopoverIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.branch-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 8px 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.branch-popover-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #64748b;
+}
+
+.branch-popover-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #4f46e5;
+  border-radius: 12px;
+  padding: 2px 8px;
+}
+
+.branch-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.branch-option-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.branch-option-item:hover {
+  background: #f8fafc;
+}
+
+.branch-option-item.selected {
+  background: #eef2ff;
+  border-color: rgba(79, 70, 229, 0.18);
+}
+
+.branch-option-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.branch-option-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.branch-option-item:hover .branch-option-icon {
+  color: var(--accent, #4f46e5);
+  background: #ffffff;
+}
+
+.branch-option-item.selected .branch-option-icon {
+  background: var(--accent, #4f46e5);
+  color: #ffffff;
+  border-color: var(--accent, #4f46e5);
+}
+
+.branch-option-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.branch-option-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.branch-option-item.selected .branch-option-name {
+  color: #4f46e5;
+}
+
+.branch-option-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.branch-option-check {
+  color: var(--accent, #4f46e5);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.branch-option-check svg {
+  width: 15px;
+  height: 15px;
+}
+
+.branch-popover-footer {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.branch-add-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent, #4f46e5);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.branch-add-btn:hover {
+  background: #eef2ff;
+  border-color: var(--accent, #4f46e5);
+}
+.branch-add-btn svg {
+  width: 14px;
+  height: 14px;
+}
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7.5px 14px; border-radius: var(--radius-md); font-size: 12.5px; font-weight: 700; transition: all 0.15s ease; outline: none; }
 .btn-primary { background: #0f172a; color: #ffffff; }

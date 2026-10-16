@@ -22,16 +22,81 @@ export function renderTopbar(currentUser = store.currentUser) {
   // as a fixed, read-only label and can never switch.
   const isOwner = (user.role || '').toLowerCase() === 'owner';
   const branchList = store.branches || [];
+  const activeBranch = branchList.find(x => x.id === store.activeBranchId) || branchList[0] || { name: 'Main Branch', location: 'Head Office' };
+
   const branchSwitcherHtml = isOwner
     ? `
-      <select id="topbarBranchSwitcher" onchange="switchActiveBranch(this.value)" title="Switch branch context"
-        style="padding:7px 12px; border-radius:20px; border:1px solid var(--border-soft, #e2e8f0); background:var(--surface, #fff); font-size:12px; font-weight:700; color:var(--text-main, #0f172a); cursor:pointer; max-width:200px;">
-        ${branchList.map(b => `<option value="${b.id}" ${store.activeBranchId === b.id ? 'selected' : ''}>${b.name}</option>`).join('')}
-      </select>`
-    : (() => {
-        const b = branchList.find(x => x.id === store.activeBranchId);
-        return `<span title="Your assigned branch" style="padding:7px 12px; border-radius:20px; background:var(--accent-soft, #eef2ff); color:var(--accent, #4f46e5); font-size:12px; font-weight:700;">${b ? b.name : 'Your Branch'}</span>`;
-      })();
+      <div style="position:relative;" id="topbarBranchWrapper">
+        <button type="button" class="topbar-branch-pill" id="topbarBranchBtn" onclick="toggleBranchPopover()" title="Switch outlet / branch context">
+          <span class="branch-pill-icon">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </span>
+          <span class="branch-pill-name">${activeBranch.name}</span>
+          <svg class="icon-sm branch-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6"/>
+          </svg>
+        </button>
+
+        <div class="custom-branch-popover" id="branchPopover">
+          <div class="branch-popover-header">
+            <span class="branch-popover-title">Store Outlets</span>
+            <span class="branch-popover-badge">${branchList.length} ${branchList.length === 1 ? 'Store' : 'Stores'}</span>
+          </div>
+
+          <div class="branch-popover-list">
+            ${branchList.map(b => {
+              const isSelected = store.activeBranchId === b.id;
+              const locationText = b.location || (b.code ? `Code: ${b.code}` : 'Store Location');
+              return `
+                <div class="branch-option-item ${isSelected ? 'selected' : ''}" onclick="selectBranchContext('${b.id}')">
+                  <div class="branch-option-icon">
+                    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                      <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                  </div>
+                  <div class="branch-option-details">
+                    <div class="branch-option-name">${b.name}</div>
+                    <div class="branch-option-sub">${locationText}</div>
+                  </div>
+                  ${isSelected ? `
+                    <div class="branch-option-check">
+                      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="branch-popover-footer">
+            <button type="button" class="branch-add-btn" onclick="openCreateBranchFromDropdown()">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Add New Branch</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+    : `
+      <div class="topbar-branch-pill fixed-staff" title="Your assigned store outlet">
+        <span class="branch-pill-icon">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </span>
+        <span class="branch-pill-name">${activeBranch.name}</span>
+      </div>
+    `;
 
   const notifItemsHtml = notifications.length > 0 ? notifications.map(n => `
     <div class="notif-item ${!n.read ? 'unread' : ''}">
