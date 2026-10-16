@@ -15,7 +15,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
     isRegisterSetup = !hasUsers;
   }
 
-  const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS';
+  const systemName = 'Cellar POS';
 
   return `
     <div class="welcome-setup-container">
@@ -26,7 +26,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
             <div class="welcome-logo-badge">
               <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
             </div>
-            <span class="welcome-brand-name">${bizName}</span>
+            <span class="welcome-brand-name">Cellar POS</span>
           </div>
 
           <div class="auth-pane-body">
@@ -148,7 +148,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
           </div>
 
           <div class="welcome-footer-bar">
-            <span>Copyright © 2026 ${bizName}.</span>
+            <span>Copyright © 2026 Cellar POS. All rights reserved.</span>
           </div>
         </div>
 
