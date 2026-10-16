@@ -1356,7 +1356,7 @@ function bindEvents() {
     if (!document.getElementById('setBizLogoVal')?.value) {
       const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
       if (miniMockup) {
-        miniMockup.innerHTML = `<span style="color:#ffffff; font-weight:900; font-size:14px; text-shadow:0 0 6px rgba(255,255,255,0.4);">${initial}</span>`;
+        miniMockup.innerHTML = `<div style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:900; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${initial}</span></div>`;
       }
     }
   };
@@ -1397,12 +1397,12 @@ function bindEvents() {
 
         const previewBox = document.getElementById('orgLogoPreviewBox');
         if (previewBox) {
-          previewBox.innerHTML = `<img id="orgLogoPreviewImg" src="${optimizedDataUrl}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:4px; display:block;" />`;
+          previewBox.innerHTML = `<img id="orgLogoPreviewImg" src="${optimizedDataUrl}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; border-radius:50%; background:transparent; display:block;" />`;
         }
 
         const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
         if (miniMockup) {
-          miniMockup.innerHTML = `<img src="${optimizedDataUrl}" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:2px; display:block;" />`;
+          miniMockup.innerHTML = `<img src="${optimizedDataUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:50%; background:transparent; display:block;" />`;
         }
 
         const valInput = document.getElementById('setBizLogoVal');
@@ -1431,12 +1431,12 @@ function bindEvents() {
 
     const previewBox = document.getElementById('orgLogoPreviewBox');
     if (previewBox) {
-      previewBox.innerHTML = `<div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:900; font-size:32px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">${initial}</div>`;
+      previewBox.innerHTML = `<div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:900; font-size:32px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">${initial}</div>`;
     }
 
     const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
     if (miniMockup) {
-      miniMockup.innerHTML = `<span style="color:#ffffff; font-weight:900; font-size:14px; text-shadow:0 0 6px rgba(255,255,255,0.4);">${initial}</span>`;
+      miniMockup.innerHTML = `<div style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:900; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${initial}</span></div>`;
     }
 
     const removeBtn = document.getElementById('removeOrgLogoBtn');

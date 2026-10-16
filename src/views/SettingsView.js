@@ -140,15 +140,15 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
               <!-- Large Interactive Logo Box -->
               <div id="orgLogoPreviewBox" 
                    onclick="document.getElementById('orgLogoFileInput').click()"
-                   ondragover="event.preventDefault(); this.style.borderColor='#0f172a'; this.style.background='#f8fafc';"
-                   ondragleave="this.style.borderColor='#cbd5e1'; this.style.background='#ffffff';"
-                   ondrop="event.preventDefault(); this.style.borderColor='#cbd5e1'; this.style.background='#ffffff'; handleOrgLogoUpload({ target: { files: event.dataTransfer.files } });"
-                   style="width:82px; height:82px; border-radius:14px; border:2px dashed #cbd5e1; background:#ffffff; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all 0.2s ease;"
+                   ondragover="event.preventDefault(); this.style.borderColor='#0f172a'; this.style.background='#f1f5f9';"
+                   ondragleave="this.style.borderColor='#94a3b8'; this.style.background='transparent';"
+                   ondrop="event.preventDefault(); this.style.borderColor='#94a3b8'; this.style.background='transparent'; handleOrgLogoUpload({ target: { files: event.dataTransfer.files } });"
+                   style="width:82px; height:82px; border-radius:50%; border:2px dashed #94a3b8; background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all 0.2s ease;"
                    title="Click or drag & drop to upload logo">
                 ${profile.logo ? `
-                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:4px; display:block;" />
+                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; border-radius:50%; background:transparent; display:block;" />
                 ` : `
-                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:900; font-size:32px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">
+                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:900; font-size:32px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">
                     ${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}
                   </div>
                 `}
@@ -168,14 +168,14 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                 <div style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                   <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Sidebar Header Preview:</div>
                   <div style="background:#090d16; border-radius:10px; padding:8px 14px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.3);">
-                    <div id="orgLogoSidebarMiniMockup" style="width:30px; height:30px; border-radius:7px; overflow:hidden; background:#090d16; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid rgba(255,255,255,0.12);">
+                    <div id="orgLogoSidebarMiniMockup" style="width:34px; height:34px; border-radius:50%; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1.5px solid rgba(255,255,255,0.25); box-shadow:0 1px 4px rgba(0,0,0,0.35);">
                       ${profile.logo 
-                        ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:2px; display:block;" />` 
-                        : `<span style="color:#ffffff; font-weight:900; font-size:14px; text-shadow:0 0 6px rgba(255,255,255,0.4);">${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}</span>`
+                        ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; border-radius:50%; background:transparent; display:block;" />` 
+                        : `<div style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:900; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}</span></div>`
                       }
                     </div>
                     <div>
-                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:13.5px; font-weight:700; line-height:1.1; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:14px; font-weight:700; line-height:1.1; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         ${profile.name || store.currentUser?.organizationName || 'Your Business'}
                       </div>
                     </div>
