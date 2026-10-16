@@ -12,7 +12,7 @@ const router = express.Router();
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
-export const supabaseAdmin = (supabaseUrl && supabaseKey && !supabaseKey.includes('your_secret'))
+export const supabaseAdmin = (process.env.USE_LOCAL_DB !== 'true' && supabaseUrl && supabaseKey && !supabaseKey.includes('your_secret'))
   ? createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } })
   : null;
 
