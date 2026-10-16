@@ -146,31 +146,43 @@ svg.icon-lg { width: 24px; height: 24px; }
   overflow-x: hidden;
 }
 
-/* Sidebar Square Toggle Button (Inside Header) */
+/* Modern Sleek Sidebar Toggle Button (Inside Header) */
 .sidebar-toggle-btn-sq {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
   color: #94a3b8;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
 .sidebar-toggle-btn-sq:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-toggle-btn-sq:active {
+  transform: scale(0.94);
 }
 
 .sidebar-toggle-btn-sq svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
+  transition: transform 0.18s ease;
+}
+
+.sidebar-toggle-btn-sq .toggle-icon-expand {
+  display: none !important;
+}
+.sidebar-toggle-btn-sq .toggle-icon-collapse {
+  display: block !important;
 }
 
 .app-container.collapsed .brand-title,
@@ -180,18 +192,49 @@ svg.icon-lg { width: 24px; height: 24px; }
 .app-container.collapsed .nav-section-title,
 .app-container.collapsed .nav-btn span,
 .app-container.collapsed .nav-badge,
-.app-container.collapsed .user-details,
-.app-container.collapsed .sidebar-toggle-btn-sq {
+.app-container.collapsed .user-details {
   display: none !important;
 }
 
 .app-container.collapsed .sidebar-header {
-  padding: 12px 6px;
+  padding: 12px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
 }
 
 .app-container.collapsed .brand-box {
+  display: flex;
   justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.app-container.collapsed .sidebar-toggle-btn-sq {
+  display: flex !important;
+  width: 32px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  margin: 0 auto;
+}
+
+.app-container.collapsed .sidebar-toggle-btn-sq:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+}
+
+.app-container.collapsed .sidebar-toggle-btn-sq .toggle-icon-collapse {
+  display: none !important;
+}
+.app-container.collapsed .sidebar-toggle-btn-sq .toggle-icon-expand {
+  display: block !important;
 }
 
 .app-container.collapsed .nav-btn {

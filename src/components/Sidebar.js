@@ -54,10 +54,15 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
         </div>
       </div>
       <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="18" height="18" x="3" y="3" rx="3"/>
+        <svg class="toggle-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="3.5" stroke-opacity="0.8"/>
           <path d="M9 3v18"/>
-          <path d="m14 9-3 3 3 3"/>
+          <path d="m16 15-3-3 3-3"/>
+        </svg>
+        <svg class="toggle-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="3.5" stroke-opacity="0.8"/>
+          <path d="M9 3v18"/>
+          <path d="m14 9 3 3-3 3"/>
         </svg>
       </button>
     </div>
