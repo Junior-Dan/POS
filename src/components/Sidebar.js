@@ -46,11 +46,17 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
         <div class="brand-logo-wrap" title="${bizName}">
           ${orgLogo
             ? `<img src="${orgLogo}" alt="${bizName} Logo" class="brand-logo-img" />`
-            : `<div class="brand-monogram">${monogram}</div>`
+            : `<div class="brand-monogram">
+                 <span class="monogram-text">${monogram}</span>
+               </div>`
           }
         </div>
         <div class="brand-info-wrap">
           <div class="brand-title" title="${bizName}">${bizName}</div>
+          <div class="brand-subtitle">
+            <span class="brand-live-indicator"></span>
+            <span>POS TERMINAL</span>
+          </div>
         </div>
       </div>
     </div>

@@ -1342,13 +1342,24 @@ function bindEvents() {
   window.updateOrgLogoMonogramLive = (bizName) => {
     const previewBox = document.getElementById('orgLogoPreviewBox');
     if (!previewBox) return;
+    const words = (bizName || 'ORG').trim().split(/\s+/).filter(Boolean);
+    const initials = words.length >= 2
+      ? (words[0][0] + words[1][0]).toUpperCase()
+      : (words[0] ? words[0].slice(0, 2).toUpperCase() : 'OR');
+
     const placeholder = document.getElementById('orgLogoPreviewPlaceholder');
     if (placeholder) {
-      const words = (bizName || 'ORG').trim().split(/\s+/).filter(Boolean);
-      const initials = words.length >= 2
-        ? (words[0][0] + words[1][0]).toUpperCase()
-        : (words[0] ? words[0].slice(0, 2).toUpperCase() : 'OR');
       placeholder.textContent = initials;
+    }
+
+    const miniTitle = document.getElementById('orgLogoSidebarMiniTitle');
+    if (miniTitle) miniTitle.textContent = bizName || 'Your Business';
+
+    if (!document.getElementById('setBizLogoVal')?.value) {
+      const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
+      if (miniMockup) {
+        miniMockup.innerHTML = `<span style="color:#ffffff; font-weight:800; font-size:11px; letter-spacing:0.5px;">${initials}</span>`;
+      }
     }
   };
 
@@ -1388,7 +1399,12 @@ function bindEvents() {
 
         const previewBox = document.getElementById('orgLogoPreviewBox');
         if (previewBox) {
-          previewBox.innerHTML = `<img id="orgLogoPreviewImg" src="${optimizedDataUrl}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; display:block;" />`;
+          previewBox.innerHTML = `<img id="orgLogoPreviewImg" src="${optimizedDataUrl}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:4px; display:block;" />`;
+        }
+
+        const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
+        if (miniMockup) {
+          miniMockup.innerHTML = `<img src="${optimizedDataUrl}" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:2px; display:block;" />`;
         }
 
         const valInput = document.getElementById('setBizLogoVal');
@@ -1419,7 +1435,12 @@ function bindEvents() {
 
     const previewBox = document.getElementById('orgLogoPreviewBox');
     if (previewBox) {
-      previewBox.innerHTML = `<div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e293b; color:#f8fafc; font-weight:800; font-size:20px; letter-spacing:-0.5px;">${initials}</div>`;
+      previewBox.innerHTML = `<div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color:#ffffff; font-weight:850; font-size:24px; letter-spacing:0.5px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.15);">${initials}</div>`;
+    }
+
+    const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
+    if (miniMockup) {
+      miniMockup.innerHTML = `<span style="color:#ffffff; font-weight:800; font-size:11px; letter-spacing:0.5px;">${initials}</span>`;
     }
 
     const removeBtn = document.getElementById('removeOrgLogoBtn');

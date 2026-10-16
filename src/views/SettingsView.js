@@ -135,38 +135,70 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
             </div>
           ` : ''}
 
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
-            <div style="display:flex; align-items:center; gap:18px;">
-              <div id="orgLogoPreviewBox" style="width:68px; height:68px; border-radius:12px; border:2px dashed #cbd5e1; background:#ffffff; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; margin-bottom:22px; box-shadow:0 1px 4px rgba(0,0,0,0.03); display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:20px;">
+            <div style="display:flex; align-items:flex-start; gap:20px; flex:1; min-width:300px;">
+              <!-- Large Interactive Logo Box -->
+              <div id="orgLogoPreviewBox" 
+                   onclick="document.getElementById('orgLogoFileInput').click()"
+                   ondragover="event.preventDefault(); this.style.borderColor='#0f172a'; this.style.background='#f8fafc';"
+                   ondragleave="this.style.borderColor='#cbd5e1'; this.style.background='#ffffff';"
+                   ondrop="event.preventDefault(); this.style.borderColor='#cbd5e1'; this.style.background='#ffffff'; handleOrgLogoUpload({ target: { files: event.dataTransfer.files } });"
+                   style="width:82px; height:82px; border-radius:14px; border:2px dashed #cbd5e1; background:#ffffff; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all 0.2s ease;"
+                   title="Click or drag & drop to upload logo">
                 ${profile.logo ? `
-                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; display:block;" />
+                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:4px; display:block;" />
                 ` : `
-                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e293b; color:#f8fafc; font-weight:800; font-size:20px; letter-spacing:-0.5px;">
+                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color:#ffffff; font-weight:850; font-size:24px; letter-spacing:0.5px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.15);">
                     ${((profile.name || store.currentUser?.organizationName || 'ORG').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || 'OR').toUpperCase()}
                   </div>
                 `}
               </div>
-              <div>
-                <div style="font-size:14px; font-weight:800; color:#0f172a;">Organization Logo</div>
-                <div style="font-size:12px; color:#64748b; margin-top:2px; max-width:460px;">
-                  Upload your organization's custom logo. It will appear on your top-left sidebar and printed POS receipts.
+
+              <!-- Logo Details & Sidebar Mockup -->
+              <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:15px; font-weight:800; color:#0f172a;">Organization Logo & Brand Emblem</span>
+                  <span style="font-size:10px; font-weight:750; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:10px; border:1px solid #e2e8f0; text-transform:uppercase;">Store Identity</span>
                 </div>
-                <div style="font-size:11px; color:#94a3b8; margin-top:3px;">
-                  Recommended: Square PNG, JPG or WEBP image.
+                <div style="font-size:12.5px; color:#64748b; margin-top:4px; line-height:1.4; max-width:480px;">
+                  Upload your business emblem. It is showcased on your top-left sidebar terminal and automatically formatted onto printed sales receipts.
+                </div>
+
+                <!-- Live Preview Badge -->
+                <div style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Sidebar Header Preview:</div>
+                  <div style="background:#0f172a; border-radius:10px; padding:7px 14px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.25);">
+                    <div id="orgLogoSidebarMiniMockup" style="width:30px; height:30px; border-radius:7px; overflow:hidden; background:#1e293b; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.3);">
+                      ${profile.logo 
+                        ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:2px; display:block;" />` 
+                        : `<span style="color:#ffffff; font-weight:800; font-size:11px; letter-spacing:0.5px;">${((profile.name || store.currentUser?.organizationName || 'ORG').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || 'OR').toUpperCase()}</span>`
+                      }
+                    </div>
+                    <div>
+                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:12px; font-weight:800; line-height:1.1; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        ${profile.name || store.currentUser?.organizationName || 'Your Business'}
+                      </div>
+                      <div style="color:#94a3b8; font-size:8.5px; font-weight:750; letter-spacing:0.6px; margin-top:2px;">POS TERMINAL</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div style="display:flex; align-items:center; gap:8px;">
+            <!-- Upload Controls -->
+            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; justify-content:center;">
               <input type="file" id="orgLogoFileInput" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleOrgLogoUpload(event)">
               <input type="hidden" id="setBizLogoVal" value="${profile.logo || ''}">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('orgLogoFileInput').click()" style="display:inline-flex; align-items:center; gap:6px; font-weight:600;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                ${profile.logo ? 'Change Logo' : 'Upload Logo'}
-              </button>
-              <button type="button" id="removeOrgLogoBtn" class="btn btn-danger btn-sm" onclick="removeOrgLogo()" style="display:${profile.logo ? 'inline-flex' : 'none'}; align-items:center; gap:4px; font-weight:600;">
-                Remove
-              </button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('orgLogoFileInput').click()" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; padding:8px 14px; font-size:12.5px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  ${profile.logo ? 'Change Logo Image' : 'Upload Organization Logo'}
+                </button>
+                <button type="button" id="removeOrgLogoBtn" class="btn btn-secondary btn-sm" onclick="removeOrgLogo()" style="display:${profile.logo ? 'inline-flex' : 'none'}; align-items:center; gap:4px; font-weight:600; font-size:12px; color:#ef4444;">
+                  Remove Logo
+                </button>
+              </div>
+              <span style="font-size:11px; color:#94a3b8;">Supports PNG, JPG, WEBP & SVG (Square or Crest)</span>
             </div>
           </div>
 
