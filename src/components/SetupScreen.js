@@ -11,7 +11,8 @@ export function renderAuthLandingScreen(overrideMode = null) {
   } else if (window.forceRegisterMode) {
     isRegisterSetup = true;
   } else {
-    isRegisterSetup = false;
+    const hasUsers = Array.isArray(store.loginUsers) && store.loginUsers.length > 0;
+    isRegisterSetup = !hasUsers;
   }
 
   const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS';
