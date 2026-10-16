@@ -120,16 +120,16 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
           ${currentOrgId ? `
             <div style="background:var(--accent-soft, #eef2ff); border:1px solid rgba(99,102,241,0.25); border-radius:12px; padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
               <div>
-                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--accent, #4f46e5);">Organization Account ID (10-Digit)</div>
-                <div style="font-size:20px; font-weight:800; font-family:monospace; letter-spacing:2px; color:var(--text-main, #0f172a); margin-top:2px;">${currentOrgId}</div>
-                <div style="font-size:12px; color:var(--text-muted, #64748b); margin-top:2px;">Unique tenant identifier for your store and staff deep-link URLs.</div>
+                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--accent, #4f46e5);">Store Identifier / URL Link (Small Letters)</div>
+                <div style="font-size:20px; font-weight:800; font-family:monospace; color:var(--text-main, #0f172a); margin-top:2px;">/${currentOrgId.toLowerCase()}</div>
+                <div style="font-size:12px; color:var(--text-muted, #64748b); margin-top:2px;">Clean lowercase business link used for your POS address and staff logins.</div>
               </div>
               <div style="display:flex; gap:8px;">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${currentOrgId}'); alert('Organization ID copied to clipboard: ${currentOrgId}');" style="font-weight:700; font-size:12px;">
-                  📋 Copy Org ID
+                <button type="button" class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${currentOrgId.toLowerCase()}'); alert('Store ID copied: ${currentOrgId.toLowerCase()}');" style="font-weight:700; font-size:12px;">
+                  📋 Copy Store ID
                 </button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId}/pos'); alert('Staff POS login link copied: ${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId}/pos');" style="font-weight:700; font-size:12px;">
-                  🔗 Copy Staff Login Link
+                <button type="button" class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId.toLowerCase()}/pos'); alert('Staff POS login link copied: ${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId.toLowerCase()}/pos');" style="font-weight:700; font-size:12px;">
+                  🔗 Copy Staff POS Link
                 </button>
               </div>
             </div>

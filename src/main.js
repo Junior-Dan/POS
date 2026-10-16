@@ -51,12 +51,12 @@ export function parseRoute() {
   const validViews = ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit', 'settings'];
   
   if (parts.length >= 2 && validViews.includes(parts[1].toLowerCase())) {
-    return { orgId: parts[0], viewId: parts[1].toLowerCase() };
+    return { orgId: parts[0].toLowerCase(), viewId: parts[1].toLowerCase() };
   } else if (parts.length === 1) {
     if (validViews.includes(parts[0].toLowerCase())) {
       return { orgId: null, viewId: parts[0].toLowerCase() };
     }
-    return { orgId: parts[0], viewId: null };
+    return { orgId: parts[0].toLowerCase(), viewId: null };
   }
   return { orgId: null, viewId: null };
 }
@@ -74,13 +74,14 @@ export function syncBrowserUrl(viewId, replace = false) {
     }
     return;
   }
+  const cleanOrg = String(orgId).toLowerCase();
   const targetView = viewId || activeViewId || 'dashboard';
-  const targetPath = `/${orgId}/${targetView}`;
+  const targetPath = `/${cleanOrg}/${targetView}`;
   if (window.location.pathname !== targetPath) {
     if (replace) {
-      window.history.replaceState({ orgId, viewId: targetView }, '', targetPath);
+      window.history.replaceState({ orgId: cleanOrg, viewId: targetView }, '', targetPath);
     } else {
-      window.history.pushState({ orgId, viewId: targetView }, '', targetPath);
+      window.history.pushState({ orgId: cleanOrg, viewId: targetView }, '', targetPath);
     }
   }
 }
@@ -468,6 +469,17 @@ function bindEvents() {
     }, 2000);
   }
 
+  window.updateStoreSlugPreview = (val) => {
+    const slugInput = document.getElementById('setupSlugInput');
+    if (!slugInput || slugInput._userModified) return;
+    slugInput.value = (val || '')
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 24);
+  };
+
   window.submitInitialSetup = async () => {
     const name = document.getElementById('setupNameInput')?.value.trim();
     const phone = document.getElementById('setupPhoneInput')?.value.trim() || "";
@@ -475,6 +487,7 @@ function bindEvents() {
     const password = document.getElementById('setupPasswordInput')?.value.trim() || document.getElementById('setupPinInput')?.value.trim() || "";
     const confirmPassword = document.getElementById('setupConfirmPasswordInput')?.value.trim() || document.getElementById('setupConfirmPinInput')?.value.trim() || "";
     const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Cellar POS";
+    const slug = document.getElementById('setupSlugInput')?.value.trim().toLowerCase() || "";
     const err = document.getElementById('setupErrorMsg');
 
     if (!name) {
@@ -498,7 +511,7 @@ function bindEvents() {
       const res = await fetch('/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, email, password, confirmPassword, businessName })
+        body: JSON.stringify({ name, phone, email, password, confirmPassword, businessName, slug })
       });
       const data = await readJsonSafe(res);
       if (!res.ok) {

@@ -49,7 +49,16 @@ export function renderAuthLandingScreen(overrideMode = null) {
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Apex Cellar" required>
+                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. John's Wine" required oninput="window.updateStoreSlugPreview(this.value)">
+                </div>
+
+                <div class="form-group" style="margin-top:-6px;">
+                  <label class="form-label" style="font-size:11.5px; color:#64748b; margin-bottom:3px;">Your Store URL Link (Clean Small Letters)</label>
+                  <div style="display:flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:12.5px; color:#475569;">
+                    <span style="color:#94a3b8; user-select:none; font-family:monospace; font-size:12px;">cellarpos.com/</span>
+                    <input type="text" class="form-input" id="setupSlugInput" placeholder="johnswin" style="border:none; background:transparent; padding:7px 0; font-family:monospace; font-weight:700; color:#3b82f6; width:100%; outline:none;" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9]/g, ''); this._userModified = true;">
+                  </div>
+                  <span style="font-size:11px; color:#94a3b8; margin-top:2px;">Customizable lowercase link for your POS & staff access.</span>
                 </div>
 
                 <div class="form-row">

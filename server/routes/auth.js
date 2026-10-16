@@ -333,23 +333,41 @@ export function canAccessBranch(authUser, branchId) {
 
 // ---------------------------------------------------------------------------
 // 1. REGISTER A NEW ORGANIZATION + ITS OWNER
-//    Multi-tenant: every call creates a BRAND NEW organization with a unique
-//    10-digit numeric account ID (ClickUp style), its own owner, first branch,
-//    and isolated settings.
+//    Multi-tenant: every call creates a BRAND NEW organization with a clean
+//    lowercase business name slug (e.g. 'johnswin', 'apexcellar'), its own owner,
+//    first branch, and isolated settings.
 // ---------------------------------------------------------------------------
-export function generate10DigitOrgId() {
-  for (let attempt = 0; attempt < 50; attempt++) {
-    // 10-digit number starting with 900 (e.g. 900xxxxxxx)
-    const randomSuffix = Math.floor(1000000 + Math.random() * 9000000);
-    const candidate = `900${randomSuffix}`;
+export function generateOrgSlug(businessName, customSlug) {
+  const reservedWords = new Set([
+    'dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers',
+    'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit',
+    'settings', 'api', 'assets', 'login', 'setup', 'register', 'admin', 'auth',
+    'null', 'undefined', 'cellar'
+  ]);
+
+  let raw = (customSlug || businessName || 'store')
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 24);
+
+  if (!raw || reservedWords.has(raw)) {
+    raw = `${raw || 'store'}pos`;
+  }
+
+  let candidate = raw;
+  let counter = 1;
+  while (true) {
     try {
-      const exists = db.prepare('SELECT id FROM organizations WHERE id = ?').get(candidate);
+      const exists = db.prepare('SELECT id FROM organizations WHERE LOWER(id) = LOWER(?)').get(candidate);
       if (!exists) return candidate;
     } catch (e) {
       return candidate;
     }
+    counter += 1;
+    candidate = `${raw}${counter}`;
   }
-  return String(Date.now()).slice(0, 10);
 }
 
 router.post(['/setup', '/register'], (req, res) => {
@@ -382,7 +400,7 @@ router.post(['/setup', '/register'], (req, res) => {
     }
   }
 
-  const orgId = generate10DigitOrgId();
+  const orgId = generateOrgSlug(businessName, req.body.slug || req.body.orgSlug);
   const bizName = (businessName || 'Cellar POS').trim();
   const ownerId = `U-OWNER-${orgId}`;
   const bCode = uniqueBranchCode(branchCode || 'main');
@@ -580,7 +598,7 @@ router.get('/branch-info', (req, res) => {
   if (code && code !== 'all') {
     branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
   } else if (orgParam) {
-    branch = db.prepare('SELECT * FROM branches WHERE organization_id = ? ORDER BY id ASC LIMIT 1').get(orgParam);
+    branch = db.prepare('SELECT * FROM branches WHERE LOWER(organization_id) = LOWER(?) ORDER BY id ASC LIMIT 1').get(orgParam);
   }
 
   let branchUsers = [];
@@ -589,7 +607,7 @@ router.get('/branch-info', (req, res) => {
   if (branch) {
     if (branch.organization_id) {
       try {
-        const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(branch.organization_id);
+        const org = db.prepare('SELECT name FROM organizations WHERE LOWER(id) = LOWER(?)').get(branch.organization_id);
         if (org && org.name) orgName = org.name;
       } catch (e) {}
     }
@@ -597,7 +615,7 @@ router.get('/branch-info', (req, res) => {
       branchUsers = db.prepare(`
         SELECT id, name, role, email, phone, branch_id, status, active
         FROM users
-        WHERE organization_id = ? AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        WHERE LOWER(organization_id) = LOWER(?) AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
         ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
       `).all(branch.organization_id);
     } catch (e) {
@@ -605,14 +623,14 @@ router.get('/branch-info', (req, res) => {
     }
   } else if (orgParam) {
     try {
-      const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgParam);
+      const org = db.prepare('SELECT name FROM organizations WHERE LOWER(id) = LOWER(?)').get(orgParam);
       if (org && org.name) orgName = org.name;
     } catch (e) {}
     try {
       branchUsers = db.prepare(`
         SELECT id, name, role, email, phone, branch_id, status, active
         FROM users
-        WHERE organization_id = ? AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        WHERE LOWER(organization_id) = LOWER(?) AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
         ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
       `).all(orgParam);
     } catch (e) {

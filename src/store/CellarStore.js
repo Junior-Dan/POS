@@ -366,8 +366,9 @@ export class CellarStore {
       org = params.get('org') || params.get('organizationId') || '';
       if (!org && window.location.pathname) {
         const parts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
-        if (parts[0] && /^\d{10}$/.test(parts[0])) {
-          org = parts[0];
+        const validViews = ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit', 'settings'];
+        if (parts[0] && !validViews.includes(parts[0].toLowerCase()) && !parts[0].includes('.')) {
+          org = parts[0].toLowerCase();
         }
       }
     }
