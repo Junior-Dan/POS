@@ -147,10 +147,10 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 /* ==========================================================================
-   Clean Organization Brand Lockup (Mars Media Group Reference Style)
+   Slack-Style Workspace Brand Header
    ========================================================================== */
 .sidebar-header {
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--sidebar-border);
   display: flex;
   align-items: center;
@@ -159,75 +159,104 @@ svg.icon-lg { width: 24px; height: 24px; }
 .brand-box {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   min-width: 0;
   width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  user-select: none;
 }
 
+.brand-box:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.brand-box:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Slack-Style 32x32px Squircle Workspace Badge */
 .brand-logo-wrap {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
-/* Custom Image Logo - completely transparent background with round border */
+/* Custom Image Logo - completely transparent background with squircle clip */
 .brand-logo-img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: transparent;
   display: block;
-  border-radius: 50%;
+  border-radius: 7px;
 }
 
-/* Iconic Initial Round Emblem Badge */
+/* Iconic Initial Slack Squircle Badge */
 .brand-monogram {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%);
-  border-radius: 50%;
+  background: radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%);
+  border-radius: 7px;
   user-select: none;
 }
 
 .brand-monogram .monogram-text {
-  font-weight: 900;
-  font-size: 16.5px;
+  font-weight: 800;
+  font-size: 16px;
   color: #ffffff;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.3px;
   line-height: 1;
   text-shadow: 0 0 8px rgba(255, 255, 255, 0.45), 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* Single-Line Pure Organization Title */
+/* Single-Line Slack Workspace Title + Chevron */
 .brand-info-wrap {
   min-width: 0;
   flex: 1;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   overflow: hidden;
 }
 
 .brand-title {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   color: #ffffff;
-  letter-spacing: -0.25px;
-  line-height: 1.15;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: block;
+  flex: 1;
+}
+
+.brand-dropdown-icon {
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.brand-box:hover .brand-dropdown-icon {
+  color: rgba(255, 255, 255, 0.85);
+  transform: translateY(1px);
 }
 
 .branch-selector {

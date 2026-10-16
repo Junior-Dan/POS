@@ -143,12 +143,12 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                    ondragover="event.preventDefault(); this.style.borderColor='#0f172a'; this.style.background='#f1f5f9';"
                    ondragleave="this.style.borderColor='#94a3b8'; this.style.background='transparent';"
                    ondrop="event.preventDefault(); this.style.borderColor='#94a3b8'; this.style.background='transparent'; handleOrgLogoUpload({ target: { files: event.dataTransfer.files } });"
-                   style="width:82px; height:82px; border-radius:50%; border:2px dashed #94a3b8; background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all 0.2s ease;"
-                   title="Click or drag & drop to upload logo">
+                   style="width:76px; height:76px; border-radius:14px; border:2px dashed #94a3b8; background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all 0.2s ease;"
+                   title="Click or drag & drop to upload workspace icon">
                 ${profile.logo ? `
-                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; border-radius:50%; background:transparent; display:block;" />
+                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; border-radius:12px; background:transparent; display:block;" />
                 ` : `
-                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:900; font-size:32px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">
+                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; border-radius:12px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:800; font-size:30px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">
                     ${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}
                   </div>
                 `}
@@ -157,27 +157,28 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
               <!-- Logo Details & Sidebar Mockup -->
               <div style="flex:1;">
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-size:15px; font-weight:800; color:#0f172a;">Organization Logo & Brand Emblem</span>
+                  <span style="font-size:15px; font-weight:800; color:#0f172a;">Store Icon & Workspace Emblem (Slack Style)</span>
                   <span style="font-size:10px; font-weight:750; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:10px; border:1px solid #e2e8f0; text-transform:uppercase;">Store Identity</span>
                 </div>
                 <div style="font-size:12.5px; color:#64748b; margin-top:4px; line-height:1.4; max-width:480px;">
-                  Upload your business emblem. It is showcased on your top-left sidebar terminal and automatically formatted onto printed sales receipts.
+                  Upload your store icon or emblem. Formatted into a Slack-style workspace badge on your sidebar and printed on customer sales receipts.
                 </div>
 
                 <!-- Live Preview Badge -->
                 <div style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                   <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Sidebar Header Preview:</div>
-                  <div style="background:#090d16; border-radius:10px; padding:8px 14px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.3);">
-                    <div id="orgLogoSidebarMiniMockup" style="width:34px; height:34px; border-radius:50%; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1.5px solid rgba(255,255,255,0.25); box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+                  <div style="background:#090d16; border-radius:10px; padding:7px 12px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+                    <div id="orgLogoSidebarMiniMockup" style="width:32px; height:32px; border-radius:8px; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid rgba(255,255,255,0.18); box-shadow:0 1px 3px rgba(0,0,0,0.35);">
                       ${profile.logo 
-                        ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; border-radius:50%; background:transparent; display:block;" />` 
-                        : `<div style="width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 30%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:900; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}</span></div>`
+                        ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; border-radius:7px; background:transparent; display:block;" />` 
+                        : `<div style="width:100%; height:100%; border-radius:7px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:800; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}</span></div>`
                       }
                     </div>
-                    <div>
-                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:14px; font-weight:700; line-height:1.1; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:14px; font-weight:700; line-height:1.2; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         ${profile.name || store.currentUser?.organizationName || 'Your Business'}
                       </div>
+                      <svg viewBox="0 0 20 20" fill="currentColor" style="width:14px; height:14px; color:rgba(255,255,255,0.45); flex-shrink:0;"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
                     </div>
                   </div>
                 </div>

@@ -40,8 +40,8 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   return `
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="brand-box">
-        <div class="brand-logo-wrap" title="${bizName}">
+      <div class="brand-box" onclick="if(window.switchTab) window.switchTab('settings')" title="Store Settings & Identity: ${bizName}">
+        <div class="brand-logo-wrap">
           ${orgLogo
             ? `<img src="${orgLogo}" alt="${bizName} Logo" class="brand-logo-img" />`
             : `<div class="brand-monogram">
@@ -51,6 +51,9 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
         </div>
         <div class="brand-info-wrap">
           <div class="brand-title" title="${bizName}">${bizName}</div>
+          <svg viewBox="0 0 20 20" fill="currentColor" class="brand-dropdown-icon" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
         </div>
       </div>
     </div>
