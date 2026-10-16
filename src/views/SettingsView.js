@@ -148,8 +148,8 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                 ${profile.logo ? `
                   <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:4px; display:block;" />
                 ` : `
-                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color:#ffffff; font-weight:850; font-size:24px; letter-spacing:0.5px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.15);">
-                    ${((profile.name || store.currentUser?.organizationName || 'ORG').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || 'OR').toUpperCase()}
+                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:900; font-size:32px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">
+                    ${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}
                   </div>
                 `}
               </div>
@@ -167,18 +167,17 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
                 <!-- Live Preview Badge -->
                 <div style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                   <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Sidebar Header Preview:</div>
-                  <div style="background:#0f172a; border-radius:10px; padding:7px 14px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.25);">
-                    <div id="orgLogoSidebarMiniMockup" style="width:30px; height:30px; border-radius:7px; overflow:hidden; background:#1e293b; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.3);">
+                  <div style="background:#090d16; border-radius:10px; padding:8px 14px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+                    <div id="orgLogoSidebarMiniMockup" style="width:30px; height:30px; border-radius:7px; overflow:hidden; background:#090d16; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid rgba(255,255,255,0.12);">
                       ${profile.logo 
                         ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; background:#ffffff; padding:2px; display:block;" />` 
-                        : `<span style="color:#ffffff; font-weight:800; font-size:11px; letter-spacing:0.5px;">${((profile.name || store.currentUser?.organizationName || 'ORG').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || 'OR').toUpperCase()}</span>`
+                        : `<span style="color:#ffffff; font-weight:900; font-size:14px; text-shadow:0 0 6px rgba(255,255,255,0.4);">${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}</span>`
                       }
                     </div>
                     <div>
-                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:12px; font-weight:800; line-height:1.1; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:13.5px; font-weight:700; line-height:1.1; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         ${profile.name || store.currentUser?.organizationName || 'Your Business'}
                       </div>
-                      <div style="color:#94a3b8; font-size:8.5px; font-weight:750; letter-spacing:0.6px; margin-top:2px;">POS TERMINAL</div>
                     </div>
                   </div>
                 </div>

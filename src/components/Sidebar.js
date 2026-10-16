@@ -9,11 +9,9 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const bizName = rawBizName;
   const orgLogo = store.businessProfile?.logo || null;
 
-  // Initials for monogram fallback
-  const words = (bizName || 'ORG').trim().split(/\s+/).filter(Boolean);
-  const monogram = words.length >= 2
-    ? (words[0][0] + words[1][0]).toUpperCase()
-    : (words[0] ? words[0].slice(0, 2).toUpperCase() : 'OR');
+  // Primary initial for iconic squircle badge
+  const cleanBizName = (bizName || 'Organization').trim();
+  const initial = cleanBizName.charAt(0).toUpperCase() || 'O';
 
   // Navigation tabs with role permission validation
   const allNavItems = [
@@ -47,16 +45,12 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
           ${orgLogo
             ? `<img src="${orgLogo}" alt="${bizName} Logo" class="brand-logo-img" />`
             : `<div class="brand-monogram">
-                 <span class="monogram-text">${monogram}</span>
+                 <span class="monogram-text">${initial}</span>
                </div>`
           }
         </div>
         <div class="brand-info-wrap">
           <div class="brand-title" title="${bizName}">${bizName}</div>
-          <div class="brand-subtitle">
-            <span class="brand-live-indicator"></span>
-            <span>POS TERMINAL</span>
-          </div>
         </div>
       </div>
     </div>
