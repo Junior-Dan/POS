@@ -339,16 +339,8 @@ export function canAccessBranch(authUser, branchId) {
 // 1. REGISTER A NEW ORGANIZATION + ITS OWNER
 //    Single-business: Allows creating the primary owner account if none exists.
 // ---------------------------------------------------------------------------
-router.post('/setup', (req, res) => {
+router.post(['/setup', '/register'], (req, res) => {
   const { name, email, phone, password, confirmPassword, pin, confirmPin, businessName, branchName, branchCode } = req.body;
-
-  // Single-business guard: if an owner already exists, reject setup
-  try {
-    const existingOwner = db.prepare("SELECT id FROM users WHERE LOWER(role) = 'owner'").get();
-    if (existingOwner) {
-      return res.status(400).json({ error: 'An owner account already exists. Please log in using your credentials.' });
-    }
-  } catch (e) {}
 
   const secret = password !== undefined && password !== null && String(password).trim() !== ''
     ? password
@@ -377,16 +369,16 @@ router.post('/setup', (req, res) => {
     }
   }
 
-  const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  const orgId = `ORG-MAIN`;
+  const stamp = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+  const bizName = (businessName || 'Cellar POS').trim();
+  const slug = bizName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'STORE';
+  const orgId = `ORG-${slug}-${stamp}`;
   const ownerId = `U-OWNER-${stamp}`;
   const bCode = uniqueBranchCode(branchCode || 'main');
   const bId = `BR-${bCode}`;
   const passwordHashed = hashPin(cleanSecret);
 
   try {
-    const bizName = businessName || 'Cellar Wines & Spirits';
-
     if (supabaseAdmin && email) {
       try {
         supabaseAdmin.auth.admin.createUser({
@@ -420,23 +412,48 @@ router.post('/setup', (req, res) => {
       phone: phone || '',
       email: email || '',
       address: 'Kenya',
-      kraPin: 'P051234567S'
+      kraPin: ''
     };
     setOrgSetting(orgId, 'businessProfile', profile);
+    setOrgSetting(orgId, 'branches', [
+      { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
+    ]);
+
+    // Seed default product categories for this new organization
+    const defaultCategories = [
+      { id: `CAT-${orgId}-1`, name: 'Spirits & Liquors', desc: 'Whiskeys, Vodkas, Gins, Rums' },
+      { id: `CAT-${orgId}-2`, name: 'Wines', desc: 'Red, White, Rose, Sparkling' },
+      { id: `CAT-${orgId}-3`, name: 'Beers & Ciders', desc: 'Local and imported beers, craft, ciders' },
+      { id: `CAT-${orgId}-4`, name: 'Soft Drinks & Mixers', desc: 'Sodas, juices, tonic, energy drinks' },
+      { id: `CAT-${orgId}-5`, name: 'General Retail', desc: 'Snacks, cigarettes, accessories' }
+    ];
+    for (const cat of defaultCategories) {
+      try {
+        db.prepare('INSERT OR IGNORE INTO categories (id, organization_id, name, description, active) VALUES (?, ?, ?, ?, 1)')
+          .run(cat.id, orgId, cat.name, cat.desc);
+      } catch (e) {}
+    }
 
     const token = signSession({ id: ownerId, role: 'owner' }, orgId, null);
 
     res.status(201).json({
       success: true,
       token,
-      user: { id: ownerId, organizationId: orgId, branchId: null, name, role: 'owner', email, phone, status: 'ACTIVE' },
+      user: {
+        id: ownerId,
+        organizationId: orgId,
+        organizationName: bizName,
+        branchId: null,
+        name,
+        role: 'owner',
+        email,
+        phone,
+        status: 'ACTIVE'
+      },
       branch: { id: bId, code: bCode, name: bName }
     });
 
     try {
-      setOrgSetting(orgId, 'branches', [
-        { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
-      ]);
       db.prepare(`
         INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
         VALUES (?, ?, ?, ?, 'owner', ?, 'Register Owner', ?, '-', 'Owner Account Created', 'Business & Initial Branch Created')
@@ -551,27 +568,28 @@ router.get('/branch-info', (req, res) => {
   if (code && code !== 'all') {
     branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
   }
-  if (!branch) {
-    branch = db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
-  }
 
   let branchUsers = [];
-  try {
-    branchUsers = db.prepare(`
-      SELECT id, name, role, email, phone, branch_id, status, active
-      FROM users
-      WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
-      ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
-    `).all();
-  } catch (e) {
-    branchUsers = [];
-  }
-
   let orgName = 'Cellar POS';
-  try {
-    const org = db.prepare('SELECT name FROM organizations ORDER BY created_at ASC LIMIT 1').get();
-    if (org && org.name) orgName = org.name;
-  } catch (e) {}
+
+  if (branch) {
+    if (branch.organization_id) {
+      try {
+        const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(branch.organization_id);
+        if (org && org.name) orgName = org.name;
+      } catch (e) {}
+    }
+    try {
+      branchUsers = db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE organization_id = ? AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all(branch.organization_id);
+    } catch (e) {
+      branchUsers = [];
+    }
+  }
 
   res.json({
     branch: branch ? {
@@ -807,10 +825,10 @@ router.post('/users', authenticateSession, (req, res) => {
 
   let branch = null;
   if (targetBranch) {
-    branch = db.prepare('SELECT * FROM branches WHERE id = ? OR LOWER(code) = ?').get(targetBranch, String(targetBranch).toLowerCase());
+    branch = db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(targetBranch, String(targetBranch).toLowerCase(), orgId);
   }
   if (!branch) {
-    branch = db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
+    branch = db.prepare('SELECT * FROM branches WHERE organization_id = ? OR organization_id IS NULL ORDER BY created_at ASC LIMIT 1').get(orgId);
   }
   if (!branch) {
     const defaultCode = uniqueBranchCode('main');

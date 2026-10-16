@@ -70,11 +70,7 @@ async function readJsonSafe(res) {
 window.currentAuthTab = null;
 
 window.switchAuthTab = (tab) => {
-  window.currentAuthTab = tab;
-  const root = document.getElementById('app-root');
-  if (root) {
-    root.innerHTML = renderAuthLandingScreen(tab);
-  }
+  window.switchAuthMode(tab);
 };
 
 window.logoutUser = () => {
@@ -495,7 +491,8 @@ function bindEvents() {
   };
 
   window.switchAuthMode = (mode) => {
-    if (mode === 'setup') {
+    window.currentAuthTab = mode;
+    if (mode === 'setup' || mode === 'register') {
       window.forceRegisterMode = true;
     } else {
       window.forceRegisterMode = false;

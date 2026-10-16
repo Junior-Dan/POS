@@ -1,34 +1,20 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderAuthLandingScreen(overrideMode = null) {
-  const rosterLoaded = store.rosterLoaded === true;
-  const userList = Array.isArray(store.loginUsers) && store.loginUsers.length > 0
-    ? store.loginUsers
-    : (store.users || []);
-
-  const realOwnerExists = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
-    userList.some(u => (u.role || '').toLowerCase() === 'owner');
-
-  let cachedOwnerExists = false;
-  try { cachedOwnerExists = localStorage.getItem('cellar_owner_exists') === '1'; } catch (e) {}
-
-  const hasExistingOwner = (rosterLoaded && userList.length === 0) ? false : (realOwnerExists || cachedOwnerExists);
-
   let isRegisterSetup = false;
   const effectiveMode = overrideMode || window.currentAuthTab;
 
-  if (effectiveMode === 'setup') {
+  if (effectiveMode === 'setup' || effectiveMode === 'register') {
     isRegisterSetup = true;
   } else if (effectiveMode === 'login') {
     isRegisterSetup = false;
-  } else if (!hasExistingOwner) {
+  } else if (window.forceRegisterMode) {
     isRegisterSetup = true;
   } else {
     isRegisterSetup = false;
   }
 
   const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS';
-  const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
 
   return `
     <div class="welcome-setup-container">
@@ -43,23 +29,26 @@ export function renderAuthLandingScreen(overrideMode = null) {
           </div>
 
           <div class="auth-pane-body">
-            ${!hasExistingOwner ? `
-              <div class="auth-tab-switcher">
-                <button type="button" class="auth-tab-btn active" onclick="switchAuthMode('setup')">Owner Setup</button>
-              </div>
-            ` : ''}
+            <div class="auth-tab-switcher">
+              <button type="button" class="auth-tab-btn ${!isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('login')">
+                Sign In
+              </button>
+              <button type="button" class="auth-tab-btn ${isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('setup')">
+                Register Business
+              </button>
+            </div>
 
-            ${isRegisterSetup && !hasExistingOwner ? `
-              <!-- CREATE INITIAL OWNER ACCOUNT SETUP FORM -->
+            ${isRegisterSetup ? `
+              <!-- CREATE NEW BUSINESS / ORGANIZATION ACCOUNT -->
               <div class="auth-header-section">
-                <h1 class="welcome-title">Create Owner Account</h1>
-                <p class="welcome-subtitle">Set up your business and owner account credentials</p>
+                <h1 class="welcome-title">Register Business</h1>
+                <p class="welcome-subtitle">Create a new organization and owner account</p>
               </div>
 
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cellar POS" value="${bizName}" required>
+                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Apex Cellar" required>
                 </div>
 
                 <div class="form-row">
@@ -75,7 +64,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
 
                 <div class="form-group">
                   <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke" required>
+                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@apexcellar.co.ke" required>
                 </div>
 
                 <div class="form-row">
@@ -92,26 +81,33 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <div id="setupErrorMsg" class="setup-error-msg"></div>
 
                 <button type="submit" class="welcome-submit-btn">
-                  <span>Create Owner Account & Open Dashboard</span>
+                  <span>Register Business & Open POS</span>
                   <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
+
+                <div style="text-align:center; margin-top:14px; font-size:12.5px; color:#64748b;">
+                  Already have an account? 
+                  <button type="button" onclick="switchAuthMode('login')" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; text-decoration:underline; padding:0;">
+                    Sign In
+                  </button>
+                </div>
               </form>
             ` : `
-              <!-- UNIFIED SINGLE-BUSINESS SIGN IN FORM -->
+              <!-- UNIFIED SIGN IN FORM -->
               <div class="auth-header-section">
                 <h1 class="welcome-title">Sign In to your Account</h1>
                 <p class="welcome-subtitle">Enter your email and password to access your dashboard</p>
               </div>
 
-              <!-- EMAIL & PASSWORD LOGIN ONLY -->
+              <!-- EMAIL & PASSWORD LOGIN -->
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@cellar.co.ke or staff@cellar.co.ke" required>
+                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@business.co.ke or staff@business.co.ke" required>
                 </div>
 
                 <div class="form-group">
-                  <div style="display:flex; justify-space-between; align-items:center; margin-bottom:4px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                     <label class="form-label" style="margin:0;">Password *</label>
                     <button type="button" onclick="openForgotPasswordModal()" style="background:none; border:none; color:#3b82f6; font-size:12px; font-weight:600; cursor:pointer; text-decoration:underline; padding:0; margin-left:auto;">
                       Forgot Password?
@@ -130,6 +126,13 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
                   Sign In
                 </button>
+
+                <div style="text-align:center; margin-top:14px; font-size:12.5px; color:#64748b;">
+                  New business? 
+                  <button type="button" onclick="switchAuthMode('setup')" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; text-decoration:underline; padding:0;">
+                    Create a free account
+                  </button>
+                </div>
               </form>
             `}
           </div>
