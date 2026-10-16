@@ -358,15 +358,24 @@ export class CellarStore {
   async fetchBranchLogin() {
     let code = '';
     let staff = '';
+    let org = '';
     if (typeof window !== 'undefined' && window.location) {
       const params = new URLSearchParams(window.location.search);
       code = params.get('branch') || '';
       staff = params.get('staff') || params.get('u') || '';
+      org = params.get('org') || params.get('organizationId') || '';
+      if (!org && window.location.pathname) {
+        const parts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+        if (parts[0] && /^\d{10}$/.test(parts[0])) {
+          org = parts[0];
+        }
+      }
     }
     // A personal invite link (?staff=…) restricts the terminal to that one account.
     this.loginStaffRef = staff || null;
     const staffQ = staff ? `&staff=${encodeURIComponent(staff)}` : '';
-    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}${staffQ}&_t=${Date.now()}`, { cache: 'no-store' });
+    const orgQ = org ? `&org=${encodeURIComponent(org)}` : '';
+    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}${orgQ}${staffQ}&_t=${Date.now()}`, { cache: 'no-store' });
     if (data && data.branch) {
       this.loginBranch = data.branch;
       this.loginUsers = Array.isArray(data.users) ? data.users : [];

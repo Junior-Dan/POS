@@ -109,12 +109,32 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
       `;
 
     case 'business':
+      const currentOrgId = store.currentUser?.organizationId || '';
       return `
         <div class="section-card">
           <div class="section-header">
             <div class="section-title">Business Profile & Legal Configuration</div>
             <button class="btn btn-primary" onclick="submitSaveBusinessProfile()">Save Business Profile</button>
           </div>
+
+          ${currentOrgId ? `
+            <div style="background:var(--accent-soft, #eef2ff); border:1px solid rgba(99,102,241,0.25); border-radius:12px; padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+              <div>
+                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--accent, #4f46e5);">Organization Account ID (10-Digit)</div>
+                <div style="font-size:20px; font-weight:800; font-family:monospace; letter-spacing:2px; color:var(--text-main, #0f172a); margin-top:2px;">${currentOrgId}</div>
+                <div style="font-size:12px; color:var(--text-muted, #64748b); margin-top:2px;">Unique tenant identifier for your store and staff deep-link URLs.</div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${currentOrgId}'); alert('Organization ID copied to clipboard: ${currentOrgId}');" style="font-weight:700; font-size:12px;">
+                  📋 Copy Org ID
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId}/pos'); alert('Staff POS login link copied: ${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId}/pos');" style="font-weight:700; font-size:12px;">
+                  🔗 Copy Staff Login Link
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
             <div class="form-group">
               <label class="form-label">Business Name *</label>

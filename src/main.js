@@ -42,18 +42,59 @@ import { renderForgotPasswordModal } from './components/ForgotPasswordModal.js';
 import { renderBranchModal } from './components/BranchModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
+// Parse URL route: /:orgId/:viewId or /:viewId
+export function parseRoute() {
+  if (typeof window === 'undefined') return { orgId: null, viewId: null };
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (!pathname) return { orgId: null, viewId: null };
+  const parts = pathname.split('/');
+  const validViews = ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit', 'settings'];
+  
+  if (parts.length >= 2 && validViews.includes(parts[1].toLowerCase())) {
+    return { orgId: parts[0], viewId: parts[1].toLowerCase() };
+  } else if (parts.length === 1) {
+    if (validViews.includes(parts[0].toLowerCase())) {
+      return { orgId: null, viewId: parts[0].toLowerCase() };
+    }
+    return { orgId: parts[0], viewId: null };
+  }
+  return { orgId: null, viewId: null };
+}
+
+export function syncBrowserUrl(viewId, replace = false) {
+  if (typeof window === 'undefined' || !window.history) return;
+  const orgId = store.currentUser?.organizationId;
+  if (!orgId) {
+    const route = parseRoute();
+    if (route.orgId || route.viewId) {
+      return; // Keep deep-link in address bar for unauthenticated login
+    }
+    if (window.location.pathname !== '/' && !window.location.pathname.includes('.')) {
+      window.history.replaceState({}, '', '/');
+    }
+    return;
+  }
+  const targetView = viewId || activeViewId || 'dashboard';
+  const targetPath = `/${orgId}/${targetView}`;
+  if (window.location.pathname !== targetPath) {
+    if (replace) {
+      window.history.replaceState({ orgId, viewId: targetView }, '', targetPath);
+    } else {
+      window.history.pushState({ orgId, viewId: targetView }, '', targetPath);
+    }
+  }
+}
+
 // Remember the last-opened view across reloads (per tab) so a refresh keeps the
 // user on the same page instead of snapping back to the Dashboard.
 function readPersistedView() {
+  const route = parseRoute();
+  if (route.viewId) return route.viewId;
   try { return sessionStorage.getItem('cellar_active_view') || null; } catch (e) { return null; }
 }
 let activeViewId = readPersistedView() || 'dashboard';
 
-// Safely read a JSON body. Some responses (proxy 401s, gateway errors, empty
-// 204s, HTML error pages) have no/invalid JSON, which makes res.json() throw
-// "Unexpected end of JSON input" and masks the real HTTP error. This returns
-// {} for an empty body, or {error:<snippet>} for a non-JSON body, so callers
-// can surface a meaningful message using res.ok / res.status instead.
+// Safely read a JSON body.
 async function readJsonSafe(res) {
   let text = '';
   try { text = await res.text(); } catch (e) { return {}; }
@@ -82,6 +123,9 @@ window.logoutUser = () => {
     sessionStorage.removeItem('cellar_active_view');
     sessionStorage.removeItem('cellar_active_branch');
   } catch (e) {}
+  if (typeof window !== 'undefined' && window.history) {
+    window.history.replaceState({}, '', '/');
+  }
   initApp();
 };
 
@@ -90,9 +134,12 @@ export function initApp() {
   if (!root) return;
 
   // If unauthenticated, render the single full-screen Auth Landing Page:
-  // first run (no owner yet) shows Owner Setup; otherwise the one unified
-  // email + password Sign In form used by the owner and all staff alike.
   if (!store.currentUser || !store.currentUser.id) {
+    const route = parseRoute();
+    if (route.viewId || route.orgId) {
+      window._intendedRoute = route;
+    }
+    syncBrowserUrl(null, true);
     root.innerHTML = `
       ${renderAuthLandingScreen()}
       <div id="modals-root">
@@ -103,11 +150,17 @@ export function initApp() {
     return;
   }
 
-  if (!store.canUserAccessView(store.currentUser, activeViewId)) {
+  // If a valid route view is in the URL, apply it
+  const currentRoute = parseRoute();
+  if (currentRoute.viewId && store.canUserAccessView(store.currentUser, currentRoute.viewId)) {
+    activeViewId = currentRoute.viewId;
+  } else if (!store.canUserAccessView(store.currentUser, activeViewId)) {
     const allowedModules = ['pos', 'sales', 'shift', 'customers', 'dashboard', 'products', 'inventory', 'suppliers', 'purchases', 'expenses', 'compliance', 'reports', 'audit', 'settings'];
     const fallback = allowedModules.find(id => store.canUserAccessView(store.currentUser, id));
     activeViewId = fallback || 'pos';
   }
+
+  syncBrowserUrl(activeViewId, true);
 
   root.innerHTML = `
     <div class="app-container">
@@ -470,6 +523,7 @@ function bindEvents() {
       if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
 
       activeViewId = 'dashboard';
+      syncBrowserUrl('dashboard', true);
       await store.loadAuthenticatedData();
       store.fetchBranchLogin();
       store.saveLocalBackup();
@@ -569,7 +623,13 @@ function bindEvents() {
         inventory_officer: 'inventory',
         cashier: 'pos'
       };
-      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+      const fallbackView = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+      if (window._intendedRoute && window._intendedRoute.viewId && store.canUserAccessView(data.user, window._intendedRoute.viewId)) {
+        activeViewId = window._intendedRoute.viewId;
+      } else {
+        activeViewId = fallbackView;
+      }
+      syncBrowserUrl(activeViewId, true);
 
       window._isSubmittingMainLogin = false;
       if (errDiv) errDiv.textContent = '';
@@ -1404,7 +1464,10 @@ function bindEvents() {
     if (emailVal) emailVal.textContent = user.email || 'Not set';
     if (passVal) passVal.textContent = pass;
 
-    const formattedMsg = `Welcome to ${bizName}!\nHere are your staff login credentials:\n\nRole: ${(user.role || 'cashier').toUpperCase()}\nEmail: ${user.email || 'your email'}\nPassword / Temporary Password: ${pass}\n\nLog in at: ${window.location.origin}`;
+    const orgId = store.currentUser?.organizationId;
+    const defaultRoleView = (user.role === 'cashier') ? 'pos' : (user.role === 'inventory_officer' ? 'inventory' : 'dashboard');
+    const directUrl = orgId ? `${window.location.origin}/${orgId}/${defaultRoleView}` : `${window.location.origin}`;
+    const formattedMsg = `Welcome to ${bizName}!\nHere are your staff login credentials:\n\nRole: ${(user.role || 'cashier').toUpperCase()}\nEmail: ${user.email || 'your email'}\nPassword / Temporary Password: ${pass}\n\nLog in at: ${directUrl}`;
     if (msgText) msgText.value = formattedMsg;
 
     window.openModal('shareStaffModal');
@@ -1966,7 +2029,7 @@ function bindEvents() {
   });
 }
 
-export function switchTab(viewId) {
+export function switchTab(viewId, skipUrlPush = false) {
   if (!store.canUserAccessView(store.currentUser, viewId)) {
     alert(`Access Denied: Your assigned role (${store.currentUser.role.toUpperCase()}) does not have permission to access module "${viewId.toUpperCase()}".`);
     return;
@@ -1975,6 +2038,11 @@ export function switchTab(viewId) {
   activeViewId = viewId;
   // Persist so a page refresh reopens this same view instead of the Dashboard.
   try { sessionStorage.setItem('cellar_active_view', viewId); } catch (e) {}
+
+  if (!skipUrlPush) {
+    syncBrowserUrl(viewId, false);
+  }
+
   document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
 
@@ -1992,6 +2060,16 @@ export function switchTab(viewId) {
   if (viewId === 'dashboard' && window.triggerDashboardCharts) {
     setTimeout(() => window.triggerDashboardCharts(), 50);
   }
+}
+
+// Support browser back/forward buttons smoothly
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    const route = parseRoute();
+    if (route.viewId && route.viewId !== activeViewId && store.currentUser && store.currentUser.id) {
+      switchTab(route.viewId, true);
+    }
+  });
 }
 
 window.switchTab = switchTab;

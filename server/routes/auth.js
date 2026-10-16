@@ -333,12 +333,25 @@ export function canAccessBranch(authUser, branchId) {
 
 // ---------------------------------------------------------------------------
 // 1. REGISTER A NEW ORGANIZATION + ITS OWNER
-//    Multi-tenant: every call creates a BRAND NEW organization with its own
-//    owner, first branch, and isolated settings. Many businesses can register
+//    Multi-tenant: every call creates a BRAND NEW organization with a unique
+//    10-digit numeric account ID (ClickUp style), its own owner, first branch,
+//    and isolated settings.
 // ---------------------------------------------------------------------------
-// 1. REGISTER A NEW ORGANIZATION + ITS OWNER
-//    Single-business: Allows creating the primary owner account if none exists.
-// ---------------------------------------------------------------------------
+export function generate10DigitOrgId() {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    // 10-digit number starting with 900 (e.g. 900xxxxxxx)
+    const randomSuffix = Math.floor(1000000 + Math.random() * 9000000);
+    const candidate = `900${randomSuffix}`;
+    try {
+      const exists = db.prepare('SELECT id FROM organizations WHERE id = ?').get(candidate);
+      if (!exists) return candidate;
+    } catch (e) {
+      return candidate;
+    }
+  }
+  return String(Date.now()).slice(0, 10);
+}
+
 router.post(['/setup', '/register'], (req, res) => {
   const { name, email, phone, password, confirmPassword, pin, confirmPin, businessName, branchName, branchCode } = req.body;
 
@@ -369,11 +382,9 @@ router.post(['/setup', '/register'], (req, res) => {
     }
   }
 
-  const stamp = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+  const orgId = generate10DigitOrgId();
   const bizName = (businessName || 'Cellar POS').trim();
-  const slug = bizName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'STORE';
-  const orgId = `ORG-${slug}-${stamp}`;
-  const ownerId = `U-OWNER-${stamp}`;
+  const ownerId = `U-OWNER-${orgId}`;
   const bCode = uniqueBranchCode(branchCode || 'main');
   const bId = `BR-${bCode}`;
   const passwordHashed = hashPin(cleanSecret);
@@ -563,10 +574,13 @@ router.post('/logout', (req, res) => {
 router.get('/branch-info', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const code = (req.query.code || req.query.branch || '').toLowerCase();
+  const orgParam = (req.query.org || req.query.organizationId || req.query.orgId || '').trim();
 
   let branch = null;
   if (code && code !== 'all') {
     branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
+  } else if (orgParam) {
+    branch = db.prepare('SELECT * FROM branches WHERE organization_id = ? ORDER BY id ASC LIMIT 1').get(orgParam);
   }
 
   let branchUsers = [];
@@ -589,6 +603,21 @@ router.get('/branch-info', (req, res) => {
     } catch (e) {
       branchUsers = [];
     }
+  } else if (orgParam) {
+    try {
+      const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgParam);
+      if (org && org.name) orgName = org.name;
+    } catch (e) {}
+    try {
+      branchUsers = db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE organization_id = ? AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all(orgParam);
+    } catch (e) {
+      branchUsers = [];
+    }
   }
 
   res.json({
@@ -607,7 +636,7 @@ router.get('/branch-info', (req, res) => {
       location: 'Head Office',
       phone: '',
       businessName: orgName,
-      organizationId: null
+      organizationId: orgParam || null
     },
     users: branchUsers.map(u => ({
       id: u.id,
