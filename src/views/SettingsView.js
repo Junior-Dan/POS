@@ -135,11 +135,46 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
             </div>
           ` : ''}
 
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+            <div style="display:flex; align-items:center; gap:18px;">
+              <div id="orgLogoPreviewBox" style="width:68px; height:68px; border-radius:12px; border:2px dashed #cbd5e1; background:#ffffff; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+                ${profile.logo ? `
+                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; display:block;" />
+                ` : `
+                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e293b; color:#f8fafc; font-weight:800; font-size:20px; letter-spacing:-0.5px;">
+                    ${((profile.name || store.currentUser?.organizationName || 'ORG').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || 'OR').toUpperCase()}
+                  </div>
+                `}
+              </div>
+              <div>
+                <div style="font-size:14px; font-weight:800; color:#0f172a;">Organization Logo</div>
+                <div style="font-size:12px; color:#64748b; margin-top:2px; max-width:460px;">
+                  Upload your organization's custom logo. It will appear on your top-left sidebar and printed POS receipts.
+                </div>
+                <div style="font-size:11px; color:#94a3b8; margin-top:3px;">
+                  Recommended: Square PNG, JPG or WEBP image.
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="file" id="orgLogoFileInput" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleOrgLogoUpload(event)">
+              <input type="hidden" id="setBizLogoVal" value="${profile.logo || ''}">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('orgLogoFileInput').click()" style="display:inline-flex; align-items:center; gap:6px; font-weight:600;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                ${profile.logo ? 'Change Logo' : 'Upload Logo'}
+              </button>
+              <button type="button" id="removeOrgLogoBtn" class="btn btn-danger btn-sm" onclick="removeOrgLogo()" style="display:${profile.logo ? 'inline-flex' : 'none'}; align-items:center; gap:4px; font-weight:600;">
+                Remove
+              </button>
+            </div>
+          </div>
+
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
             <div class="form-group">
               <label class="form-label">Business Name *</label>
-              <input type="text" class="form-input" id="setBizName" value="${profile.name || ''}" placeholder="e.g. Cellar POS">
-              <span style="font-size:11px; color:var(--text-faint);">Official registered business identity (CELLAR remains software branding).</span>
+              <input type="text" class="form-input" id="setBizName" value="${profile.name || ''}" placeholder="e.g. Johns wines and spirit" oninput="if (!document.getElementById('setBizLogoVal')?.value) updateOrgLogoMonogramLive(this.value)">
+              <span style="font-size:11px; color:var(--text-faint);">Official business name displayed across your POS and sidebar.</span>
             </div>
             <div class="form-group">
               <label class="form-label">Business Phone Number *</label>

@@ -3,7 +3,17 @@ import { store } from '../store/CellarStore.js';
 export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
-  const bizName = store.businessProfile?.name || "Cellar POS";
+  const rawBizName = (store.businessProfile?.name && store.businessProfile.name !== 'Cellar POS')
+    ? store.businessProfile.name
+    : (store.currentUser?.organizationName || store.businessProfile?.name || "Organization");
+  const bizName = rawBizName;
+  const orgLogo = store.businessProfile?.logo || null;
+
+  // Initials for monogram fallback
+  const words = (bizName || 'ORG').trim().split(/\s+/).filter(Boolean);
+  const monogram = words.length >= 2
+    ? (words[0][0] + words[1][0]).toUpperCase()
+    : (words[0] ? words[0].slice(0, 2).toUpperCase() : 'OR');
 
   // Navigation tabs with role permission validation
   const allNavItems = [
@@ -33,11 +43,14 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="brand-box">
-        <div class="brand-logo-wrap">
-          <img src="/logo.jpeg" alt="Cellar POS Logo" class="brand-logo-img" />
+        <div class="brand-logo-wrap sidebar-toggle-trigger" title="${bizName}">
+          ${orgLogo
+            ? `<img src="${orgLogo}" alt="${bizName} Logo" class="brand-logo-img" />`
+            : `<div class="brand-monogram">${monogram}</div>`
+          }
         </div>
         <div class="brand-info-wrap">
-          <div class="brand-title">CELLAR POS</div>
+          <div class="brand-title" title="${bizName}">${bizName}</div>
         </div>
       </div>
       <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">

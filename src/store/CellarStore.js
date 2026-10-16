@@ -659,7 +659,12 @@ export class CellarStore {
   async fetchSettings() {
     const s = await this.safeFetchJson('/api/settings');
     if (s) {
-      if (s.businessProfile) this.businessProfile = s.businessProfile;
+      if (s.businessProfile) {
+        this.businessProfile = s.businessProfile;
+        if (s.businessProfile.name && this.currentUser) {
+          this.currentUser.organizationName = s.businessProfile.name;
+        }
+      }
       if (s.branches && Array.isArray(s.branches) && s.branches.length > 0) {
         this.branches = s.branches;
         this.initActiveBranchFromUrl();

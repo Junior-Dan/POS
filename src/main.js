@@ -1338,6 +1338,94 @@ function bindEvents() {
     }
   };
 
+  // --- ORGANIZATION LOGO & BRANDING HANDLERS ---
+  window.updateOrgLogoMonogramLive = (bizName) => {
+    const previewBox = document.getElementById('orgLogoPreviewBox');
+    if (!previewBox) return;
+    const placeholder = document.getElementById('orgLogoPreviewPlaceholder');
+    if (placeholder) {
+      const words = (bizName || 'ORG').trim().split(/\s+/).filter(Boolean);
+      const initials = words.length >= 2
+        ? (words[0][0] + words[1][0]).toUpperCase()
+        : (words[0] ? words[0].slice(0, 2).toUpperCase() : 'OR');
+      placeholder.textContent = initials;
+    }
+  };
+
+  window.handleOrgLogoUpload = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Please select an image file under 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawDataUrl = e.target.result;
+      const img = new Image();
+      img.onload = () => {
+        // High quality proportional canvas resize down to max 300x300 to keep payload fast and light
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 300;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const optimizedDataUrl = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.9);
+
+        const previewBox = document.getElementById('orgLogoPreviewBox');
+        if (previewBox) {
+          previewBox.innerHTML = `<img id="orgLogoPreviewImg" src="${optimizedDataUrl}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; display:block;" />`;
+        }
+
+        const valInput = document.getElementById('setBizLogoVal');
+        if (valInput) valInput.value = optimizedDataUrl;
+
+        const removeBtn = document.getElementById('removeOrgLogoBtn');
+        if (removeBtn) removeBtn.style.display = 'inline-flex';
+      };
+      img.onerror = () => {
+        alert("Could not load the selected image file.");
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.removeOrgLogo = () => {
+    const fileInput = document.getElementById('orgLogoFileInput');
+    if (fileInput) fileInput.value = '';
+    const valInput = document.getElementById('setBizLogoVal');
+    if (valInput) valInput.value = '';
+
+    const bizName = document.getElementById('setBizName')?.value || store.currentUser?.organizationName || 'ORG';
+    const words = bizName.trim().split(/\s+/).filter(Boolean);
+    const initials = words.length >= 2
+      ? (words[0][0] + words[1][0]).toUpperCase()
+      : (words[0] ? words[0].slice(0, 2).toUpperCase() : 'OR');
+
+    const previewBox = document.getElementById('orgLogoPreviewBox');
+    if (previewBox) {
+      previewBox.innerHTML = `<div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e293b; color:#f8fafc; font-weight:800; font-size:20px; letter-spacing:-0.5px;">${initials}</div>`;
+    }
+
+    const removeBtn = document.getElementById('removeOrgLogoBtn');
+    if (removeBtn) removeBtn.style.display = 'none';
+  };
+
   // --- ADMINISTRATION CENTER HANDLERS ---
   window.submitSaveBusinessProfile = async () => {
     const name = document.getElementById('setBizName').value.trim();
@@ -1349,13 +1437,18 @@ function bindEvents() {
     const receiptName = document.getElementById('setReceiptName').value.trim() || name;
     const receiptPhone = document.getElementById('setReceiptPhone').value.trim() || phone;
     const receiptAddress = document.getElementById('setReceiptAddress').value.trim() || address;
+    const logoVal = document.getElementById('setBizLogoVal');
+    const logo = logoVal ? (logoVal.value || null) : (store.businessProfile?.logo || null);
 
     if (!name || !phone || !kraPin) return alert("Please enter Business Name, Phone, and KRA PIN!");
 
     try {
       await store.updateSettings('businessProfile', {
-        name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress
+        name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress, logo
       });
+      if (store.currentUser) {
+        store.currentUser.organizationName = name;
+      }
       initApp();
       alert("Business Profile saved successfully!");
     } catch (e) {
