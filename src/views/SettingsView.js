@@ -118,9 +118,9 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
           </div>
 
           ${currentOrgId ? `
-            <div style="background:var(--accent-soft, #eef2ff); border:1px solid rgba(99,102,241,0.25); border-radius:12px; padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
               <div>
-                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--accent, #4f46e5);">Store Identifier / URL Link (Small Letters)</div>
+                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:#64748b;">Store Identifier / URL Link (Small Letters)</div>
                 <div style="font-size:20px; font-weight:800; font-family:monospace; color:var(--text-main, #0f172a); margin-top:2px;">/${currentOrgId.toLowerCase()}</div>
                 <div style="font-size:12px; color:var(--text-muted, #64748b); margin-top:2px;">Clean lowercase business link used for your POS address and staff logins.</div>
               </div>

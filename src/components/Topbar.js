@@ -28,12 +28,6 @@ export function renderTopbar(currentUser = store.currentUser) {
     ? `
       <div style="position:relative;" id="topbarBranchWrapper">
         <button type="button" class="topbar-branch-pill" id="topbarBranchBtn" onclick="toggleBranchPopover()" title="Switch outlet / branch context">
-          <span class="branch-pill-icon">
-            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </span>
           <span class="branch-pill-name">${activeBranch.name}</span>
           <svg class="icon-sm branch-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="m6 9 6 6 6-6"/>
@@ -52,12 +46,6 @@ export function renderTopbar(currentUser = store.currentUser) {
               const locationText = b.location || (b.code ? `Code: ${b.code}` : 'Store Location');
               return `
                 <div class="branch-option-item ${isSelected ? 'selected' : ''}" onclick="selectBranchContext('${b.id}')">
-                  <div class="branch-option-icon">
-                    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                      <polyline points="9 22 9 12 15 12 15 22"/>
-                    </svg>
-                  </div>
                   <div class="branch-option-details">
                     <div class="branch-option-name">${b.name}</div>
                     <div class="branch-option-sub">${locationText}</div>
@@ -88,12 +76,6 @@ export function renderTopbar(currentUser = store.currentUser) {
     `
     : `
       <div class="topbar-branch-pill fixed-staff" title="Your assigned store outlet">
-        <span class="branch-pill-icon">
-          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        </span>
         <span class="branch-pill-name">${activeBranch.name}</span>
       </div>
     `;
