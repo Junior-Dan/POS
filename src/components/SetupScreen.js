@@ -15,134 +15,171 @@ export function renderAuthLandingScreen(overrideMode = null) {
     isRegisterSetup = !hasUsers;
   }
 
-  const systemName = 'Cellar POS';
+  const currentHour = new Date().getHours();
+  let greeting = "Good Morning!";
+  if (currentHour >= 12 && currentHour < 17) {
+    greeting = "Good Afternoon!";
+  } else if (currentHour >= 17) {
+    greeting = "Good Evening!";
+  }
 
   return `
     <div class="welcome-setup-container">
       <div class="welcome-setup-card">
-        <!-- LEFT PANEL: AUTH FORM -->
+        <!-- LEFT PANEL: AUTH FORM (Matches Reference Design) -->
         <div class="welcome-auth-pane">
-          <div class="welcome-brand-header">
-            <div class="welcome-logo-badge">
-              <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
+          <div class="auth-pane-content">
+            <!-- Brand Logo & Name Centered -->
+            <div class="welcome-brand-header">
+              <div class="welcome-logo-badge">
+                <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
+              </div>
+              <span class="welcome-brand-name">Cellar POS</span>
             </div>
-            <span class="welcome-brand-name">Cellar POS</span>
-          </div>
 
-          <div class="auth-pane-body">
-            <div class="auth-tab-switcher">
-              <button type="button" class="auth-tab-btn ${!isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('login')">
-                Sign In
-              </button>
-              <button type="button" class="auth-tab-btn ${isRegisterSetup ? 'active' : ''}" onclick="switchAuthMode('setup')">
-                Register Business
-              </button>
+            <!-- Main Greeting & Mode Switcher -->
+            <div class="auth-header-section">
+              <h1 class="welcome-title">${greeting}</h1>
+              <p class="welcome-subtitle">
+                ${isRegisterSetup
+                  ? `Already have an account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Sign In</button>`
+                  : `Don't have an account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('setup')">Sign Up</button>`
+                }
+              </p>
             </div>
 
             ${isRegisterSetup ? `
               <!-- CREATE NEW BUSINESS / ORGANIZATION ACCOUNT -->
-              <div class="auth-header-section">
-                <h1 class="welcome-title">Register Business</h1>
-                <p class="welcome-subtitle">Create a new organization and owner account</p>
-              </div>
-
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. John's Wine" required oninput="window.updateStoreSlugPreview(this.value)">
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>
+                    </svg>
+                    <input type="text" class="auth-field" id="setupBizNameInput" placeholder="Type your store name" required oninput="window.updateStoreSlugPreview(this.value)" />
+                  </div>
                 </div>
 
                 <div class="form-group" style="margin-top:-6px;">
-                  <label class="form-label" style="font-size:11.5px; color:#64748b; margin-bottom:3px;">Your Store URL Link (Clean Small Letters)</label>
-                  <div style="display:flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:12.5px; color:#475569;">
-                    <span style="color:#94a3b8; user-select:none; font-family:monospace; font-size:12px;">cellarpos.com/</span>
-                    <input type="text" class="form-input" id="setupSlugInput" placeholder="johnswin" style="border:none; background:transparent; padding:7px 0; font-family:monospace; font-weight:700; color:#3b82f6; width:100%; outline:none;" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9]/g, ''); this._userModified = true;">
+                  <div class="auth-slug-preview">
+                    <span class="slug-domain">cellarpos.com/</span>
+                    <input type="text" id="setupSlugInput" placeholder="johnswin" class="slug-input" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9]/g, ''); this._userModified = true;">
                   </div>
-                  <span style="font-size:11px; color:#94a3b8; margin-top:2px;">Customizable lowercase link for your POS & staff access.</span>
+                  <span style="font-size:11px; color:#94a3b8; margin-top:2px; display:block;">Custom lowercase link for staff access.</span>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label class="form-label">Owner Full Name *</label>
-                    <input type="text" class="form-input" id="setupNameInput" placeholder="e.g. David Kamau" required>
+                    <label class="form-label">Owner Name *</label>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                      </svg>
+                      <input type="text" class="auth-field" id="setupNameInput" placeholder="Type your full name" required />
+                    </div>
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Phone Number *</label>
-                    <input type="tel" class="form-input" id="setupPhoneInput" placeholder="e.g. 0722 000 111" required>
+                    <label class="form-label">Phone *</label>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                      </svg>
+                      <input type="tel" class="auth-field" id="setupPhoneInput" placeholder="Type your phone number" required />
+                    </div>
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@apexcellar.co.ke" required>
+                  <label class="form-label">Email *</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                    <input type="email" class="auth-field" id="setupEmailInput" placeholder="Type your email address" required />
+                  </div>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">Password *</label>
-                    <input type="password" class="form-input" id="setupPasswordInput" placeholder="••••••••" required>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <input type="password" class="auth-field" id="setupPasswordInput" placeholder="Type your password" required oninput="window.updatePasswordStrengthBars(this.value, 'setupStrengthBars')" />
+                      <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('setupPasswordInput')" title="Toggle Password Visibility">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Confirm Password *</label>
-                    <input type="password" class="form-input" id="setupConfirmPasswordInput" placeholder="••••••••" required>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <input type="password" class="auth-field" id="setupConfirmPasswordInput" placeholder="Confirm your password" required />
+                    </div>
                   </div>
+                </div>
+
+                <div class="auth-password-bars" id="setupStrengthBars">
+                  <span class="auth-bar active"></span>
+                  <span class="auth-bar"></span>
+                  <span class="auth-bar"></span>
+                  <span class="auth-bar"></span>
                 </div>
 
                 <div id="setupErrorMsg" class="setup-error-msg"></div>
 
                 <button type="submit" class="welcome-submit-btn">
-                  <span>Register Business & Open POS</span>
+                  <span>Sign Up & Open POS</span>
                   <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
-
-                <div style="text-align:center; margin-top:14px; font-size:12.5px; color:#64748b;">
-                  Already have an account? 
-                  <button type="button" onclick="switchAuthMode('login')" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; text-decoration:underline; padding:0;">
-                    Sign In
-                  </button>
-                </div>
               </form>
             ` : `
               <!-- UNIFIED SIGN IN FORM -->
-              <div class="auth-header-section">
-                <h1 class="welcome-title">Sign In to your Account</h1>
-                <p class="welcome-subtitle">Enter your email and password to access your dashboard</p>
-              </div>
-
-              <!-- EMAIL & PASSWORD LOGIN -->
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
                 <div class="form-group">
-                  <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@business.co.ke or staff@business.co.ke" required>
+                  <label class="form-label">Email</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                    <input type="email" class="auth-field" id="loginEmailInput" placeholder="Type your email address" required />
+                  </div>
                 </div>
 
                 <div class="form-group">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <label class="form-label" style="margin:0;">Password *</label>
-                    <button type="button" onclick="openForgotPasswordModal()" style="background:none; border:none; color:#3b82f6; font-size:12px; font-weight:600; cursor:pointer; text-decoration:underline; padding:0; margin-left:auto;">
+                  <div class="form-label-row">
+                    <label class="form-label">Password</label>
+                    <button type="button" onclick="openForgotPasswordModal()" class="auth-forgot-link">
                       Forgot Password?
                     </button>
                   </div>
-                  <div style="position:relative;">
-                    <input type="password" class="form-input" id="loginPasswordInput" placeholder="••••••••" style="padding-right:38px;" required>
-                    <button type="button" onclick="togglePasswordInputVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">
-                      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <input type="password" class="auth-field" id="loginPasswordInput" placeholder="Type your password" required oninput="window.updatePasswordStrengthBars(this.value, 'loginStrengthBars')" />
+                    <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('loginPasswordInput')" title="Toggle Password Visibility">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
+                  </div>
+                  <div class="auth-password-bars" id="loginStrengthBars">
+                    <span class="auth-bar active"></span>
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
                   </div>
                 </div>
 
                 <div id="loginEmailErrorMsg" class="setup-error-msg"></div>
 
-                <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
-                  Sign In
+                <button type="submit" class="welcome-submit-btn">
+                  <span>Sign In</span>
                 </button>
-
-                <div style="text-align:center; margin-top:14px; font-size:12.5px; color:#64748b;">
-                  New business? 
-                  <button type="button" onclick="switchAuthMode('setup')" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; text-decoration:underline; padding:0;">
-                    Create a free account
-                  </button>
-                </div>
               </form>
             `}
           </div>

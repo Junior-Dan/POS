@@ -620,11 +620,31 @@ function bindEvents() {
     initApp();
   };
 
-  window.togglePasswordInputVisibility = () => {
-    const input = document.getElementById('loginPasswordInput');
+  window.togglePasswordInputVisibility = (inputId = 'loginPasswordInput') => {
+    const input = document.getElementById(inputId) || document.getElementById('loginPasswordInput') || document.getElementById('setupPasswordInput');
     if (input) {
       input.type = input.type === 'password' ? 'text' : 'password';
     }
+  };
+
+  window.updatePasswordStrengthBars = (val, containerId) => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const bars = container.querySelectorAll('.auth-bar');
+    if (!bars.length) return;
+    const len = (val || '').length;
+    let score = 0;
+    if (len >= 1) score = 1;
+    if (len >= 6) score = 2;
+    if (len >= 8 && /[0-9]/.test(val)) score = 3;
+    if (len >= 10 && /[^a-zA-Z0-9]/.test(val)) score = 4;
+    bars.forEach((bar, idx) => {
+      bar.classList.remove('active', 'good');
+      if (idx < score) {
+        if (score >= 3) bar.classList.add('good');
+        else bar.classList.add('active');
+      }
+    });
   };
 
   window.submitMainLogin = async () => {
