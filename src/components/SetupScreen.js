@@ -27,7 +27,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
     <div class="welcome-setup-container">
       <div class="welcome-setup-card">
         <!-- LEFT PANEL: AUTH FORM (Matches Reference Design) -->
-        <div class="welcome-auth-pane">
+        <div class="welcome-auth-pane ${isRegisterSetup ? 'auth-mode-register' : 'auth-mode-login'}">
           <div class="auth-pane-content">
             <!-- Brand Logo & Name Centered -->
             <div class="welcome-brand-header">
@@ -126,8 +126,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <div id="setupErrorMsg" class="setup-error-msg"></div>
 
                 <button type="submit" class="welcome-submit-btn">
-                  <span>Sign Up & Open POS</span>
-                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
+                  <span>Sign Up</span>
                 </button>
               </form>
             ` : `

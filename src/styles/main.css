@@ -1593,6 +1593,11 @@ svg.icon-lg { width: 24px; height: 24px; }
   width: 100%;
 }
 
+.welcome-auth-pane.auth-mode-login .auth-pane-content {
+  margin: auto 0;
+  justify-content: center;
+}
+
 @media (max-width: 520px) {
   .welcome-auth-pane {
     padding: 16px 18px 14px 18px;
@@ -2018,7 +2023,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 8px;
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2034,20 +2040,21 @@ svg.icon-lg { width: 24px; height: 24px; }
   color: #ffffff;
   line-height: 1.25;
   letter-spacing: -0.5px;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
 }
 
 .hero-subtitle {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
-  line-height: 1.45;
+  line-height: 1.4;
   margin: 0;
 }
 
 .hero-mockup-stage {
   position: relative;
-  height: 330px;
-  margin-top: 12px;
+  height: 350px;
+  margin-top: 0;
+  flex: 1;
 }
 
 /* Base style for floating cards */
