@@ -55,7 +55,7 @@ html, body {
   color: var(--text);
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .serif { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; }
@@ -1528,27 +1528,32 @@ svg.icon-lg { width: 24px; height: 24px; }
   box-shadow: 0 4px 14px rgba(255, 86, 48, 0.4);
 }
 
-/* Modern Split-Screen Welcome Setup Landing Page */
+/* Modern Split-Screen Welcome Setup Landing Page (Fixed Viewport, No Page Scroll) */
 .welcome-setup-container {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
   width: 100vw;
+  max-width: 100vw;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 45%),
               radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.06), transparent 45%),
               #f8fafc;
-  padding: 32px 20px;
+  padding: 16px;
   box-sizing: border-box;
 }
 
 .welcome-setup-card {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1080px;
+  height: min(700px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  box-shadow: 0 30px 70px -15px rgba(15, 23, 42, 0.12);
+  border-radius: 22px;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.12);
   color: #0f172a;
   display: grid;
   grid-template-columns: 46% 54%;
@@ -1560,6 +1565,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   .welcome-setup-card {
     grid-template-columns: 1fr;
     max-width: 480px;
+    height: auto;
+    max-height: calc(100vh - 32px);
   }
   .welcome-hero-pane {
     display: none !important;
@@ -1571,15 +1578,18 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 44px 44px 32px 44px;
+  padding: 24px 36px 16px 36px;
   box-sizing: border-box;
   background: #ffffff;
   color: #0f172a;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 @media (max-width: 520px) {
   .welcome-auth-pane {
-    padding: 28px 24px 24px 24px;
+    padding: 20px 20px 16px 20px;
   }
 }
 
@@ -1587,14 +1597,14 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 11px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .welcome-logo-badge {
-  width: 40px;
-  height: 40px;
-  border-radius: 11px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: #ffffff;
   display: flex;
   align-items: center;
@@ -1624,7 +1634,7 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .welcome-brand-name {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.4px;
@@ -1632,22 +1642,22 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .auth-header-section {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .welcome-title {
-  font-size: 33px;
+  font-size: 28px;
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: -0.7px;
-  margin: 0 0 7px 0;
+  letter-spacing: -0.6px;
+  margin: 0 0 4px 0;
   line-height: 1.15;
 }
 
 .welcome-subtitle {
-  font-size: 13.5px;
+  font-size: 13px;
   color: #64748b;
-  line-height: 1.5;
+  line-height: 1.4;
   margin: 0;
 }
 
@@ -1656,7 +1666,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   border: none;
   color: #ea580c;
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0;
   transition: color 0.15s ease;
@@ -1674,8 +1684,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
   background: #ffffff;
-  padding: 0 14px;
-  height: 48px;
+  padding: 0 12px;
+  height: 44px;
   gap: 10px;
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -1997,7 +2007,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(10px);
-  padding: 44px 38px 24px 38px;
+  padding: 28px 30px 18px 30px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2305,22 +2315,22 @@ svg.icon-lg { width: 24px; height: 24px; }
 .welcome-setup-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .welcome-setup-form .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .welcome-setup-form .form-label {
   color: #475569;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .welcome-setup-form .form-input {
@@ -2350,13 +2360,13 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-submit-btn {
   width: 100%;
-  height: 48px;
+  height: 44px;
   border-radius: 10px;
-  margin-top: 18px;
+  margin-top: 14px;
   background: #0f172a;
   border: none;
   color: #ffffff;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
