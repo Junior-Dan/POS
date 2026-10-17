@@ -57,16 +57,8 @@ export function renderAuthLandingScreen(overrideMode = null) {
                     <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>
                     </svg>
-                    <input type="text" class="auth-field" id="setupBizNameInput" placeholder="Type your store name" required oninput="window.updateStoreSlugPreview(this.value)" />
+                    <input type="text" class="auth-field" id="setupBizNameInput" placeholder="Type your store name" required />
                   </div>
-                </div>
-
-                <div class="form-group" style="margin-top:-6px;">
-                  <div class="auth-slug-preview">
-                    <span class="slug-domain">cellarpos.com/</span>
-                    <input type="text" id="setupSlugInput" placeholder="johnswin" class="slug-input" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9]/g, ''); this._userModified = true;">
-                  </div>
-                  <span style="font-size:11px; color:#94a3b8; margin-top:2px; display:block;">Custom lowercase link for staff access.</span>
                 </div>
 
                 <div class="form-row">

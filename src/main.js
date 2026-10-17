@@ -531,7 +531,8 @@ function bindEvents() {
     const password = document.getElementById('setupPasswordInput')?.value.trim() || document.getElementById('setupPinInput')?.value.trim() || "";
     const confirmPassword = document.getElementById('setupConfirmPasswordInput')?.value.trim() || document.getElementById('setupConfirmPinInput')?.value.trim() || "";
     const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Cellar POS";
-    const slug = document.getElementById('setupSlugInput')?.value.trim().toLowerCase() || "";
+    const autoSlug = businessName.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]/g, '').slice(0, 24);
+    const slug = (document.getElementById('setupSlugInput')?.value || autoSlug).trim().toLowerCase() || autoSlug;
     const err = document.getElementById('setupErrorMsg');
 
     if (!name) {
