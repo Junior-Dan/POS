@@ -1541,22 +1541,22 @@ svg.icon-lg { width: 24px; height: 24px; }
   background: radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 45%),
               radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.06), transparent 45%),
               #f8fafc;
-  padding: clamp(8px, 1.8vh, 16px);
+  padding: 12px;
   box-sizing: border-box;
 }
 
 .welcome-setup-card {
   width: 100%;
-  max-width: 1100px;
-  height: min(760px, calc(100vh - 28px));
-  max-height: calc(100vh - 28px);
+  max-width: 1040px;
+  height: min(600px, calc(100vh - 24px));
+  max-height: calc(100vh - 24px);
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 24px;
   box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.12);
   color: #0f172a;
   display: grid;
-  grid-template-columns: 46% 54%;
+  grid-template-columns: 50% 50%;
   overflow: hidden;
   animation: fadeInScale 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1566,7 +1566,7 @@ svg.icon-lg { width: 24px; height: 24px; }
     grid-template-columns: 1fr;
     max-width: 480px;
     height: auto;
-    max-height: calc(100vh - 24px);
+    max-height: calc(100vh - 20px);
   }
   .welcome-hero-pane {
     display: none !important;
@@ -1578,7 +1578,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: clamp(20px, 3vh, 32px) clamp(28px, 4vw, 44px) clamp(14px, 2vh, 20px) clamp(28px, 4vw, 44px);
+  padding: 22px 32px 16px 32px;
   box-sizing: border-box;
   background: #ffffff;
   color: #0f172a;
@@ -1590,14 +1590,12 @@ svg.icon-lg { width: 24px; height: 24px; }
 .auth-pane-content {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  margin: auto 0;
   width: 100%;
 }
 
 @media (max-width: 520px) {
   .welcome-auth-pane {
-    padding: 18px 20px 14px 20px;
+    padding: 16px 18px 14px 18px;
   }
 }
 
@@ -1606,13 +1604,13 @@ svg.icon-lg { width: 24px; height: 24px; }
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-bottom: clamp(10px, 1.8vh, 18px);
+  margin-bottom: 12px;
 }
 
 .welcome-logo-badge {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
   background: #ffffff;
   display: flex;
   align-items: center;
@@ -1642,7 +1640,7 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .welcome-brand-name {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.4px;
@@ -1650,20 +1648,20 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .auth-header-section {
   text-align: center;
-  margin-bottom: clamp(12px, 2vh, 18px);
+  margin-bottom: 12px;
 }
 
 .welcome-title {
-  font-size: clamp(25px, 3.4vh, 32px);
+  font-size: 26px;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.7px;
-  margin: 0 0 4px 0;
+  margin: 0 0 3px 0;
   line-height: 1.15;
 }
 
 .welcome-subtitle {
-  font-size: 13.5px;
+  font-size: 13px;
   color: #64748b;
   line-height: 1.4;
   margin: 0;
@@ -1690,11 +1688,11 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   align-items: center;
   border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: #ffffff;
-  padding: 0 14px;
-  height: clamp(44px, 5.2vh, 48px);
-  gap: 12px;
+  padding: 0 12px;
+  height: 42px;
+  gap: 10px;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
@@ -1980,13 +1978,13 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .welcome-footer-bar {
-  margin-top: clamp(10px, 1.8vh, 18px);
-  padding-top: clamp(8px, 1.4vh, 12px);
+  margin-top: auto;
+  padding-top: 10px;
   border-top: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 11.5px;
   color: #94a3b8;
   flex-shrink: 0;
 }
@@ -2016,7 +2014,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(10px);
-  padding: 36px 36px 24px 36px;
+  padding: 24px 28px 18px 28px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2031,25 +2029,25 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .hero-title {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 800;
   color: #ffffff;
   line-height: 1.25;
   letter-spacing: -0.5px;
-  margin: 0 0 10px 0;
+  margin: 0 0 6px 0;
 }
 
 .hero-subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
-  line-height: 1.5;
+  line-height: 1.45;
   margin: 0;
 }
 
 .hero-mockup-stage {
   position: relative;
-  height: 380px;
-  margin-top: 20px;
+  height: 330px;
+  margin-top: 12px;
 }
 
 /* Base style for floating cards */
@@ -2066,16 +2064,16 @@ svg.icon-lg { width: 24px; height: 24px; }
 .hero-main-card {
   top: 0;
   left: 0;
-  width: 74%;
-  padding: 16px 18px;
+  width: 75%;
+  padding: 14px 16px;
   z-index: 1;
 }
 
 .hero-donut-card {
-  top: 48px;
+  top: 36px;
   right: 0;
-  width: 52%;
-  padding: 16px;
+  width: 54%;
+  padding: 14px;
   z-index: 2;
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -2105,10 +2103,11 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .hero-stat-val {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   color: #0f172a;
   margin: 2px 0 4px 0;
+  white-space: nowrap;
 }
 
 .hero-badge.badge-up {
@@ -2324,22 +2323,22 @@ svg.icon-lg { width: 24px; height: 24px; }
 .welcome-setup-form {
   display: flex;
   flex-direction: column;
-  gap: clamp(11px, 1.6vh, 14px);
+  gap: 10px;
 }
 
 .welcome-setup-form .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .welcome-setup-form .form-label {
   color: #334155;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   display: block;
 }
 
@@ -2347,7 +2346,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   color: #0f172a;
-  padding: 9px 12px;
+  padding: 8px 11px;
   border-radius: 8px;
   font-size: 13px;
   transition: all 0.2s ease;
@@ -2373,13 +2372,13 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-submit-btn {
   width: 100%;
-  height: clamp(44px, 5.2vh, 48px);
-  border-radius: 10px;
+  height: 44px;
+  border-radius: 9px;
   margin-top: 4px;
   background: #0f172a;
   border: none;
   color: #ffffff;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -2396,28 +2395,39 @@ svg.icon-lg { width: 24px; height: 24px; }
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
 }
 
-@media (max-height: 700px) {
+@media (max-height: 580px) {
+  .welcome-setup-card {
+    height: calc(100vh - 16px);
+  }
   .welcome-auth-pane {
-    padding: 16px 28px 12px 28px;
+    padding: 14px 24px 10px 24px;
   }
   .welcome-brand-header {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .auth-header-section {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+  }
+  .welcome-title {
+    font-size: 22px;
   }
   .welcome-setup-form {
-    gap: 9px;
+    gap: 7px;
   }
   .welcome-setup-form .form-label {
-    margin-bottom: 3px;
-    font-size: 12px;
+    margin-bottom: 2px;
+    font-size: 11.5px;
   }
   .auth-input-wrap {
-    height: 40px;
+    height: 38px;
   }
   .welcome-submit-btn {
-    height: 42px;
+    height: 38px;
+  }
+  .hero-mockup-stage {
+    height: 280px;
+    transform: scale(0.9);
+    transform-origin: top left;
   }
 }
 
