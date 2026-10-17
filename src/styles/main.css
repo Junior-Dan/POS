@@ -1266,7 +1266,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   transition: all 0.15s;
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 
 /* Staff & Settings Redesign (Matching Reference Image) */
 .settings-title-header {
@@ -1747,6 +1747,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   gap: 10px;
   transition: all 0.2s ease;
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
 }
 
 .auth-input-wrap:focus-within {
@@ -1767,7 +1769,9 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .auth-field {
-  flex: 1;
+  flex: 1 1 0%;
+  width: 100%;
+  min-width: 0;
   border: none;
   background: transparent;
   outline: none;
@@ -1775,6 +1779,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   color: #0f172a;
   height: 100%;
   padding: 0;
+  box-sizing: border-box;
 }
 
 .auth-field::placeholder {
@@ -1790,6 +1795,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: color 0.15s ease;
 }
 
@@ -1814,6 +1820,8 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   gap: 6px;
   margin-top: 7px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .auth-bar {
@@ -2379,12 +2387,28 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.welcome-setup-form .form-group {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .welcome-setup-form .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.welcome-setup-form .form-row > * {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .welcome-setup-form .form-label {
@@ -2427,6 +2451,7 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-submit-btn {
   width: 100%;
+  box-sizing: border-box;
   height: 48px;
   border-radius: 10px;
   margin-top: 6px;
