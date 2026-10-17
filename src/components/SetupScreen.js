@@ -263,6 +263,24 @@ export function renderAuthLandingScreen(overrideMode = null) {
                     <span>KSh 3,000</span>
                     <span class="status-pill status-paid">PAID</span>
                   </div>
+                  <div class="hero-table-row">
+                    <span class="code">#SLR988721</span>
+                    <span>Baileys Irish Cream 1L</span>
+                    <span>KSh 3,200</span>
+                    <span class="status-pill status-pending">PENDING</span>
+                  </div>
+                  <div class="hero-table-row">
+                    <span class="code">#SLR988722</span>
+                    <span>Hennessy VS 700ml</span>
+                    <span>KSh 6,800</span>
+                    <span class="status-pill status-paid">PAID</span>
+                  </div>
+                  <div class="hero-table-row">
+                    <span class="code">#SLR988723</span>
+                    <span>Tanqueray Dry Gin 750ml</span>
+                    <span>KSh 2,850</span>
+                    <span class="status-pill status-paid">PAID</span>
+                  </div>
                 </div>
               </div>
 
@@ -290,8 +308,9 @@ export function renderAuthLandingScreen(overrideMode = null) {
 
                 <div class="donut-legend-list">
                   <div class="legend-row"><span class="legend-dot dot-indigo"></span><span>Whiskies & Spirits</span><span class="legend-val">3,620 U</span></div>
-                  <div class="legend-row"><span class="legend-dot dot-blue"></span><span>Wines</span><span class="legend-val">1,780 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-blue"></span><span>Wines & Fizz</span><span class="legend-val">1,780 U</span></div>
                   <div class="legend-row"><span class="legend-dot dot-purple"></span><span>Beers & Softs</span><span class="legend-val">848 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-amber"></span><span>Liqueurs</span><span class="legend-val">420 U</span></div>
                 </div>
               </div>
             </div>

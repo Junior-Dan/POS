@@ -2068,29 +2068,30 @@ svg.icon-lg { width: 24px; height: 24px; }
   width: 100%;
   border-radius: 28px;
   background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 45%, #3b82f6 80%, #4338ca 100%);
-  padding: 38px 40px 24px 40px;
+  padding: 36px 44px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
+  align-items: center;
   position: relative;
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(37, 99, 235, 0.2);
 }
 
 .hero-pane-inner {
-  height: 100%;
   width: 100%;
+  max-width: 580px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: 12px;
+  justify-content: center;
+  gap: 16px;
   position: relative;
-  overflow: hidden;
+  margin: auto 0;
 }
 
 .hero-header-text {
-  max-width: 90%;
+  max-width: 95%;
 }
 
 .hero-title {
@@ -2111,9 +2112,9 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .hero-mockup-stage {
   position: relative;
-  height: 350px;
+  height: 440px;
   margin-top: 4px;
-  flex: 1;
+  width: 100%;
 }
 
 /* Base style for floating cards */
@@ -2131,16 +2132,16 @@ svg.icon-lg { width: 24px; height: 24px; }
 .hero-main-card {
   top: 0;
   left: 0;
-  width: 75%;
-  padding: 14px 16px;
+  width: 78%;
+  padding: 16px 18px;
   z-index: 1;
 }
 
 .hero-donut-card {
-  top: 36px;
+  top: 48px;
   right: 0;
-  width: 54%;
-  padding: 14px;
+  width: 52%;
+  padding: 16px;
   z-index: 2;
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -2342,6 +2343,7 @@ svg.icon-lg { width: 24px; height: 24px; }
 .dot-indigo { background: #4f46e5; }
 .dot-blue { background: #3b82f6; }
 .dot-purple { background: #a855f7; }
+.dot-amber { background: #f59e0b; }
 
 .legend-val {
   margin-left: auto;
@@ -2482,6 +2484,14 @@ svg.icon-lg { width: 24px; height: 24px; }
   margin-bottom: 28px;
 }
 
+@media (max-height: 720px) {
+  .hero-mockup-stage {
+    height: 390px;
+    transform: scale(0.92);
+    transform-origin: top center;
+  }
+}
+
 @media (max-height: 580px) {
   .welcome-setup-card {
     height: calc(100vh - 16px);
@@ -2512,9 +2522,9 @@ svg.icon-lg { width: 24px; height: 24px; }
     height: 38px;
   }
   .hero-mockup-stage {
-    height: 280px;
-    transform: scale(0.9);
-    transform-origin: top left;
+    height: 300px;
+    transform: scale(0.78);
+    transform-origin: top center;
   }
 }
 
