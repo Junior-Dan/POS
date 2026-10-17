@@ -4,7 +4,11 @@ export function renderAuthLandingScreen(overrideMode = null) {
   let isRegisterSetup = false;
   const effectiveMode = overrideMode || window.currentAuthTab;
 
-  if (effectiveMode === 'setup' || effectiveMode === 'register') {
+  if (typeof window !== 'undefined' && (window.location.hash === '#login' || window.location.search.includes('auth=login'))) {
+    isRegisterSetup = false;
+  } else if (typeof window !== 'undefined' && (window.location.hash === '#register' || window.location.hash === '#setup' || window.location.search.includes('auth=register'))) {
+    isRegisterSetup = true;
+  } else if (effectiveMode === 'setup' || effectiveMode === 'register') {
     isRegisterSetup = true;
   } else if (effectiveMode === 'login') {
     isRegisterSetup = false;
@@ -28,22 +32,22 @@ export function renderAuthLandingScreen(overrideMode = null) {
       <div class="welcome-setup-card">
         <!-- LEFT PANEL: AUTH FORM (Matches Reference Design) -->
         <div class="welcome-auth-pane ${isRegisterSetup ? 'auth-mode-register' : 'auth-mode-login'}">
-          <div class="auth-pane-content">
-            <!-- Brand Logo & Name Centered -->
-            <div class="welcome-brand-header">
-              <div class="welcome-logo-badge">
-                <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
-              </div>
-              <span class="welcome-brand-name">Cellar POS</span>
+          <!-- Top-Left Brand Logo & Name -->
+          <div class="welcome-brand-header">
+            <div class="welcome-logo-badge">
+              <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
             </div>
+            <span class="welcome-brand-name">Cellar POS</span>
+          </div>
 
-            <!-- Main Greeting & Mode Switcher -->
+          <!-- Centered Auth Form Box -->
+          <div class="auth-pane-content">
             <div class="auth-header-section">
-              <h1 class="welcome-title">${greeting}</h1>
+              <h1 class="welcome-title">${isRegisterSetup ? 'Create Account' : 'Welcome Back'}</h1>
               <p class="welcome-subtitle">
                 ${isRegisterSetup
-                  ? `Already have an account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Sign In</button>`
-                  : `Don't have an account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('setup')">Sign Up</button>`
+                  ? 'Enter your details to create your organization account.'
+                  : 'Enter your email and password to access your account.'
                 }
               </p>
             </div>
@@ -128,6 +132,10 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 <button type="submit" class="welcome-submit-btn">
                   <span>Sign Up</span>
                 </button>
+
+                <p class="auth-switch-footer">
+                  Already Have An Account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Sign In.</button>
+                </p>
               </form>
             ` : `
               <!-- UNIFIED SIGN IN FORM -->
@@ -143,12 +151,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
                 </div>
 
                 <div class="form-group">
-                  <div class="form-label-row">
-                    <label class="form-label">Password</label>
-                    <button type="button" onclick="openForgotPasswordModal()" class="auth-forgot-link">
-                      Forgot Password?
-                    </button>
-                  </div>
+                  <label class="form-label">Password</label>
                   <div class="auth-input-wrap">
                     <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -160,27 +163,44 @@ export function renderAuthLandingScreen(overrideMode = null) {
                   </div>
                 </div>
 
+                <div class="auth-remember-row">
+                  <label class="auth-checkbox-label">
+                    <input type="checkbox" id="loginRememberMe" checked />
+                    <span>Remember Me</span>
+                  </label>
+                  <button type="button" onclick="openForgotPasswordModal()" class="auth-forgot-link">
+                    Forgot Your Password?
+                  </button>
+                </div>
+
                 <div id="loginEmailErrorMsg" class="setup-error-msg"></div>
 
                 <button type="submit" class="welcome-submit-btn">
-                  <span>Sign In</span>
+                  <span>Log In</span>
                 </button>
+
+                <p class="auth-switch-footer">
+                  Don't Have An Account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('setup')">Register Now.</button>
+                </p>
               </form>
             `}
           </div>
 
+          <!-- Bottom Footer Bar -->
           <div class="welcome-footer-bar">
             <span>Copyright © 2026 Cellar POS. All rights reserved.</span>
+            <span class="footer-privacy-link">Privacy Policy</span>
           </div>
         </div>
 
         <!-- RIGHT PANEL: HERO BANNER -->
-        <div class="welcome-hero-pane">
-          <div class="hero-pane-inner">
-            <div class="hero-header-text">
-              <h2 class="hero-title">Effortlessly manage your team and operations.</h2>
-              <p class="hero-subtitle">Log in to access your POS dashboard and manage your branch operations.</p>
-            </div>
+        <div class="welcome-hero-wrapper">
+          <div class="welcome-hero-pane">
+            <div class="hero-pane-inner">
+              <div class="hero-header-text">
+                <h2 class="hero-title">Effortlessly manage your team and operations.</h2>
+                <p class="hero-subtitle">Log in to access your POS dashboard and manage your branch operations.</p>
+              </div>
 
             <!-- Graphic Dashboard Cards Showcase -->
             <div class="hero-mockup-stage">
@@ -279,6 +299,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
         </div>
       </div>
     </div>
+  </div>
   `;
 }
 

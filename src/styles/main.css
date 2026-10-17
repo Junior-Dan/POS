@@ -1528,101 +1528,89 @@ svg.icon-lg { width: 24px; height: 24px; }
   box-shadow: 0 4px 14px rgba(255, 86, 48, 0.4);
 }
 
-/* Modern Split-Screen Welcome Setup Landing Page (Fixed Viewport, No Page Scroll) */
+/* Full-Screen Modern SaaS Auth Layout (Reference Design Match) */
 .welcome-setup-container {
   height: 100vh;
   max-height: 100vh;
   width: 100vw;
   max-width: 100vw;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 45%),
-              radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.06), transparent 45%),
-              #f8fafc;
-  padding: 12px;
+  background: #ffffff;
+  padding: 0;
+  margin: 0;
   box-sizing: border-box;
 }
 
 .welcome-setup-card {
-  width: 100%;
-  max-width: 1040px;
-  height: min(600px, calc(100vh - 24px));
-  max-height: calc(100vh - 24px);
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.12);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   color: #0f172a;
   display: grid;
-  grid-template-columns: 50% 50%;
+  grid-template-columns: 48% 52%;
   overflow: hidden;
-  animation: fadeInScale 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+  margin: 0;
 }
 
 @media (max-width: 960px) {
   .welcome-setup-card {
     grid-template-columns: 1fr;
-    max-width: 480px;
-    height: auto;
-    max-height: calc(100vh - 20px);
   }
-  .welcome-hero-pane {
+  .welcome-hero-wrapper {
     display: none !important;
   }
 }
 
-/* Left Pane: Auth Form (Spacious, Clean Design, Non-Scrollable) */
+/* Left Pane: Full Height, Pure White, Centered Form */
 .welcome-auth-pane {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 22px 32px 16px 32px;
+  padding: 36px 52px 24px 52px;
   box-sizing: border-box;
   background: #ffffff;
   color: #0f172a;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden; /* Strict: Never scroll on left side */
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.auth-pane-content {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.welcome-auth-pane.auth-mode-login .auth-pane-content {
-  margin: auto 0;
-  justify-content: center;
+.welcome-auth-pane::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 520px) {
   .welcome-auth-pane {
-    padding: 16px 18px 14px 18px;
+    padding: 20px 24px 16px 24px;
   }
 }
 
+/* Brand Header: Top-Left Pinned */
 .welcome-brand-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .welcome-logo-badge {
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: #ffffff;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
 }
 
@@ -1631,6 +1619,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 8px;
 }
 
 .topbar-logo-img {
@@ -1645,37 +1634,95 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .welcome-brand-name {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.4px;
 }
 
+/* Center Content: Centered Horizontally and Vertically */
+.auth-pane-content {
+  max-width: 410px;
+  width: 100%;
+  margin: auto auto;
+  display: flex;
+  flex-direction: column;
+}
+
 .auth-header-section {
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
 }
 
 .welcome-title {
-  font-size: 26px;
+  font-size: 32px;
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: -0.7px;
-  margin: 0 0 3px 0;
+  letter-spacing: -0.8px;
+  margin: 0 0 8px 0;
   line-height: 1.15;
 }
 
 .welcome-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.auth-remember-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 13px;
   color: #64748b;
-  line-height: 1.4;
-  margin: 0;
+  margin-top: 4px;
+}
+
+.auth-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.auth-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.auth-forgot-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.auth-forgot-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.auth-switch-footer {
+  text-align: center;
+  font-size: 13.5px;
+  color: #64748b;
+  margin-top: 20px;
+  margin-bottom: 0;
 }
 
 .auth-toggle-link {
   background: none;
   border: none;
-  color: #ea580c;
+  color: #2563eb;
   font-weight: 700;
   font-size: 13.5px;
   cursor: pointer;
@@ -1684,7 +1731,7 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .auth-toggle-link:hover {
-  color: #c2410c;
+  color: #1d4ed8;
   text-decoration: underline;
 }
 
@@ -1693,30 +1740,30 @@ svg.icon-lg { width: 24px; height: 24px; }
   display: flex;
   align-items: center;
   border: 1.5px solid #e2e8f0;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #ffffff;
-  padding: 0 12px;
-  height: 42px;
+  padding: 0 14px;
+  height: 46px;
   gap: 10px;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
 
 .auth-input-wrap:focus-within {
-  border-color: #0f172a;
-  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .auth-input-icon {
   width: 18px;
   height: 18px;
-  color: #64748b;
+  color: #94a3b8;
   flex-shrink: 0;
   transition: color 0.2s ease;
 }
 
 .auth-input-wrap:focus-within .auth-input-icon {
-  color: #0f172a;
+  color: #2563eb;
 }
 
 .auth-field {
@@ -1762,21 +1809,6 @@ svg.icon-lg { width: 24px; height: 24px; }
   margin-bottom: 6px;
 }
 
-.auth-forgot-link {
-  background: none;
-  border: none;
-  color: #ea580c;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.15s ease;
-}
-
-.auth-forgot-link:hover {
-  color: #c2410c;
-  text-decoration: underline;
-}
 
 .auth-password-bars {
   display: flex;
@@ -1984,14 +2016,25 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-footer-bar {
   margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid #f1f5f9;
+  padding-top: 14px;
+  border-top: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: #94a3b8;
   flex-shrink: 0;
+}
+
+.footer-privacy-link {
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.footer-privacy-link:hover {
+  color: #64748b;
+  text-decoration: underline;
 }
 
 .footer-link {
@@ -2005,29 +2048,37 @@ svg.icon-lg { width: 24px; height: 24px; }
   text-decoration: underline;
 }
 
-
-/* Right Pane: Hero Banner Showcase (Matches Reference Design) */
-.welcome-hero-pane {
-  background: linear-gradient(145deg, #2563eb 0%, #3b82f6 50%, #4f46e5 100%);
-  padding: 14px;
+/* Right Pane: Hero Wrapper & Rounded Vibrant Blue Card (Reference Match) */
+.welcome-hero-wrapper {
+  padding: 16px 18px 16px 14px;
+  height: 100vh;
   box-sizing: border-box;
+}
+
+.welcome-hero-pane {
+  height: 100%;
+  width: 100%;
+  border-radius: 28px;
+  background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 45%, #3b82f6 80%, #4338ca 100%);
+  padding: 38px 40px 24px 40px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(37, 99, 235, 0.2);
 }
 
 .hero-pane-inner {
   height: 100%;
   width: 100%;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(10px);
-  padding: 24px 28px 18px 28px;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 12px;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .hero-header-text {
@@ -2035,25 +2086,25 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .hero-title {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 800;
   color: #ffffff;
   line-height: 1.25;
-  letter-spacing: -0.5px;
-  margin: 0 0 4px 0;
+  letter-spacing: -0.6px;
+  margin: 0 0 6px 0;
 }
 
 .hero-subtitle {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
-  line-height: 1.4;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.5;
   margin: 0;
 }
 
 .hero-mockup-stage {
   position: relative;
   height: 350px;
-  margin-top: 0;
+  margin-top: 4px;
   flex: 1;
 }
 
@@ -2376,27 +2427,34 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-submit-btn {
   width: 100%;
-  height: 44px;
-  border-radius: 9px;
-  margin-top: 4px;
-  background: #0f172a;
+  height: 48px;
+  border-radius: 10px;
+  margin-top: 6px;
+  background: #2563eb;
   border: none;
   color: #ffffff;
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
   transition: all 0.2s ease;
 }
 
 .welcome-submit-btn:hover {
-  background: #1e293b;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+  background: #1d4ed8;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+}
+
+.auth-mode-login .welcome-setup-form {
+  gap: 18px;
+}
+
+.auth-mode-login .auth-header-section {
+  margin-bottom: 28px;
 }
 
 @media (max-height: 580px) {
