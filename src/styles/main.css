@@ -1816,10 +1816,17 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 
+.auth-strength-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 5px;
+}
+
 .auth-password-bars {
   display: flex;
   gap: 6px;
-  margin-top: 7px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -1829,15 +1836,56 @@ svg.icon-lg { width: 24px; height: 24px; }
   height: 3.5px;
   border-radius: 2px;
   background: #e2e8f0;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
 }
 
-.auth-bar.active {
-  background: #ea580c;
+.auth-bar.weak {
+  background: #ef4444;
+}
+
+.auth-bar.fair {
+  background: #f97316;
 }
 
 .auth-bar.good {
-  background: #22c55e;
+  background: #2563eb;
+}
+
+.auth-bar.strong {
+  background: #16a34a;
+}
+
+.auth-strength-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.strength-label {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.strength-label.weak {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.strength-label.fair {
+  color: #ea580c;
+  font-weight: 600;
+}
+
+.strength-label.good {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.strength-label.strong {
+  color: #16a34a;
+  font-weight: 700;
 }
 
 .auth-slug-preview {

@@ -389,8 +389,8 @@ router.post(['/setup', '/register'], (req, res) => {
   if (confirmSecret && String(confirmSecret).trim() !== cleanSecret) {
     return res.status(400).json({ error: 'Password and Confirm Password do not match.' });
   }
-  if (cleanSecret.length < 4) {
-    return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+  if (cleanSecret.length < 8 || !/[a-zA-Z]/.test(cleanSecret) || !/[0-9]/.test(cleanSecret)) {
+    return res.status(400).json({ error: 'Password must be a strong password (at least 8 characters including both letters and numbers).' });
   }
 
   if (email) {

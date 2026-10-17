@@ -543,8 +543,14 @@ function bindEvents() {
       if (err) err.textContent = "Please enter Email Address!";
       return;
     }
-    if (!password || password.length < 4) {
-      if (err) err.textContent = "Please enter a password (at least 4 characters)!";
+    if (!password || password.length < 8) {
+      if (err) err.textContent = "Please enter a strong password (at least 8 characters)!";
+      return;
+    }
+    const hasLetters = /[a-zA-Z]/.test(password);
+    const hasNumbers = /[0-9]/.test(password);
+    if (!hasLetters || !hasNumbers) {
+      if (err) err.textContent = "Password must be strong (include both letters and numbers)!";
       return;
     }
     if (confirmPassword && confirmPassword !== password) {
@@ -632,20 +638,63 @@ function bindEvents() {
     const container = document.getElementById(containerId);
     if (!container) return;
     const bars = container.querySelectorAll('.auth-bar');
+    const label = document.getElementById('setupStrengthLabel');
     if (!bars.length) return;
-    const len = (val || '').length;
+
+    const value = val || '';
+    const len = value.length;
     let score = 0;
-    if (len >= 1) score = 1;
-    if (len >= 6) score = 2;
-    if (len >= 8 && /[0-9]/.test(val)) score = 3;
-    if (len >= 10 && /[^a-zA-Z0-9]/.test(val)) score = 4;
+
+    if (len === 0) {
+      score = 0;
+    } else if (len < 6) {
+      score = 1;
+    } else {
+      const hasLower = /[a-z]/.test(value);
+      const hasUpper = /[A-Z]/.test(value);
+      const hasNumber = /[0-9]/.test(value);
+      const hasSpecial = /[^a-zA-Z0-9]/.test(value);
+      const criteriaCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
+
+      if (len >= 8 && criteriaCount >= 3) {
+        score = 4;
+      } else if (len >= 8 && criteriaCount >= 2) {
+        score = 3;
+      } else if (len >= 6) {
+        score = 2;
+      } else {
+        score = 1;
+      }
+    }
+
     bars.forEach((bar, idx) => {
-      bar.classList.remove('active', 'good');
+      bar.classList.remove('active', 'weak', 'fair', 'good', 'strong');
       if (idx < score) {
-        if (score >= 3) bar.classList.add('good');
-        else bar.classList.add('active');
+        if (score === 4) bar.classList.add('strong');
+        else if (score === 3) bar.classList.add('good');
+        else if (score === 2) bar.classList.add('fair');
+        else bar.classList.add('weak');
       }
     });
+
+    if (label) {
+      if (score === 0) {
+        label.textContent = 'At least 8 characters with letters & numbers';
+        label.className = 'strength-label';
+      } else if (score === 1) {
+        label.textContent = 'Weak password (too short)';
+        label.className = 'strength-label weak';
+      } else if (score === 2) {
+        label.textContent = 'Fair password (add numbers or uppercase)';
+        label.className = 'strength-label fair';
+      } else if (score === 3) {
+        label.textContent = 'Good password (meets requirements)';
+        label.className = 'strength-label good';
+      } else if (score === 4) {
+        label.textContent = 'Strong password ✓';
+        label.className = 'strength-label strong';
+      }
+    }
   };
 
   window.submitMainLogin = async () => {

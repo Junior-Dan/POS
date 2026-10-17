@@ -103,7 +103,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
                       <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                       </svg>
-                      <input type="password" class="auth-field" id="setupPasswordInput" placeholder="Password" required oninput="window.updatePasswordStrengthBars(this.value, 'setupStrengthBars')" />
+                      <input type="password" class="auth-field" id="setupPasswordInput" placeholder="Min. 8 characters" required oninput="window.updatePasswordStrengthBars(this.value, 'setupStrengthBars')" />
                       <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('setupPasswordInput')" title="Toggle Password Visibility">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                       </button>
@@ -120,11 +120,16 @@ export function renderAuthLandingScreen(overrideMode = null) {
                   </div>
                 </div>
 
-                <div class="auth-password-bars" id="setupStrengthBars">
-                  <span class="auth-bar active"></span>
-                  <span class="auth-bar"></span>
-                  <span class="auth-bar"></span>
-                  <span class="auth-bar"></span>
+                <div class="auth-strength-container">
+                  <div class="auth-password-bars" id="setupStrengthBars">
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                  </div>
+                  <div class="auth-strength-info">
+                    <span id="setupStrengthLabel" class="strength-label">At least 8 characters with letters & numbers</span>
+                  </div>
                 </div>
 
                 <div id="setupErrorMsg" class="setup-error-msg"></div>
