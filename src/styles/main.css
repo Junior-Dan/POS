@@ -1547,12 +1547,12 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-setup-card {
   width: 100%;
-  max-width: 1080px;
-  height: min(700px, calc(100vh - 32px));
-  max-height: calc(100vh - 32px);
+  max-width: 1100px;
+  height: min(740px, calc(100vh - 40px));
+  max-height: calc(100vh - 40px);
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 22px;
+  border-radius: 24px;
   box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.12);
   color: #0f172a;
   display: grid;
@@ -1573,18 +1573,23 @@ svg.icon-lg { width: 24px; height: 24px; }
   }
 }
 
-/* Left Pane: Auth Form (Clean White Design) */
+/* Left Pane: Auth Form (Spacious, Clean Design) */
 .welcome-auth-pane {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 24px 36px 16px 36px;
+  padding: 34px 44px 22px 44px;
   box-sizing: border-box;
   background: #ffffff;
   color: #0f172a;
   height: 100%;
   overflow-y: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.welcome-auth-pane::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 520px) {
@@ -1598,12 +1603,12 @@ svg.icon-lg { width: 24px; height: 24px; }
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .welcome-logo-badge {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 10px;
   background: #ffffff;
   display: flex;
@@ -1634,7 +1639,7 @@ svg.icon-lg { width: 24px; height: 24px; }
 }
 
 .welcome-brand-name {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.4px;
@@ -1642,20 +1647,20 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .auth-header-section {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 22px;
 }
 
 .welcome-title {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: -0.6px;
-  margin: 0 0 4px 0;
+  letter-spacing: -0.7px;
+  margin: 0 0 6px 0;
   line-height: 1.15;
 }
 
 .welcome-subtitle {
-  font-size: 13px;
+  font-size: 13.5px;
   color: #64748b;
   line-height: 1.4;
   margin: 0;
@@ -1666,7 +1671,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   border: none;
   color: #ea580c;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
   padding: 0;
   transition: color 0.15s ease;
@@ -1684,9 +1689,9 @@ svg.icon-lg { width: 24px; height: 24px; }
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
   background: #ffffff;
-  padding: 0 12px;
-  height: 44px;
-  gap: 10px;
+  padding: 0 14px;
+  height: 48px;
+  gap: 12px;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
@@ -2007,7 +2012,7 @@ svg.icon-lg { width: 24px; height: 24px; }
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(10px);
-  padding: 28px 30px 18px 30px;
+  padding: 36px 36px 24px 36px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2315,22 +2320,23 @@ svg.icon-lg { width: 24px; height: 24px; }
 .welcome-setup-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 
 .welcome-setup-form .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 14px;
 }
 
 .welcome-setup-form .form-label {
-  color: #475569;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 3px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  margin-bottom: 6px;
+  display: block;
 }
 
 .welcome-setup-form .form-input {
@@ -2360,13 +2366,13 @@ svg.icon-lg { width: 24px; height: 24px; }
 
 .welcome-submit-btn {
   width: 100%;
-  height: 44px;
+  height: 48px;
   border-radius: 10px;
-  margin-top: 14px;
+  margin-top: 18px;
   background: #0f172a;
   border: none;
   color: #ffffff;
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 700;
   display: flex;
   align-items: center;
