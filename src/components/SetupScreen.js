@@ -1,37 +1,43 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderAuthLandingScreen(overrideMode = null) {
-  let isRegisterSetup = false;
-  const effectiveMode = overrideMode || window.currentAuthTab;
+  let authMode = 'login';
+  const effectiveMode = overrideMode || (typeof window !== 'undefined' ? window.currentAuthTab : null);
 
-  if (typeof window !== 'undefined' && (window.location.hash === '#login' || window.location.search.includes('auth=login'))) {
-    isRegisterSetup = false;
-  } else if (typeof window !== 'undefined' && (window.location.hash === '#register' || window.location.hash === '#setup' || window.location.search.includes('auth=register'))) {
-    isRegisterSetup = true;
+  if (effectiveMode === 'forgot') {
+    authMode = 'forgot';
   } else if (effectiveMode === 'setup' || effectiveMode === 'register') {
-    isRegisterSetup = true;
+    authMode = 'register';
   } else if (effectiveMode === 'login') {
-    isRegisterSetup = false;
-  } else if (window.forceRegisterMode) {
-    isRegisterSetup = true;
+    authMode = 'login';
+  } else if (typeof window !== 'undefined' && (window.location.hash.startsWith('#forgot') || window.location.search.includes('auth=forgot'))) {
+    authMode = 'forgot';
+  } else if (typeof window !== 'undefined' && (window.location.hash.startsWith('#register') || window.location.hash === '#setup' || window.location.search.includes('auth=register'))) {
+    authMode = 'register';
+  } else if (typeof window !== 'undefined' && (window.location.hash.startsWith('#login') || window.location.search.includes('auth=login'))) {
+    authMode = 'login';
+  } else if (typeof window !== 'undefined' && window.forceRegisterMode) {
+    authMode = 'register';
   } else {
     const hasUsers = Array.isArray(store.loginUsers) && store.loginUsers.length > 0;
-    isRegisterSetup = !hasUsers;
+    authMode = hasUsers ? 'login' : 'register';
   }
 
-  const currentHour = new Date().getHours();
-  let greeting = "Good Morning!";
-  if (currentHour >= 12 && currentHour < 17) {
-    greeting = "Good Afternoon!";
-  } else if (currentHour >= 17) {
-    greeting = "Good Evening!";
+  let pageTitle = 'Welcome Back';
+  let pageSubtitle = 'Enter your email and password to access your account.';
+  if (authMode === 'register') {
+    pageTitle = 'Create Account';
+    pageSubtitle = 'Enter your details to create your organization account.';
+  } else if (authMode === 'forgot') {
+    pageTitle = 'Reset Password';
+    pageSubtitle = 'Enter your registered email to receive a password reset code.';
   }
 
   return `
     <div class="welcome-setup-container">
       <div class="welcome-setup-card">
         <!-- LEFT PANEL: AUTH FORM (Matches Reference Design) -->
-        <div class="welcome-auth-pane ${isRegisterSetup ? 'auth-mode-register' : 'auth-mode-login'}">
+        <div class="welcome-auth-pane auth-mode-${authMode}">
           <!-- Top-Left Brand Logo & Name -->
           <div class="welcome-brand-header">
             <div class="welcome-logo-badge">
@@ -43,16 +49,11 @@ export function renderAuthLandingScreen(overrideMode = null) {
           <!-- Centered Auth Form Box -->
           <div class="auth-pane-content">
             <div class="auth-header-section">
-              <h1 class="welcome-title">${isRegisterSetup ? 'Create Account' : 'Welcome Back'}</h1>
-              <p class="welcome-subtitle">
-                ${isRegisterSetup
-                  ? 'Enter your details to create your organization account.'
-                  : 'Enter your email and password to access your account.'
-                }
-              </p>
+              <h1 class="welcome-title">${pageTitle}</h1>
+              <p class="welcome-subtitle">${pageSubtitle}</p>
             </div>
 
-            ${isRegisterSetup ? `
+            ${authMode === 'register' ? `
               <!-- CREATE NEW BUSINESS / ORGANIZATION ACCOUNT -->
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
@@ -79,7 +80,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
                     <label class="form-label">Phone *</label>
                     <div class="auth-input-wrap">
                       <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                       </svg>
                       <input type="tel" class="auth-field" id="setupPhoneInput" placeholder="Phone number" required />
                     </div>
@@ -142,6 +143,80 @@ export function renderAuthLandingScreen(overrideMode = null) {
                   Already Have An Account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Sign In.</button>
                 </p>
               </form>
+            ` : authMode === 'forgot' ? `
+              <!-- FORGOT / RESET PASSWORD FORM -->
+              <form onsubmit="event.preventDefault(); submitForgotPassword();" class="welcome-setup-form auth-forgot-form" id="forgotPasswordForm">
+                <div class="form-group">
+                  <label class="form-label">Registered Email Address *</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                    <input type="email" class="auth-field" id="forgotEmailInput" placeholder="name@cellarpos.com" required />
+                  </div>
+                </div>
+
+                <div id="forgotStep2Area" style="display:${(typeof window !== 'undefined' && (window.location.hash.includes('step2') || window.location.search.includes('step=2'))) ? 'flex' : 'none'}; flex-direction:column; gap:10px;">
+                  <div class="form-group">
+                    <label class="form-label">Verification Code *</label>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                      <input type="text" inputmode="numeric" autocomplete="one-time-code" class="auth-field" id="resetCodeInput" placeholder="6-digit code from email" style="letter-spacing:2px; font-weight:700;" />
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">New Password *</label>
+                      <div class="auth-input-wrap">
+                        <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <input type="password" class="auth-field" id="resetNewPasswordInput" placeholder="Min. 8 characters" oninput="window.updatePasswordStrengthBars(this.value, 'forgotStrengthBars', 'forgotStrengthLabel')" />
+                        <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('resetNewPasswordInput')" title="Toggle Password Visibility">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Confirm Password *</label>
+                      <div class="auth-input-wrap">
+                        <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <input type="password" class="auth-field" id="resetConfirmPasswordInput" placeholder="Confirm password" />
+                        <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('resetConfirmPasswordInput')" title="Toggle Password Visibility">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="auth-strength-container">
+                    <div class="auth-password-bars" id="forgotStrengthBars">
+                      <span class="auth-bar"></span>
+                      <span class="auth-bar"></span>
+                      <span class="auth-bar"></span>
+                      <span class="auth-bar"></span>
+                    </div>
+                    <div class="auth-strength-info">
+                      <span id="forgotStrengthLabel" class="strength-label">At least 8 characters with letters & numbers</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="forgotModalMsg" class="setup-error-msg" style="min-height: 18px;"></div>
+
+                <button type="submit" class="welcome-submit-btn" id="submitForgotBtn">
+                  <span>${(typeof window !== 'undefined' && (window.location.hash.includes('step2') || window.location.search.includes('step=2'))) ? 'Update Password' : 'Send Reset Code'}</span>
+                </button>
+
+                <p class="auth-switch-footer">
+                  Remember your password? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Back to Log In.</button>
+                </p>
+              </form>
             ` : `
               <!-- UNIFIED SIGN IN FORM -->
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
@@ -173,7 +248,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
                     <input type="checkbox" id="loginRememberMe" checked />
                     <span>Remember Me</span>
                   </label>
-                  <button type="button" onclick="openForgotPasswordModal()" class="auth-forgot-link">
+                  <button type="button" onclick="switchAuthMode('forgot')" class="auth-forgot-link">
                     Forgot Your Password?
                   </button>
                 </div>

@@ -612,12 +612,22 @@ function bindEvents() {
     window.currentAuthTab = mode;
     if (mode === 'setup' || mode === 'register') {
       window.forceRegisterMode = true;
+      try { window.history.replaceState(null, '', '#register'); } catch(e) {}
+    } else if (mode === 'forgot') {
+      window.forceRegisterMode = false;
+      try { window.history.replaceState(null, '', '#forgot'); } catch(e) {}
     } else {
       window.forceRegisterMode = false;
+      try { window.history.replaceState(null, '', '#login'); } catch(e) {}
     }
     const root = document.getElementById('app-root');
     if (root) {
-      root.innerHTML = renderAuthLandingScreen(mode);
+      root.innerHTML = `
+        ${renderAuthLandingScreen(mode)}
+        <div id="modals-root">
+          ${renderForgotPasswordModal()}
+        </div>
+      `;
       bindEvents();
     }
   };
@@ -634,11 +644,13 @@ function bindEvents() {
     }
   };
 
-  window.updatePasswordStrengthBars = (val, containerId) => {
+  window.updatePasswordStrengthBars = (val, containerId, labelId = null) => {
     const container = document.getElementById(containerId);
     if (!container) return;
     const bars = container.querySelectorAll('.auth-bar');
-    const label = document.getElementById('setupStrengthLabel');
+    const label = (labelId && document.getElementById(labelId)) || 
+                  container.parentElement?.querySelector('.strength-label') || 
+                  document.getElementById('setupStrengthLabel');
     if (!bars.length) return;
 
     const value = val || '';
@@ -771,6 +783,10 @@ function bindEvents() {
   };
 
   window.openForgotPasswordModal = () => {
+    if (!store.currentUser || !store.currentUser.id) {
+      window.switchAuthMode('forgot');
+      return;
+    }
     const emailIn = document.getElementById('loginEmailInput');
     const forgotEmail = document.getElementById('forgotEmailInput');
     const msg = document.getElementById('forgotModalMsg');
@@ -784,7 +800,7 @@ function bindEvents() {
     if (step2) step2.style.display = 'none';
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Send Reset Code';
+      submitBtn.innerHTML = '<span>Send Reset Code</span>';
       submitBtn.onclick = () => window.submitForgotPassword();
     }
     window.openModal('forgotPasswordModal');
@@ -799,13 +815,13 @@ function bindEvents() {
     if (!email) {
       if (msg) {
         msg.style.color = '#ef4444';
-        msg.textContent = 'Please enter your email address.';
+        msg.textContent = 'Please enter your registered email address.';
       }
       return;
     }
 
     if (msg) {
-      msg.style.color = '#6366f1';
+      msg.style.color = '#2563eb';
       msg.textContent = 'Sending one-time reset code...';
     }
     if (submitBtn) submitBtn.disabled = true;
@@ -823,13 +839,20 @@ function bindEvents() {
 
       if (msg) {
         msg.style.color = '#10b981';
-        msg.textContent = '✅ A one-time reset code was sent to your email. Enter the code and your new password below.';
+        msg.textContent = '✅ Reset code sent! Enter the 6-digit code and choose a new password below.';
       }
       if (step2) step2.style.display = 'flex';
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Update Password';
+        submitBtn.innerHTML = '<span>Update Password</span>';
         submitBtn.onclick = () => window.submitResetPasswordDirect();
+      }
+      const forgotForm = document.getElementById('forgotPasswordForm');
+      if (forgotForm) {
+        forgotForm.onsubmit = (e) => {
+          e.preventDefault();
+          window.submitResetPasswordDirect();
+        };
       }
     } catch (e) {
       if (submitBtn) submitBtn.disabled = false;
@@ -851,14 +874,17 @@ function bindEvents() {
     if (!resetCode) {
       if (msg) {
         msg.style.color = '#ef4444';
-        msg.textContent = 'Please enter the reset code sent to your email.';
+        msg.textContent = 'Please enter the 6-digit reset code sent to your email.';
       }
       return;
     }
-    if (!newPassword || newPassword.length < 4) {
+
+    const hasLetters = /[a-zA-Z]/.test(newPassword || '');
+    const hasNumbers = /[0-9]/.test(newPassword || '');
+    if (!newPassword || newPassword.length < 8 || !hasLetters || !hasNumbers) {
       if (msg) {
         msg.style.color = '#ef4444';
-        msg.textContent = 'Password must be at least 4 characters.';
+        msg.textContent = 'Password must be at least 8 characters and include both letters and numbers.';
       }
       return;
     }
@@ -871,8 +897,8 @@ function bindEvents() {
     }
 
     if (msg) {
-      msg.style.color = '#6366f1';
-      msg.textContent = 'Updating password in Supabase Auth & database...';
+      msg.style.color = '#2563eb';
+      msg.textContent = 'Updating your password...';
     }
     if (submitBtn) submitBtn.disabled = true;
 
@@ -887,10 +913,22 @@ function bindEvents() {
         throw new Error(data.error || `Failed to reset password (HTTP ${res.status}).`);
       }
 
-      alert('Password reset successfully! You can now sign in with your new password.');
-      window.closeModal('forgotPasswordModal');
-      const loginPassInput = document.getElementById('loginPasswordInput');
-      if (loginPassInput) loginPassInput.value = newPassword;
+      if (msg) {
+        msg.style.color = '#10b981';
+        msg.textContent = '✅ Password reset successfully! Redirecting to login...';
+      }
+      if (typeof window.closeModal === 'function') {
+        try { window.closeModal('forgotPasswordModal'); } catch (e) {}
+      }
+      setTimeout(() => {
+        if (window.switchAuthMode) {
+          window.switchAuthMode('login');
+          const loginEmailInput = document.getElementById('loginEmailInput');
+          const loginPassInput = document.getElementById('loginPasswordInput');
+          if (loginEmailInput && email) loginEmailInput.value = email;
+          if (loginPassInput && newPassword) loginPassInput.value = newPassword;
+        }
+      }, 1200);
     } catch (e) {
       if (submitBtn) submitBtn.disabled = false;
       if (msg) {

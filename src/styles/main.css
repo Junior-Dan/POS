@@ -2532,6 +2532,14 @@ svg.icon-lg { width: 24px; height: 24px; }
   margin-bottom: 28px;
 }
 
+.auth-mode-forgot .welcome-setup-form {
+  gap: 16px;
+}
+
+.auth-mode-forgot .auth-header-section {
+  margin-bottom: 24px;
+}
+
 @media (max-height: 720px) {
   .hero-mockup-stage {
     height: 390px;
