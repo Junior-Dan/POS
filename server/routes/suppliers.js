@@ -7,9 +7,9 @@ router.use(authenticateSession);
 router.use(requireRole('owner', 'manager', 'inventory_officer'));
 
 // GET suppliers
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const suppliers = db.prepare('SELECT * FROM suppliers WHERE active = 1 AND organization_id = ? ORDER BY name ASC').all(req.authUser.organizationId);
+    const suppliers = await db.prepare('SELECT * FROM suppliers WHERE active = 1 AND organization_id = ? ORDER BY name ASC').all(req.authUser.organizationId);
     res.json(suppliers.map(s => ({
       id: s.id,
       name: s.name,
@@ -24,19 +24,19 @@ router.get('/', (req, res) => {
 });
 
 // POST Create supplier
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, contactPerson, phone, email, address } = req.body;
   if (!name) return res.status(400).json({ error: "Supplier name is required." });
 
   const id = `SUP-${Date.now()}`;
   const orgId = req.authUser.organizationId;
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO suppliers (id, organization_id, name, contact_person, phone, email, address, active)
       VALUES (?, ?, ?, ?, ?, ?, ?, 1)
     `).run(id, orgId, name, contactPerson || null, phone || null, email || null, address || null);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Create Supplier', ?, '-', 'Active', 'New supplier registered')
     `).run(`AUD-${Date.now()}`, orgId, req.authUser.name, req.authUser.role, req.authUser.branchId || '-', name);
@@ -48,16 +48,16 @@ router.post('/', (req, res) => {
 });
 
 // PUT Update supplier
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { name, contactPerson, phone, email, address } = req.body;
 
   const orgId = req.authUser.organizationId;
   try {
-    const existing = db.prepare('SELECT * FROM suppliers WHERE id = ? AND organization_id = ?').get(id, orgId);
+    const existing = await db.prepare('SELECT * FROM suppliers WHERE id = ? AND organization_id = ?').get(id, orgId);
     if (!existing) return res.status(404).json({ error: "Supplier not found" });
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE suppliers
       SET name = COALESCE(?, name),
           contact_person = COALESCE(?, contact_person),

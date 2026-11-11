@@ -4,19 +4,31 @@ import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { SCHEMA_STATEMENTS } from './schema.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let __dirname = '';
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  __dirname = path.dirname(__filename);
+} catch (e) {
+  __dirname = '/';
+}
 
 let databasePath;
 if (process.env.CELLAR_DB_PATH) {
   databasePath = path.resolve(process.env.CELLAR_DB_PATH);
 } else if (process.env.VERCEL) {
   databasePath = '/tmp/cellar_pos.db';
-} else {
+} else if (__dirname) {
   databasePath = path.join(__dirname, '../data/cellar_pos.db');
+} else {
+  databasePath = '/tmp/cellar_pos.db';
 }
 
-const sqliteBinary = fs.existsSync('/usr/bin/sqlite3') ? '/usr/bin/sqlite3' : 'sqlite3';
+let sqliteBinary = 'sqlite3';
+try {
+  if (typeof fs.existsSync === 'function' && fs.existsSync('/usr/bin/sqlite3')) {
+    sqliteBinary = '/usr/bin/sqlite3';
+  }
+} catch (e) {}
 
 function sqlValue(value) {
   if (value === null || value === undefined) return 'NULL';
@@ -45,116 +57,91 @@ function bind(sql, params) {
 
 const FETCH_TIMEOUT_MS = 8000;
 
-// Turso Child Script runner
-const TURSO_CHILD_SCRIPT = `
-  const [endpoint, token, body] = process.argv.slice(1);
-  fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-    body,
-    signal: AbortSignal.timeout(${FETCH_TIMEOUT_MS})
-  }).then(r => r.text())
-    .then(t => { process.stdout.write(t); })
-    .catch(e => { process.stdout.write(JSON.stringify({ __fetchError: e.message })); });
-`;
-
-// Supabase Child Script runner
-const SUPABASE_CHILD_SCRIPT = `
-  const [endpoint, key, query] = process.argv.slice(1);
-  fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': key,
-      'Authorization': 'Bearer ' + key
-    },
-    body: JSON.stringify({ query }),
-    signal: AbortSignal.timeout(${FETCH_TIMEOUT_MS})
-  }).then(r => r.text())
-    .then(t => { process.stdout.write(t); })
-    .catch(e => { process.stdout.write(JSON.stringify({ __fetchError: e.message })); });
-`;
-
-function sleepSync(ms) {
-  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (e) {}
-}
-
-function runTursoPipeline(endpoint, token, payload, label) {
+async function runTursoPipeline(endpoint, token, payload, label) {
   const maxAttempts = 2;
   let lastErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let output;
     try {
-      output = execFileSync(process.execPath, ['-e', TURSO_CHILD_SCRIPT, endpoint, token, payload], {
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024,
-        timeout: FETCH_TIMEOUT_MS + 2000,
-        killSignal: 'SIGKILL'
-      }).trim();
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: payload,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      });
+      const text = await res.text();
+      if (!text) return null;
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`${label} returned an unparseable response: ${text.slice(0, 200)}`);
+      }
+      if (parsed.__fetchError) {
+        lastErr = new Error(`${label} fetch error: ${parsed.__fetchError}`);
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, 300 * attempt));
+          continue;
+        }
+        throw lastErr;
+      }
+      return parsed;
     } catch (err) {
-      lastErr = new Error(`${label} failed (network/child): ${err.message}`);
-      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
+      lastErr = new Error(`${label} failed: ${err.message}`);
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 300 * attempt));
+        continue;
+      }
       throw lastErr;
     }
-
-    if (!output) return null;
-
-    let res;
-    try {
-      res = JSON.parse(output);
-    } catch (e) {
-      throw new Error(`${label} returned an unparseable response: ${output.slice(0, 200)}`);
-    }
-
-    if (res.__fetchError) {
-      lastErr = new Error(`${label} fetch error: ${res.__fetchError}`);
-      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
-      throw lastErr;
-    }
-
-    return res;
   }
   throw lastErr;
 }
 
-function runSupabaseQuery(endpoint, key, query, label) {
+async function runSupabaseQuery(endpoint, key, query, label) {
   const maxAttempts = 2;
   let lastErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let output;
     try {
-      output = execFileSync(process.execPath, ['-e', SUPABASE_CHILD_SCRIPT, endpoint, key, query], {
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024,
-        timeout: FETCH_TIMEOUT_MS + 2000,
-        killSignal: 'SIGKILL'
-      }).trim();
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': key,
+          'Authorization': 'Bearer ' + key
+        },
+        body: JSON.stringify({ query }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      });
+      const text = await res.text();
+      let parsed = [];
+      try {
+        parsed = text ? JSON.parse(text) : [];
+      } catch (e) {
+        throw new Error(`${label} returned non-JSON output: ${text.slice(0, 200)}`);
+      }
+      if (parsed && parsed.__fetchError) {
+        lastErr = new Error(`${label} fetch error: ${parsed.__fetchError}`);
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, 300 * attempt));
+          continue;
+        }
+        throw lastErr;
+      }
+      if (parsed && parsed.error) {
+        throw new Error(`Supabase SQL error: ${parsed.error}`);
+      }
+      return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
     } catch (err) {
-      lastErr = new Error(`${label} failed (network/child): ${err.message}`);
-      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
+      lastErr = new Error(`${label} failed: ${err.message}`);
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 300 * attempt));
+        continue;
+      }
       throw lastErr;
     }
-
-    if (!output) return [];
-
-    let res;
-    try {
-      res = JSON.parse(output);
-    } catch (e) {
-      throw new Error(`${label} returned non-JSON output: ${output.slice(0, 200)}`);
-    }
-
-    if (res && res.__fetchError) {
-      lastErr = new Error(`${label} fetch error: ${res.__fetchError}`);
-      if (attempt < maxAttempts) { sleepSync(300 * attempt); continue; }
-      throw lastErr;
-    }
-
-    if (res && res.error) {
-      throw new Error(`Supabase SQL error: ${res.error}`);
-    }
-
-    return Array.isArray(res) ? res : (res ? [res] : []);
   }
   throw lastErr;
 }
@@ -177,6 +164,7 @@ class DatabaseAdapter {
   }
 
   get isSupabase() {
+    if (process.env.USE_LOCAL_DB === '1' || process.env.USE_LOCAL_DB === 'true') return false;
     const key = this.supabaseKey;
     return !!(this.supabaseUrl && key && key.trim() !== '' && !key.includes('your_secret'));
   }
@@ -190,6 +178,7 @@ class DatabaseAdapter {
   }
 
   get isTurso() {
+    if (process.env.USE_LOCAL_DB === '1' || process.env.USE_LOCAL_DB === 'true') return false;
     const token = this.tursoToken;
     return !!(this.tursoUrl && token && !token.includes('your_turso') && token.trim() !== '');
   }
@@ -198,14 +187,11 @@ class DatabaseAdapter {
     return this.transactionFile || this.filePath;
   }
 
-  _executeSupabase(sql, json = false) {
+  async _executeSupabase(sql, json = false) {
     // Adapt SQLite-specific syntax for PostgreSQL compatibility
     let pgSql = sql;
 
     // SQLite's DATETIME type does not exist in PostgreSQL -> use TIMESTAMP.
-    // Word-boundary + case-insensitive so only the type keyword is rewritten
-    // (never a column/identifier that merely contains the substring). Supabase
-    // path only; the SQLite/Turso paths keep the original SQL untouched.
     pgSql = pgSql.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
 
     // Convert SQLite PRAGMA statements (ignore on Postgres)
@@ -222,10 +208,10 @@ class DatabaseAdapter {
     }
 
     const endpoint = `${this.supabaseUrl}/rest/v1/rpc/exec_sql`;
-    return runSupabaseQuery(endpoint, this.supabaseKey, pgSql, 'Supabase request');
+    return await runSupabaseQuery(endpoint, this.supabaseKey, pgSql, 'Supabase request');
   }
 
-  _executeTurso(sql, json = false) {
+  async _executeTurso(sql, json = false) {
     const endpoint = this.tursoUrl
       .replace(/^libsql:\/\//, 'https://')
       .replace(/\/$/, '') + '/v2/pipeline';
@@ -237,7 +223,7 @@ class DatabaseAdapter {
       ]
     });
 
-    const res = runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso request');
+    const res = await runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso request');
     if (!res) return [];
 
     const first = res.results?.[0];
@@ -262,6 +248,7 @@ class DatabaseAdapter {
 
   _executeSqlite(sql, json = false) {
     try {
+      if (typeof execFileSync !== 'function' || !fs.existsSync) return [];
       const args = json ? ['-json', '-batch', this.activePath, sql] : ['-batch', this.activePath, sql];
       const output = execFileSync(sqliteBinary, args, { encoding: 'utf8' }).trim();
       return json && output ? JSON.parse(output) : [];
@@ -271,36 +258,39 @@ class DatabaseAdapter {
     }
   }
 
-  _execute(sql, json = false) {
+  async _execute(sql, json = false) {
     if (this.isSupabase) {
-      return this._executeSupabase(sql, json);
+      return await this._executeSupabase(sql, json);
     }
     if (this.isTurso) {
-      return this._executeTurso(sql, json);
+      return await this._executeTurso(sql, json);
     }
     return this._executeSqlite(sql, json);
   }
 
   prepare(sql) {
     return {
-      all: (...params) => this._execute(bind(sql, params), true),
-      get: (...params) => this._execute(bind(sql, params), true)[0] || null,
-      run: (...params) => {
-        this._execute(bind(sql, params));
+      all: async (...params) => await this._execute(bind(sql, params), true),
+      get: async (...params) => {
+        const rows = await this._execute(bind(sql, params), true);
+        return rows && rows[0] ? rows[0] : null;
+      },
+      run: async (...params) => {
+        await this._execute(bind(sql, params));
         return { changes: 1 };
       }
     };
   }
 
-  exec(sql) {
-    this._execute(sql);
+  async exec(sql) {
+    await this._execute(sql);
   }
 
-  execBatch(statements) {
+  async execBatch(statements) {
     if (!Array.isArray(statements) || statements.length === 0) return;
     if (this.isSupabase) {
       for (const stmt of statements) {
-        try { this._execute(stmt); } catch (e) { console.warn("Supabase batch item notice:", e.message); }
+        try { await this._execute(stmt); } catch (e) { console.warn("Supabase batch item notice:", e.message); }
       }
       return;
     }
@@ -312,40 +302,46 @@ class DatabaseAdapter {
           { type: 'close' }
         ]
       });
-      const res = runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso batch');
+      const res = await runTursoPipeline(endpoint, this.tursoToken, payload, 'Turso batch');
       if (res) {
         const errored = (res.results || []).find(r => r?.type === 'error' || r?.error);
         if (errored) throw new Error(`Turso batch SQL error: ${errored.error?.message || errored.message}`);
       }
       return;
     }
-    this._execute(statements.map(s => s.trim().replace(/;+$/, '')).join(';\n') + ';');
+    await this._execute(statements.map(s => s.trim().replace(/;+$/, '')).join(';\n') + ';');
   }
 
   pragma(value) {
     if (!this.isTurso && !this.isSupabase) {
-      this._execute(`PRAGMA ${value}`);
+      this._executeSqlite(`PRAGMA ${value}`);
     }
   }
 
   transaction(fn) {
-    return (...args) => {
+    return async (...args) => {
       if (this.isTurso || this.isSupabase) {
-        return fn(...args);
+        return await fn(...args);
       }
-      if (this.transactionFile) return fn(...args);
+      if (this.transactionFile || typeof fs.existsSync !== 'function') return await fn(...args);
 
-      const transactionFile = `${this.filePath}.transaction-${process.pid}`;
-      if (fs.existsSync(transactionFile)) fs.unlinkSync(transactionFile);
-      fs.copyFileSync(this.filePath, transactionFile);
-      this.transactionFile = transactionFile;
+      const transactionFile = `${this.filePath}.transaction-${process.pid || 'cf'}`;
+      try {
+        if (fs.existsSync(transactionFile)) fs.unlinkSync(transactionFile);
+        fs.copyFileSync(this.filePath, transactionFile);
+        this.transactionFile = transactionFile;
+      } catch (e) {}
 
       try {
-        const result = fn(...args);
-        fs.renameSync(transactionFile, this.filePath);
+        const result = await fn(...args);
+        try {
+          if (fs.existsSync(transactionFile)) fs.renameSync(transactionFile, this.filePath);
+        } catch (e) {}
         return result;
       } catch (error) {
-        if (fs.existsSync(transactionFile)) fs.unlinkSync(transactionFile);
+        try {
+          if (fs.existsSync(transactionFile)) fs.unlinkSync(transactionFile);
+        } catch (e) {}
         throw error;
       } finally {
         this.transactionFile = null;
@@ -356,61 +352,63 @@ class DatabaseAdapter {
 
 export const db = new DatabaseAdapter(databasePath);
 
-export function initDb() {
+export async function initDb() {
   if (db.isSupabase) {
     console.log(`Supabase Cloud PostgreSQL database engine active: ${db.supabaseUrl}`);
     // Attempt schema batch creation
     try {
-      db.execBatch(SCHEMA_STATEMENTS);
+      await db.execBatch(SCHEMA_STATEMENTS);
     } catch (e) {
       console.warn("Supabase schema init notice:", e.message);
     }
-    runTenantMigration();
+    await runTenantMigration();
     return;
   }
 
   if (db.isTurso) {
     console.log(`Turso Cloud database engine active: ${db.tursoUrl}`);
-    db.execBatch(SCHEMA_STATEMENTS);
-    runTenantMigration();
+    await db.execBatch(SCHEMA_STATEMENTS);
+    await runTenantMigration();
     return;
   }
 
-  if (!fs.existsSync(databasePath)) {
-    try { fs.writeFileSync(databasePath, ''); } catch (e) {
-      throw new Error(`SQLite database is missing and could not be created: ${databasePath}`);
+  if (typeof fs.existsSync === 'function') {
+    if (!fs.existsSync(databasePath)) {
+      try { fs.writeFileSync(databasePath, ''); } catch (e) {
+        throw new Error(`SQLite database is missing and could not be created: ${databasePath}`);
+      }
     }
   }
-  db.exec('PRAGMA foreign_keys = ON; PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;');
-  db.execBatch(SCHEMA_STATEMENTS);
+  await db.exec('PRAGMA foreign_keys = ON; PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;');
+  await db.execBatch(SCHEMA_STATEMENTS);
 
-  const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  const userColumns = (await db.prepare('PRAGMA table_info(users)').all()).map(c => c.name);
   if (!userColumns.includes('organization_id')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT;'); } catch (e) {}
   }
   if (!userColumns.includes('branch_id')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT;'); } catch (e) {}
   }
   if (!userColumns.includes('phone')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN phone TEXT;'); } catch (e) {}
   }
   if (!userColumns.includes('status')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE';"); } catch (e) {}
+    try { await db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE';"); } catch (e) {}
   }
   if (!userColumns.includes('created_by')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN created_by TEXT;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN created_by TEXT;'); } catch (e) {}
   }
   if (!userColumns.includes('pin_hash')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT;'); } catch (e) {}
   }
   if (!userColumns.includes('password_hash')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;'); } catch (e) {}
   }
   if (!userColumns.includes('updated_at')) {
-    try { db.exec('ALTER TABLE users ADD COLUMN updated_at DATETIME;'); } catch (e) {}
+    try { await db.exec('ALTER TABLE users ADD COLUMN updated_at DATETIME;'); } catch (e) {}
   }
 
-  runTenantMigration();
+  await runTenantMigration();
   console.log(`SQLite database engine active: ${databasePath}`);
 }
 
@@ -420,40 +418,40 @@ const TENANT_TABLES = [
   'expenses', 'audit_logs', 'payments', 'categories'
 ];
 
-function runTenantMigration() {
+async function runTenantMigration() {
   const MIGRATION_VERSION = '7';
   let current = null;
   try {
-    const row = db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
+    const row = await db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
     current = row ? row.value : null;
   } catch (e) {}
 
-  try { db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN organization_id TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT'); } catch (e) {}
   // v7: expenses become branch-owned.
-  try { db.exec('ALTER TABLE expenses ADD COLUMN branch_id TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE expenses ADD COLUMN branch_id TEXT'); } catch (e) {}
 
   if (current === MIGRATION_VERSION) return;
 
   for (const t of TENANT_TABLES) {
-    try { db.exec(`ALTER TABLE ${t} ADD COLUMN organization_id TEXT`); } catch (e) {}
+    try { await db.exec(`ALTER TABLE ${t} ADD COLUMN organization_id TEXT`); } catch (e) {}
   }
 
   let orgId = null;
   try {
-    const org = db.prepare('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').get();
+    const org = await db.prepare('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').get();
     orgId = org ? org.id : null;
   } catch (e) {}
   if (orgId) {
     const safeOrg = String(orgId).replaceAll("'", "''");
     for (const t of TENANT_TABLES) {
-      try { db.exec(`UPDATE ${t} SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
+      try { await db.exec(`UPDATE ${t} SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
     }
-    try { db.exec(`UPDATE users SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
-    try { db.exec(`UPDATE branches SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
+    try { await db.exec(`UPDATE users SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
+    try { await db.exec(`UPDATE branches SET organization_id = '${safeOrg}' WHERE organization_id IS NULL`); } catch (e) {}
 
     const LEGACY_SETTING_KEYS = [
       'businessProfile', 'branches', 'paymentSettings', 'receiptSettings',
@@ -461,68 +459,55 @@ function runTenantMigration() {
     ];
     for (const k of LEGACY_SETTING_KEYS) {
       try {
-        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(k);
+        const row = await db.prepare('SELECT value FROM settings WHERE key = ?').get(k);
         if (row && row.value !== undefined && row.value !== null) {
-          db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`${orgId}::${k}`, row.value);
-          db.prepare('DELETE FROM settings WHERE key = ?').run(k);
+          await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`${orgId}::${k}`, row.value);
+          await db.prepare('DELETE FROM settings WHERE key = ?').run(k);
         }
       } catch (e) {}
     }
   }
 
-  // --- v6: per-branch inventory -------------------------------------------
-  // Additive & idempotent. Adds stock_movements.branch_id, then seeds
-  // product_branch_stock from each product's existing current_stock against
-  // that organization's PRIMARY branch — so all existing quantities are
-  // preserved and attributed to the branch they already (implicitly) belonged
-  // to. SELECT-before-INSERT keeps it safe to re-run and portable across SQLite
-  // / Turso / Supabase (no INSERT OR IGNORE / ON CONFLICT reliance).
-  try { db.exec('ALTER TABLE stock_movements ADD COLUMN branch_id TEXT'); } catch (e) {}
+  try { await db.exec('ALTER TABLE stock_movements ADD COLUMN branch_id TEXT'); } catch (e) {}
 
   let allOrgs = [];
-  try { allOrgs = db.prepare('SELECT id FROM organizations').all() || []; } catch (e) {}
+  try { allOrgs = (await db.prepare('SELECT id FROM organizations').all()) || []; } catch (e) {}
 
   for (const org of allOrgs) {
     const oid = org.id;
     if (!oid) continue;
 
-    // Primary branch for this org = earliest-created branch.
     let primary = null;
-    try { primary = db.prepare('SELECT id FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(oid); } catch (e) {}
-    if (!primary || !primary.id) continue; // no branch yet -> leave stock as-is (safe)
+    try { primary = await db.prepare('SELECT id FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(oid); } catch (e) {}
+    if (!primary || !primary.id) continue;
     const branchId = primary.id;
 
     let prods = [];
-    try { prods = db.prepare('SELECT id, current_stock, min_stock, reorder_level FROM products WHERE organization_id = ?').all(oid) || []; } catch (e) {}
+    try { prods = (await db.prepare('SELECT id, current_stock, min_stock, reorder_level FROM products WHERE organization_id = ?').all(oid)) || []; } catch (e) {}
 
     for (const p of prods) {
       let exists = null;
-      try { exists = db.prepare('SELECT id FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(oid, p.id, branchId); } catch (e) {}
-      if (exists) continue; // already seeded -> idempotent skip
+      try { exists = await db.prepare('SELECT id FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(oid, p.id, branchId); } catch (e) {}
+      if (exists) continue;
       const pbsId = `PBS-${p.id}-${branchId}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 120);
       try {
-        db.prepare(`INSERT INTO product_branch_stock (id, organization_id, product_id, branch_id, current_stock, min_stock, reorder_level)
+        await db.prepare(`INSERT INTO product_branch_stock (id, organization_id, product_id, branch_id, current_stock, min_stock, reorder_level)
                     VALUES (?, ?, ?, ?, ?, ?, ?)`)
           .run(pbsId, oid, p.id, branchId, p.current_stock || 0, p.min_stock || 5, p.reorder_level || 10);
       } catch (e) {}
     }
 
-    // --- v7: remap legacy branch ids on EVERY branch-owned table ----------
-    // Existing single-branch data may carry branch_id NULL / '' / 'B1' (the old
-    // schema default). Remap those to the real primary branch so the records do
-    // NOT disappear once branch filtering is enforced. Rows already bound to a
-    // real branch are left untouched. Idempotent (re-running changes nothing).
     const safeOid = String(oid).replaceAll("'", "''");
     const safeBranch = String(branchId).replaceAll("'", "''");
     const LEGACY = `(branch_id IS NULL OR branch_id = '' OR branch_id = 'B1')`;
     for (const t of ['stock_movements', 'sales', 'shifts', 'purchases', 'audit_logs', 'expenses']) {
       try {
-        db.exec(`UPDATE ${t} SET branch_id = '${safeBranch}' WHERE organization_id = '${safeOid}' AND ${LEGACY}`);
+        await db.exec(`UPDATE ${t} SET branch_id = '${safeBranch}' WHERE organization_id = '${safeOid}' AND ${LEGACY}`);
       } catch (e) {}
     }
   }
 
   try {
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('__schema_v', ?)").run(MIGRATION_VERSION);
+    await db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('__schema_v', ?)").run(MIGRATION_VERSION);
   } catch (e) {}
 }

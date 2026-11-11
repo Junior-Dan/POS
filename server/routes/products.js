@@ -15,7 +15,7 @@ router.use((req, res, next) => {
 });
 
 // GET all active products
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category, search, activeOnly } = req.query;
     const orgId = req.authUser.organizationId;
@@ -32,9 +32,9 @@ router.get('/', (req, res) => {
       viewBranch = req.authUser.branchId || null;
     } else {
       const requested = req.query.branch;
-      viewBranch = (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested))
+      viewBranch = (requested && requested !== 'ALL' && (await branchExists(orgId, requested)) && canAccessBranch(req.authUser, requested))
         ? requested
-        : primaryBranchId(orgId);
+        : (await primaryBranchId(orgId));
     }
 
     let sql = `
@@ -77,13 +77,13 @@ router.get('/', (req, res) => {
 
     sql += ' ORDER BY p.name ASC';
 
-    const products = db.prepare(sql).all(...params);
+    const products = await db.prepare(sql).all(...params);
 
     // When viewing a specific branch, overlay that branch's stock / min / reorder.
     let branchStockMap = null;
     if (viewBranch) {
       branchStockMap = {};
-      const rows = db.prepare('SELECT product_id, current_stock, min_stock, reorder_level FROM product_branch_stock WHERE organization_id = ? AND branch_id = ?').all(orgId, viewBranch);
+      const rows = await db.prepare('SELECT product_id, current_stock, min_stock, reorder_level FROM product_branch_stock WHERE organization_id = ? AND branch_id = ?').all(orgId, viewBranch);
       for (const r of rows) branchStockMap[r.product_id] = r;
     }
 
@@ -136,11 +136,11 @@ router.get('/', (req, res) => {
 });
 
 // GET product by Barcode or SKU or ID
-router.get('/lookup/:query', (req, res) => {
+router.get('/lookup/:query', async (req, res) => {
   const { query } = req.params;
   const orgId = req.authUser.organizationId;
   try {
-    const product = db.prepare(`
+    const product = await db.prepare(`
       SELECT p.*, s.name as supplier_name
       FROM products p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
@@ -161,14 +161,14 @@ router.get('/lookup/:query', (req, res) => {
       viewBranch = req.authUser.branchId || null;
     } else {
       const requested = req.query.branch;
-      viewBranch = (requested && requested !== 'ALL' && branchExists(orgId, requested) && canAccessBranch(req.authUser, requested))
+      viewBranch = (requested && requested !== 'ALL' && (await branchExists(orgId, requested)) && canAccessBranch(req.authUser, requested))
         ? requested
-        : primaryBranchId(orgId);
+        : (await primaryBranchId(orgId));
     }
 
     let stockVal = product.current_stock;
     if (viewBranch) {
-      const bs = db.prepare('SELECT current_stock FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, product.id, viewBranch);
+      const bs = await db.prepare('SELECT current_stock FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, product.id, viewBranch);
       if (!bs) {
         return res.status(404).json({ error: "Product not found" });
       }
@@ -206,7 +206,7 @@ router.get('/lookup/:query', (req, res) => {
 });
 
 // POST create product
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const p = req.body;
   if (!p.name || !p.category || p.price === undefined) {
     return res.status(400).json({ error: "Name, category, and price are required" });
@@ -217,11 +217,11 @@ router.post('/', (req, res) => {
   // Uniqueness is enforced PER ORGANIZATION (two businesses may legitimately
   // stock the same real-world barcode/SKU).
   if (p.barcode) {
-    const exists = db.prepare('SELECT id FROM products WHERE organization_id = ? AND barcode = ?').get(orgId, p.barcode);
+    const exists = await db.prepare('SELECT id FROM products WHERE organization_id = ? AND barcode = ?').get(orgId, p.barcode);
     if (exists) return res.status(400).json({ error: `Barcode '${p.barcode}' is already assigned to another product!` });
   }
   if (p.sku) {
-    const exists = db.prepare('SELECT id FROM products WHERE organization_id = ? AND sku = ?').get(orgId, p.sku);
+    const exists = await db.prepare('SELECT id FROM products WHERE organization_id = ? AND sku = ?').get(orgId, p.sku);
     if (exists) return res.status(400).json({ error: `SKU '${p.sku}' is already assigned to another product!` });
   }
 
@@ -243,7 +243,7 @@ router.post('/', (req, res) => {
       )
     `);
 
-    stmt.run(
+    await stmt.run(
       id,
       orgId,
       p.brand || '',
@@ -274,22 +274,22 @@ router.post('/', (req, res) => {
     // products.current_stock equal to the sum across branches.
     const initBranch = (req.authUser.role !== 'owner')
       ? req.authUser.branchId
-      : (branchExists(orgId, p.branchId) ? p.branchId : primaryBranchId(orgId));
+      : ((await branchExists(orgId, p.branchId)) ? p.branchId : (await primaryBranchId(orgId)));
     if (initBranch) {
-      ensureBranchStock(orgId, id, initBranch, stock);
-      syncAggregate(orgId, id);
+      await ensureBranchStock(orgId, id, initBranch, stock);
+      await syncAggregate(orgId, id);
     }
 
     // Record initial stock movement (branch-scoped)
     if (stock > 0) {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
         VALUES (?, ?, ?, ?, ?, 'OPENING_STOCK', ?, 0, ?, 'NEW_PRODUCT', ?, 'Product Created Initial Stock')
       `).run(`MOV-${Date.now()}`, orgId, id, `${p.brand || ''} ${p.name}`.trim(), initBranch || null, stock, stock, p.userName || 'System');
     }
 
     // Audit log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, 'manager', ?, 'Create Product', ?, '-', ?, 'New product registered')
     `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), p.userName || 'Manager', req.authUser.branchId || '-', p.name, `Price: KSh ${sellingPrice}, Stock: ${stock}`);
@@ -301,13 +301,13 @@ router.post('/', (req, res) => {
 });
 
 // PUT update product
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const p = req.body;
 
   const orgId = req.authUser.organizationId;
   try {
-    const existing = db.prepare('SELECT * FROM products WHERE id = ? AND organization_id = ?').get(id, orgId);
+    const existing = await db.prepare('SELECT * FROM products WHERE id = ? AND organization_id = ?').get(id, orgId);
     if (!existing) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -325,7 +325,7 @@ router.put('/:id', (req, res) => {
     const highParam = p.highValue !== undefined ? (p.highValue ? 1 : 0) : null;
     const activeParam = p.active !== undefined ? (p.active ? 1 : 0) : null;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE products
       SET brand = COALESCE(?, brand),
           name = COALESCE(?, name),
@@ -356,7 +356,7 @@ router.put('/:id', (req, res) => {
     );
 
     // Audit log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, 'manager', ?, 'Update Product', ?, ?, ?, 'Product details updated')
     `).run(
@@ -372,9 +372,9 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE ALL products (only this organization's)
-router.delete('/all', (req, res) => {
+router.delete('/all', async (req, res) => {
   try {
-    db.prepare('DELETE FROM products WHERE organization_id = ?').run(req.authUser.organizationId);
+    await db.prepare('DELETE FROM products WHERE organization_id = ?').run(req.authUser.organizationId);
     res.json({ message: "All products deleted successfully" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -382,16 +382,16 @@ router.delete('/all', (req, res) => {
 });
 
 // DELETE (soft-deactivate) product
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   const orgId = req.authUser.organizationId;
   try {
-    const existing = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(id, orgId);
+    const existing = await db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(id, orgId);
     if (!existing) return res.status(404).json({ error: "Product not found" });
 
-    db.prepare('UPDATE products SET active = 0 WHERE id = ? AND organization_id = ?').run(id, orgId);
+    await db.prepare('UPDATE products SET active = 0 WHERE id = ? AND organization_id = ?').run(id, orgId);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, 'Manager', 'manager', ?, 'Deactivate Product', ?, 'Active', 'Inactive', 'Product deactivated')
     `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.branchId || '-', existing.name);
@@ -403,24 +403,24 @@ router.delete('/:id', (req, res) => {
 });
 
 // Categories Endpoints (organization-scoped)
-router.get('/categories/all', (req, res) => {
+router.get('/categories/all', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
-    const categories = db.prepare('SELECT * FROM categories WHERE active = 1 AND (organization_id = ? OR organization_id IS NULL) ORDER BY name ASC').all(orgId);
+    const categories = await db.prepare('SELECT * FROM categories WHERE active = 1 AND (organization_id = ? OR organization_id IS NULL) ORDER BY name ASC').all(orgId);
     res.json(categories);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-router.post('/categories/create', (req, res) => {
+router.post('/categories/create', async (req, res) => {
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: "Category name is required" });
 
   const id = `CAT-${Date.now()}`;
   const orgId = req.authUser.organizationId;
   try {
-    db.prepare('INSERT INTO categories (id, organization_id, name, description, active) VALUES (?, ?, ?, ?, 1)').run(id, orgId, name, description || null);
+    await db.prepare('INSERT INTO categories (id, organization_id, name, description, active) VALUES (?, ?, ?, ?, 1)').run(id, orgId, name, description || null);
     res.status(201).json({ id, organizationId: orgId, name, description });
   } catch (e) {
     res.status(500).json({ error: e.message });

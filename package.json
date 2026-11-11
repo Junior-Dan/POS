@@ -8,10 +8,15 @@
     "server": "node --watch server/index.js",
     "server:once": "node server/index.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node test/worker.test.mjs",
+    "worker:dev": "wrangler dev",
+    "worker:build": "wrangler deploy --dry-run",
+    "worker:deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "vite": "^8.3.2"
+    "vite": "^8.3.2",
+    "wrangler": "^4.160.0"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

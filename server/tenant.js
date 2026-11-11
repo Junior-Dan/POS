@@ -12,24 +12,24 @@ export function settingKey(orgId, name) {
 }
 
 // Read a per-org setting value (parsed JSON) or null.
-export function getOrgSetting(orgId, name) {
+export async function getOrgSetting(orgId, name) {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(settingKey(orgId, name));
+    const row = await db.prepare('SELECT value FROM settings WHERE key = ?').get(settingKey(orgId, name));
     if (row && row.value) return JSON.parse(row.value);
   } catch (e) {}
   return null;
 }
 
 // Write a per-org setting value (stored as JSON).
-export function setOrgSetting(orgId, name, value) {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+export async function setOrgSetting(orgId, name, value) {
+  await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
     .run(settingKey(orgId, name), JSON.stringify(value));
 }
 
 // Generate a globally-unique branch code. Branch codes double as the share-URL
 // slug (?branch=code), so they must be unique across ALL organizations for the
 // link to unambiguously identify one org's terminal.
-export function uniqueBranchCode(desired) {
+export async function uniqueBranchCode(desired) {
   const base = String(desired || 'store')
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '')
@@ -37,7 +37,7 @@ export function uniqueBranchCode(desired) {
     .slice(0, 24) || 'store';
 
   try {
-    const existing = db.prepare('SELECT code FROM branches WHERE LOWER(code) LIKE ?').all(`${base}%`);
+    const existing = await db.prepare('SELECT code FROM branches WHERE LOWER(code) LIKE ?').all(`${base}%`);
     const codeSet = new Set((existing || []).map(r => (r.code || '').toLowerCase()));
     if (!codeSet.has(base)) return base;
 

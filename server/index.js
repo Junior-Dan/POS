@@ -40,26 +40,31 @@ app.use(express.json());
 // retry until it succeeds, returning a clean JSON 503 in the meantime.
 // ---------------------------------------------------------------------------
 let dbReady = false;
-function ensureDbReady() {
+let dbInitPromise = null;
+
+async function ensureDbReady() {
   if (dbReady) return true;
-  try {
-    initDb();
-    seedDatabase();
-    migratePins(); // strip any plaintext PINs, backfill secure hashes
-    dbReady = true;
-    return true;
-  } catch (e) {
-    console.error('Database initialization failed (will retry on next request):', e.message);
-    return false;
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      try {
+        await initDb();
+        seedDatabase();
+        await migratePins(); // strip any plaintext PINs, backfill secure hashes
+        dbReady = true;
+        return true;
+      } catch (e) {
+        console.error('Database initialization failed (will retry on next request):', e.message);
+        dbInitPromise = null;
+        return false;
+      }
+    })();
   }
+  return dbInitPromise;
 }
 
-// NOTE: no eager startup warm-up. The DB layer initializes synchronously (it
-// shells out one subprocess per SQL statement), so running it at boot would
-// block the event loop and prevent the freshly-listening socket from accepting
-// the platform's port probe (seen on Render as "No open HTTP ports detected").
-// DB init happens lazily on the first /api request via the guard middleware
-// below; /api/health stays DB-independent so the port is detected immediately.
+// NOTE: no eager startup warm-up. DB init happens lazily on the first /api request
+// via the guard middleware below; /api/health stays DB-independent so health checks
+// return immediately without waiting for database initialization.
 
 // API Health Check (never requires the DB).
 app.get('/api/health', (req, res) => {
@@ -67,8 +72,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Gate all data/auth routes on the DB being ready; self-heals on later requests.
-app.use('/api', (_req, res, next) => {
-  if (ensureDbReady()) return next();
+app.use('/api', async (_req, res, next) => {
+  const ready = await ensureDbReady();
+  if (ready) return next();
   return res.status(503).json({ error: 'Database is temporarily unreachable. Please try again in a moment.' });
 });
 
@@ -100,7 +106,7 @@ app.use('/api', (err, _req, res, next) => {
   });
 });
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && !process.env.CLOUDFLARE_WORKER && process.env.NODE_ENV !== 'test') {
   // Bind explicitly to 0.0.0.0 so container platforms (Render, Fly, etc.) can
   // detect the open port on IPv4; the default host can bind IPv6-only.
   app.listen(PORT, '0.0.0.0', () => {

@@ -13,7 +13,7 @@ router.use(requireRole('owner', 'manager', 'inventory_officer'));
 //  - Scoped users (manager/inventory_officer): always their OWN branch.
 //  - Owners: must pass a real, accessible branchId in the body.
 // Throws on any violation so callers return a clean 4xx.
-function resolveTargetBranch(req, orgId, requestedBranch) {
+async function resolveTargetBranch(req, orgId, requestedBranch) {
   if (req.authUser.role !== 'owner') {
     const b = req.authUser.branchId;
     if (!b) throw new Error('Your account is not assigned to a branch.');
@@ -25,13 +25,13 @@ function resolveTargetBranch(req, orgId, requestedBranch) {
   }
   const b = requestedBranch;
   if (!b || b === 'ALL') throw new Error('Owners must specify a branch for this inventory operation.');
-  if (!branchExists(orgId, b)) throw new Error('Selected branch was not found for your organization.');
+  if (!(await branchExists(orgId, b))) throw new Error('Selected branch was not found for your organization.');
   if (!canAccessBranch(req.authUser, b)) throw new Error('You do not have access to the selected branch.');
   return b;
 }
 
 // GET inventory stock movements log (branch-scoped)
-router.get('/movements', (req, res) => {
+router.get('/movements', async (req, res) => {
   try {
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
@@ -42,7 +42,7 @@ router.get('/movements', (req, res) => {
 
     // Branch isolation (no aggregate "ALL"): non-owners only ever see their own
     // branch; owners view one branch at a time (requested or primary).
-    const { branch: viewBranch } = resolveViewBranch(req.authUser, requestedBranch);
+    const { branch: viewBranch } = await resolveViewBranch(req.authUser, requestedBranch);
     if (viewBranch) {
       sql += ` AND branch_id = ?`;
       params.push(viewBranch);
@@ -59,7 +59,7 @@ router.get('/movements', (req, res) => {
 
     sql += ` ORDER BY timestamp DESC LIMIT 200`;
 
-    const movements = db.prepare(sql).all(...params);
+    const movements = await db.prepare(sql).all(...params);
     res.json(movements.map(m => ({
       id: m.id,
       timestamp: m.timestamp,
@@ -80,7 +80,7 @@ router.get('/movements', (req, res) => {
 });
 
 // POST Manual Stock Adjustment
-router.post('/adjust', (req, res) => {
+router.post('/adjust', async (req, res) => {
   const { productId, newStock, reason, userName, managerPin } = req.body;
 
   if (req.authUser && req.authUser.role === 'cashier') {
@@ -93,7 +93,7 @@ router.post('/adjust', (req, res) => {
 
   const orgId = req.authUser.organizationId;
   if (managerPin) {
-    const mgr = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+    const mgr = await findUserByPin(managerPin, ['owner', 'manager'], orgId);
     if (!mgr || (mgr.organization_id && mgr.organization_id !== orgId)) {
       return res.status(403).json({ error: "Invalid Manager/Owner PIN for stock adjustment." });
     }
@@ -101,29 +101,29 @@ router.post('/adjust', (req, res) => {
 
   let targetBranch;
   try {
-    targetBranch = resolveTargetBranch(req, orgId, req.body.branchId);
+    targetBranch = await resolveTargetBranch(req, orgId, req.body.branchId);
   } catch (e) {
     return res.status(403).json({ error: e.message });
   }
 
-  const processAdjustment = db.transaction(() => {
-    const product = db.prepare('SELECT id, name FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
+  const processAdjustment = db.transaction(async () => {
+    const product = await db.prepare('SELECT id, name FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
     if (!product) {
       throw new Error("Product not found.");
     }
 
     const targetStock = parseInt(newStock, 10);
     // Set THIS branch's absolute stock (also re-syncs the org-wide aggregate).
-    const { previous, next } = setBranchStock(orgId, productId, targetBranch, targetStock);
+    const { previous, next } = await setBranchStock(orgId, productId, targetBranch, targetStock);
     const diff = next - previous;
 
     const movId = `MOV-${Date.now()}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
       VALUES (?, ?, ?, ?, ?, 'STOCK_ADJUSTMENT', ?, ?, ?, 'MANUAL-ADJ', ?, ?)
     `).run(movId, orgId, productId, product.name, targetBranch, diff, previous, next, userName || req.authUser.name || 'Manager', reason);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Stock Adjustment', ?, ?, ?, ?)
     `).run(`AUD-${Date.now()}`, orgId, userName || req.authUser.name || 'Manager', req.authUser.role, targetBranch, product.name, `Qty: ${previous}`, `Qty: ${next}`, reason);
@@ -132,7 +132,7 @@ router.post('/adjust', (req, res) => {
   });
 
   try {
-    const result = processAdjustment();
+    const result = await processAdjustment();
     res.json({ success: true, adjustment: result });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -140,7 +140,7 @@ router.post('/adjust', (req, res) => {
 });
 
 // POST Record Stock Damage / Breakage
-router.post('/damage', (req, res) => {
+router.post('/damage', async (req, res) => {
   const { productId, qtyDamaged, reason, userName, managerPin } = req.body;
 
   if (!productId || !qtyDamaged || qtyDamaged <= 0 || !reason) {
@@ -149,7 +149,7 @@ router.post('/damage', (req, res) => {
 
   const orgId = req.authUser.organizationId;
   if (managerPin) {
-    const mgr = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+    const mgr = await findUserByPin(managerPin, ['owner', 'manager'], orgId);
     if (!mgr || (mgr.organization_id && mgr.organization_id !== orgId)) {
       return res.status(403).json({ error: "Invalid Manager PIN." });
     }
@@ -157,32 +157,33 @@ router.post('/damage', (req, res) => {
 
   let targetBranch;
   try {
-    targetBranch = resolveTargetBranch(req, orgId, req.body.branchId);
+    targetBranch = await resolveTargetBranch(req, orgId, req.body.branchId);
   } catch (e) {
     return res.status(403).json({ error: e.message });
   }
 
-  const processDamage = db.transaction(() => {
-    const product = db.prepare('SELECT id, name FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
+  const processDamage = db.transaction(async () => {
+    const product = await db.prepare('SELECT id, name FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
     if (!product) {
       throw new Error("Product not found.");
     }
 
     const qty = parseInt(qtyDamaged, 10);
-    const prevStock = Number(getBranchStock(orgId, productId, targetBranch).current_stock);
+    const branchStockObj = await getBranchStock(orgId, productId, targetBranch);
+    const prevStock = Number(branchStockObj.current_stock);
     if (prevStock < qty) {
       throw new Error(`Cannot record damage of ${qty} bottles. Only ${prevStock} currently in stock at this branch.`);
     }
 
     // Decrement THIS branch's stock (also re-syncs the org-wide aggregate).
-    const { previous, next } = adjustBranchStock(orgId, productId, targetBranch, -qty);
+    const { previous, next } = await adjustBranchStock(orgId, productId, targetBranch, -qty);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
       VALUES (?, ?, ?, ?, ?, 'DAMAGE', ?, ?, ?, 'DAMAGE-LOG', ?, ?)
     `).run(`MOV-${Date.now()}`, orgId, productId, product.name, targetBranch, -qty, previous, next, userName || req.authUser.name || 'Manager', `Damaged: ${reason}`);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Record Damage', ?, ?, ?, ?)
     `).run(`AUD-${Date.now()}`, orgId, userName || req.authUser.name || 'Manager', req.authUser.role, targetBranch, product.name, `Stock: ${previous}`, `Stock: ${next}`, `Logged ${qty} damaged: ${reason}`);
@@ -191,7 +192,7 @@ router.post('/damage', (req, res) => {
   });
 
   try {
-    const result = processDamage();
+    const result = await processDamage();
     res.json({ success: true, damage: result });
   } catch (e) {
     res.status(400).json({ error: e.message });

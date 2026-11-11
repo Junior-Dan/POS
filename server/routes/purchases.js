@@ -8,41 +8,45 @@ router.use(authenticateSession);
 router.use(requireRole('owner', 'manager', 'inventory_officer'));
 
 // GET purchases list
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
     // Branch isolation: non-owners see only their branch; owners see the
     // selected branch (?branch=ID) or all branches when none/ALL.
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
     let sql = 'SELECT * FROM purchases WHERE organization_id = ?';
     const params = [req.authUser.organizationId];
     if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
     sql += ' ORDER BY created_at DESC';
-    const purchases = db.prepare(sql).all(...params);
+    const purchases = await db.prepare(sql).all(...params);
     const getItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ? AND organization_id = ?');
 
-    const result = purchases.map(p => ({
-      id: p.id,
-      poNumber: p.po_number,
-      branchId: p.branch_id,
-      supplierId: p.supplier_id,
-      supplierName: p.supplier_name,
-      dateIssued: p.date_issued,
-      deliveryDate: p.delivery_date,
-      status: p.status,
-      totalValue: p.total_value,
-      notes: p.notes,
-      items: getItems.all(p.id, req.authUser.organizationId).map(i => ({
-        productId: i.product_id,
-        name: i.product_name,
-        qtyOrdered: i.qty_ordered,
-        qtyReceived: i.qty_received,
-        unitCost: i.unit_cost,
-        totalCost: i.total_cost
-      }))
-    }));
+    const result = [];
+    for (const p of purchases) {
+      const items = await getItems.all(p.id, req.authUser.organizationId);
+      result.push({
+        id: p.id,
+        poNumber: p.po_number,
+        branchId: p.branch_id,
+        supplierId: p.supplier_id,
+        supplierName: p.supplier_name,
+        dateIssued: p.date_issued,
+        deliveryDate: p.delivery_date,
+        status: p.status,
+        totalValue: p.total_value,
+        notes: p.notes,
+        items: items.map(i => ({
+          productId: i.product_id,
+          name: i.product_name,
+          qtyOrdered: i.qty_ordered,
+          qtyReceived: i.qty_received,
+          unitCost: i.unit_cost,
+          totalCost: i.total_cost
+        }))
+      });
+    }
 
     res.json(result);
   } catch (e) {
@@ -51,7 +55,7 @@ router.get('/', (req, res) => {
 });
 
 // POST Create Purchase Order
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { supplierId, supplierName, dateIssued, deliveryDate, items, notes, totalValue, branchId } = req.body;
 
   if (crossBranchDenied(req.authUser, branchId)) {
@@ -66,12 +70,12 @@ router.post('/', (req, res) => {
     ? req.authUser.branchId
     : (branchId || req.authUser.branchId || 'B1');
 
-  const processPO = db.transaction(() => {
+  const processPO = db.transaction(async () => {
     const id = `PO-${Date.now()}`;
     const poNumber = `PO-${new Date().getFullYear()}-${Math.floor(100 + Math.random()*900)}`;
     const calcTotal = items.reduce((acc, i) => acc + (parseFloat(i.unitCost || 0) * parseInt(i.qtyOrdered || 0, 10)), 0);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO purchases (id, organization_id, po_number, branch_id, supplier_id, supplier_name, date_issued, delivery_date, status, total_value, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ORDERED', ?, ?)
     `).run(
@@ -89,18 +93,18 @@ router.post('/', (req, res) => {
 
     for (const item of items) {
       const pId = item.productId || item.id;
-      const product = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
+      const product = await db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
       const name = product ? product.name : (item.name || 'Product');
       const qty = parseInt(item.qtyOrdered || item.qty || 1, 10);
       const unitCost = parseFloat(item.unitCost || item.cost || 0);
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO purchase_items (id, organization_id, purchase_id, product_id, product_name, qty_ordered, qty_received, unit_cost, total_cost)
         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
       `).run(`PI-${Date.now()}-${Math.floor(Math.random()*1000)}`, orgId, id, pId, name, qty, unitCost, qty * unitCost);
     }
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Create Purchase Order', ?, '-', ?, 'Purchase order issued to supplier')
     `).run(`AUD-${Date.now()}`, orgId, req.authUser.name, req.authUser.role, effectiveBranch, poNumber, `Total: KSh ${calcTotal}`);
@@ -109,7 +113,7 @@ router.post('/', (req, res) => {
   });
 
   try {
-    const result = processPO();
+    const result = await processPO();
     res.status(201).json({ success: true, purchaseOrder: result });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -117,13 +121,13 @@ router.post('/', (req, res) => {
 });
 
 // POST Receive Purchase Order (Updates Stock automatically)
-router.post('/:id/receive', (req, res) => {
+router.post('/:id/receive', async (req, res) => {
   const { id } = req.params;
   const { itemsReceived, notes, userName } = req.body;
 
   const orgId = req.authUser.organizationId;
-  const receivePO = db.transaction(() => {
-    const po = db.prepare('SELECT * FROM purchases WHERE (id = ? OR po_number = ?) AND organization_id = ?').get(id, id, orgId);
+  const receivePO = db.transaction(async () => {
+    const po = await db.prepare('SELECT * FROM purchases WHERE (id = ? OR po_number = ?) AND organization_id = ?').get(id, id, orgId);
     if (!po) {
       throw new Error("Purchase Order not found.");
     }
@@ -131,12 +135,12 @@ router.post('/:id/receive', (req, res) => {
       throw new Error("Purchase Order has already been fully received.");
     }
 
-    const poItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ? AND organization_id = ?').all(po.id, orgId);
+    const poItems = await db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ? AND organization_id = ?').all(po.id, orgId);
 
     // Credit the PO's own branch. Guard against legacy/invalid branch ids
     // ('B1', 'ALL', null) by falling back to the org's primary branch so the
     // received stock always lands on a real branch.
-    const receiveBranch = branchExists(orgId, po.branch_id) ? po.branch_id : primaryBranchId(orgId);
+    const receiveBranch = (await branchExists(orgId, po.branch_id)) ? po.branch_id : (await primaryBranchId(orgId));
 
     for (const item of poItems) {
       // Find override qty or use ordered qty
@@ -144,20 +148,20 @@ router.post('/:id/receive', (req, res) => {
       const qtyToReceive = override ? parseInt(override.qtyReceived, 10) : item.qty_ordered;
 
       // Update PO Item received count
-      db.prepare('UPDATE purchase_items SET qty_received = ? WHERE id = ? AND organization_id = ?').run(qtyToReceive, item.id, orgId);
+      await db.prepare('UPDATE purchase_items SET qty_received = ? WHERE id = ? AND organization_id = ?').run(qtyToReceive, item.id, orgId);
 
       // Increase Inventory Stock automatically — credited to the PO's branch.
-      const product = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
+      const product = await db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
       if (product && receiveBranch) {
         // Keep the catalogue cost_price in sync (cost is org-wide), then credit
         // the branch quantity (which re-syncs products.current_stock aggregate).
-        db.prepare('UPDATE products SET cost_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?')
+        await db.prepare('UPDATE products SET cost_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?')
           .run(item.unit_cost, item.product_id, orgId);
 
-        const { previous, next } = adjustBranchStock(orgId, item.product_id, receiveBranch, qtyToReceive);
+        const { previous, next } = await adjustBranchStock(orgId, item.product_id, receiveBranch, qtyToReceive);
 
         // Record Inventory Movement
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
           VALUES (?, ?, ?, ?, ?, 'PURCHASE', ?, ?, ?, ?, ?, 'Stock Received from PO')
         `).run(
@@ -176,9 +180,9 @@ router.post('/:id/receive', (req, res) => {
     }
 
     // Mark PO as RECEIVED
-    db.prepare("UPDATE purchases SET status = 'RECEIVED', notes = COALESCE(?, notes) WHERE id = ? AND organization_id = ?").run(notes || null, po.id, orgId);
+    await db.prepare("UPDATE purchases SET status = 'RECEIVED', notes = COALESCE(?, notes) WHERE id = ? AND organization_id = ?").run(notes || null, po.id, orgId);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Receive Purchase Order', ?, 'ORDERED', 'RECEIVED', 'Stock received and inventory increased')
     `).run(`AUD-${Date.now()}`, orgId, userName || req.authUser.name || 'Inventory Officer', req.authUser.role, po.branch_id || '-', po.po_number);
@@ -187,7 +191,7 @@ router.post('/:id/receive', (req, res) => {
   });
 
   try {
-    const result = receivePO();
+    const result = await receivePO();
     res.json({ success: true, purchaseOrder: result });
   } catch (e) {
     res.status(400).json({ error: e.message });

@@ -8,17 +8,17 @@ router.use(authenticateSession);
 router.use(requireRole('owner', 'manager'));
 
 // GET audit logs (branch-scoped)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
     let sql = 'SELECT * FROM audit_logs WHERE organization_id = ?';
     const params = [req.authUser.organizationId];
     if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
     sql += ' ORDER BY timestamp DESC LIMIT 200';
-    const logs = db.prepare(sql).all(...params);
+    const logs = await db.prepare(sql).all(...params);
     res.json(logs.map(l => ({
       id: l.id,
       timestamp: l.timestamp,

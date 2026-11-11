@@ -10,23 +10,28 @@ router.use(requireRole('owner', 'manager'));
 const kenyaDate = value => new Date(value).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
 
 // Completed (non-refunded) sales, scoped to a branch unless `all` (owner ALL view).
-function completedSales(date, orgId, branch, all) {
+async function completedSales(date, orgId, branch, all) {
   let sql = 'SELECT * FROM sales WHERE refunded = 0 AND organization_id = ? AND date(created_at) = ?';
   const params = [orgId, date || kenyaDate(new Date())];
   if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
-  return db.prepare(sql).all(...params);
+  return await db.prepare(sql).all(...params);
 }
 
-function saleItemsFor(sales) {
+async function saleItemsFor(sales) {
   const statement = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?');
-  return sales.flatMap(sale => statement.all(sale.id));
+  const results = [];
+  for (const sale of sales) {
+    const items = await statement.all(sale.id);
+    results.push(...items);
+  }
+  return results;
 }
 
 // Per-branch stock status computed from product_branch_stock (authoritative).
 // A product-branch slot is "low" when current_stock <= its branch min_stock,
 // "out" when current_stock === 0. For ALL we still count per (product, branch)
 // slot — never the org aggregate treated as one branch.
-function stockStatus(orgId, branch, all) {
+async function stockStatus(orgId, branch, all) {
   // Select the raw snake_case columns (no AS aliases): Postgres folds unquoted
   // aliases to lowercase, so `AS minStock` would come back as `minstock` through
   // the Supabase exec_sql(json_agg) path and misread. Snake_case column names
@@ -38,7 +43,7 @@ function stockStatus(orgId, branch, all) {
     WHERE pbs.organization_id = ? AND p.active = 1`;
   const params = [orgId];
   if (!all) { sql += ' AND pbs.branch_id = ?'; params.push(branch); }
-  const rows = db.prepare(sql).all(...params);
+  const rows = await db.prepare(sql).all(...params);
 
   let lowStockCount = 0, outOfStockCount = 0, stockTotal = 0;
   const perBranch = {};
@@ -58,16 +63,16 @@ function stockStatus(orgId, branch, all) {
 }
 
 // GET Dashboard metrics calculated directly from database (branch-scoped).
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
 
-    const sales = completedSales(req.query.date, orgId, branch, all);
-    const items = saleItemsFor(sales);
+    const sales = await completedSales(req.query.date, orgId, branch, all);
+    const items = await saleItemsFor(sales);
     const grossSales = sales.reduce((total, sale) => total + Number(sale.total || 0), 0);
     const totalCogs = items.reduce((total, item) => total + Number(item.cost_snapshot || 0) * Number(item.qty || 0), 0);
     const cashSales = sales.filter(sale => sale.payment_method === 'CASH').reduce((total, sale) => total + Number(sale.total || 0), 0);
@@ -76,10 +81,10 @@ router.get('/dashboard', (req, res) => {
     let refundSql = 'SELECT refund_amount FROM sales WHERE refunded = 1 AND organization_id = ? AND date(created_at) = ?';
     const refundParams = [orgId, req.query.date || kenyaDate(new Date())];
     if (!all) { refundSql += ' AND branch_id = ?'; refundParams.push(branch); }
-    const refundedSales = db.prepare(refundSql).all(...refundParams);
+    const refundedSales = await db.prepare(refundSql).all(...refundParams);
     const totalRefunds = refundedSales.reduce((total, sale) => total + Number(sale.refund_amount || 0), 0);
 
-    const stock = stockStatus(orgId, branch, all);
+    const stock = await stockStatus(orgId, branch, all);
 
     res.json({
       branchId: all ? 'ALL' : branch,
@@ -105,19 +110,22 @@ router.get('/dashboard', (req, res) => {
 });
 
 // GET Category Sales Breakdown (branch-scoped)
-router.get('/category-breakdown', (req, res) => {
+router.get('/category-breakdown', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
-    const productById = new Map(db.prepare('SELECT id, category FROM products WHERE organization_id = ?').all(orgId).map(product => [product.id, product]));
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
+    const productRows = await db.prepare('SELECT id, category FROM products WHERE organization_id = ?').all(orgId);
+    const productById = new Map(productRows.map(product => [product.id, product]));
     const breakdown = {};
     let salesSql = 'SELECT id FROM sales WHERE refunded = 0 AND organization_id = ?';
     const params = [orgId];
     if (!all) { salesSql += ' AND branch_id = ?'; params.push(branch); }
-    saleItemsFor(db.prepare(salesSql).all(...params)).forEach(item => {
+    const sales = await db.prepare(salesSql).all(...params);
+    const items = await saleItemsFor(sales);
+    items.forEach(item => {
       const category = productById.get(item.product_id)?.category || 'Other';
       breakdown[category] = (breakdown[category] || 0) + Number(item.total || 0);
     });
@@ -129,17 +137,18 @@ router.get('/category-breakdown', (req, res) => {
 });
 
 // GET Hourly Traffic Report (branch-scoped)
-router.get('/hourly', (req, res) => {
+router.get('/hourly', async (req, res) => {
   try {
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
     const hours = ['12 AM', '2 AM', '4 AM', '6 AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
     const data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const orders = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    completedSales(undefined, req.authUser.organizationId, branch, all).forEach(sale => {
+    const sales = await completedSales(undefined, req.authUser.organizationId, branch, all);
+    sales.forEach(sale => {
       const h = new Date(sale.created_at).getHours();
       const idx = Math.floor(h / 2);
       if (idx >= 0 && idx < 12) {
@@ -155,19 +164,22 @@ router.get('/hourly', (req, res) => {
 });
 
 // GET Brand Profitability Matrix (branch-scoped)
-router.get('/brand-profitability', (req, res) => {
+router.get('/brand-profitability', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
-    const productById = new Map(db.prepare('SELECT id, brand FROM products WHERE organization_id = ?').all(orgId).map(product => [product.id, product]));
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
+    const productRows = await db.prepare('SELECT id, brand FROM products WHERE organization_id = ?').all(orgId);
+    const productById = new Map(productRows.map(product => [product.id, product]));
     const brands = new Map();
     let salesSql = 'SELECT id FROM sales WHERE refunded = 0 AND organization_id = ?';
     const params = [orgId];
     if (!all) { salesSql += ' AND branch_id = ?'; params.push(branch); }
-    saleItemsFor(db.prepare(salesSql).all(...params)).forEach(item => {
+    const sales = await db.prepare(salesSql).all(...params);
+    const items = await saleItemsFor(sales);
+    items.forEach(item => {
       const brand = productById.get(item.product_id)?.brand || 'Other';
       const current = brands.get(brand) || { brand, units: 0, revenue: 0, cogs: 0 };
       current.units += Number(item.qty || 0);

@@ -10,23 +10,23 @@ router.use(requireRole('owner', 'manager', 'cashier'));
 
 // GET active shift (scoped to this organization; to the user's branch for
 // non-owners so each branch terminal sees its own drawer)
-router.get('/current', (req, res) => {
+router.get('/current', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
     // Each branch has its own drawer; owners view one branch at a time (the
     // requested branch, or the primary branch) — never an org-wide shift.
-    const { branch: branchId } = resolveViewBranch(req.authUser, req.query.branchId || req.query.branch);
+    const { branch: branchId } = await resolveViewBranch(req.authUser, req.query.branchId || req.query.branch);
     let shift;
     if (branchId) {
-      shift = db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId);
+      shift = await db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId);
     } else {
-      shift = db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
+      shift = await db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
     }
     if (!shift) {
       return res.json(null);
     }
 
-    const cashMovements = db.prepare('SELECT * FROM cash_movements WHERE shift_id = ? AND organization_id = ? ORDER BY timestamp DESC').all(shift.id, orgId);
+    const cashMovements = await db.prepare('SELECT * FROM cash_movements WHERE shift_id = ? AND organization_id = ? ORDER BY timestamp DESC').all(shift.id, orgId);
 
     res.json({
       id: shift.id,
@@ -51,17 +51,17 @@ router.get('/current', (req, res) => {
 });
 
 // POST open a new shift
-router.post('/open', (req, res) => {
+router.post('/open', async (req, res) => {
   const { cashierId, cashierName, openingFloat, branchId } = req.body;
 
   const orgId = req.authUser.organizationId;
   const effectiveBranch = (req.authUser.role !== 'owner' && req.authUser.branchId)
     ? req.authUser.branchId
-    : (branchId || req.authUser.branchId || primaryBranchId(orgId));
+    : (branchId || req.authUser.branchId || (await primaryBranchId(orgId)));
 
   try {
     // Close existing active shift if any (this org + this branch)
-    const existing = db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ?').get(orgId, effectiveBranch);
+    const existing = await db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ?').get(orgId, effectiveBranch);
     if (existing) {
       return res.status(400).json({ error: "An active shift is already open. Please close it first." });
     }
@@ -71,12 +71,12 @@ router.post('/open', (req, res) => {
     const effCashierId = cashierId || req.authUser.id;
     const effCashierName = cashierName || req.authUser.name;
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO shifts (id, organization_id, branch_id, cashier_id, cashier_name, start_time, opening_float, status)
       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE')
     `).run(id, orgId, effectiveBranch, effCashierId, effCashierName, floatVal);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Open Shift', ?, '-', ?, 'New shift started')
     `).run(`AUD-${Date.now()}`, orgId, effCashierName, req.authUser.role, effectiveBranch, id, `Float: KSh ${floatVal}`);
@@ -97,7 +97,7 @@ router.post('/open', (req, res) => {
 });
 
 // POST log cash movement (Cash In / Cash Out)
-router.post('/cash-movement', (req, res) => {
+router.post('/cash-movement', async (req, res) => {
   const { shiftId, type, amount, reason, userName, managerPin } = req.body;
 
   if (!amount || amount <= 0 || !reason) {
@@ -108,28 +108,28 @@ router.post('/cash-movement', (req, res) => {
 
   // If Manager PIN authorization is required (verified against secure hashes).
   if (managerPin) {
-    const mgr = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+    const mgr = await findUserByPin(managerPin, ['owner', 'manager'], orgId);
     if (!mgr || (mgr.organization_id && mgr.organization_id !== orgId)) {
       return res.status(403).json({ error: "Invalid Manager PIN entered." });
     }
   }
 
   try {
-    const { branch: branchId } = resolveViewBranch(req.authUser, req.body.branchId || req.body.branch);
+    const { branch: branchId } = await resolveViewBranch(req.authUser, req.body.branchId || req.body.branch);
     const activeShift = branchId
-      ? db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
-      : db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId);
+      ? (await db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId))
+      : (await db.prepare('SELECT id FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId));
     const targetShiftId = shiftId || activeShift?.id || 'SHIFT-101';
     const movId = `CM-${Date.now()}`;
     const signedAmount = type === 'OUT' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     const actor = userName || req.authUser.name;
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO cash_movements (id, organization_id, shift_id, type, amount, reason, user_name, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).run(movId, orgId, targetShiftId, type || 'IN', signedAmount, reason, actor);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Cash Movement', ?, '-', ?, ?)
     `).run(`AUD-${Date.now()}`, orgId, actor, req.authUser.role, req.authUser.branchId || '-', `Shift ${targetShiftId}`, `${type}: KSh ${amount}`, reason);
@@ -149,47 +149,49 @@ router.post('/cash-movement', (req, res) => {
 });
 
 // POST close shift
-router.post('/close', (req, res) => {
+router.post('/close', async (req, res) => {
   const { shiftId, closingCash, notes, managerPin } = req.body;
 
   const orgId = req.authUser.organizationId;
   if (managerPin) {
-    const mgr = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+    const mgr = await findUserByPin(managerPin, ['owner', 'manager'], orgId);
     if (!mgr || (mgr.organization_id && mgr.organization_id !== orgId)) {
       return res.status(403).json({ error: "Invalid Manager PIN." });
     }
   }
 
   try {
-    const { branch: branchId } = resolveViewBranch(req.authUser, req.body.branchId || req.body.branch);
+    const { branch: branchId } = await resolveViewBranch(req.authUser, req.body.branchId || req.body.branch);
     const shift = shiftId
-      ? db.prepare('SELECT * FROM shifts WHERE id = ? AND organization_id = ?').get(shiftId, orgId)
+      ? (await db.prepare('SELECT * FROM shifts WHERE id = ? AND organization_id = ?').get(shiftId, orgId))
       : (branchId
-          ? db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId)
-          : db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId));
+          ? (await db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId, branchId))
+          : (await db.prepare('SELECT * FROM shifts WHERE status = \'ACTIVE\' AND organization_id = ? ORDER BY start_time DESC LIMIT 1').get(orgId)));
     if (!shift) {
       return res.status(404).json({ error: "No active shift found to close." });
     }
 
     // Calculate Net Cash Sales for this shift (org + branch scoped)
-    const cashSales = db.prepare(`
+    const cashRow = await db.prepare(`
       SELECT SUM(total) as totalCash
       FROM sales
       WHERE payment_method = 'CASH' AND refunded = 0 AND organization_id = ? AND branch_id = ? AND created_at >= ?
-    `).get(orgId, shift.branch_id, shift.start_time).totalCash || 0;
+    `).get(orgId, shift.branch_id, shift.start_time);
+    const cashSales = cashRow?.totalCash || 0;
 
     // Calculate Net Cash Movements for this shift
-    const cashMovs = db.prepare(`
+    const movRow = await db.prepare(`
       SELECT SUM(amount) as netMov
       FROM cash_movements
       WHERE shift_id = ? AND organization_id = ?
-    `).get(shift.id, orgId).netMov || 0;
+    `).get(shift.id, orgId);
+    const cashMovs = movRow?.netMov || 0;
 
     const expectedCash = (shift.opening_float || 0) + cashSales + cashMovs;
     const actualCash = parseFloat(closingCash || 0);
     const variance = actualCash - expectedCash;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE shifts
       SET end_time = CURRENT_TIMESTAMP,
           closing_cash = ?,
@@ -200,7 +202,7 @@ router.post('/close', (req, res) => {
       WHERE id = ?
     `).run(actualCash, expectedCash, variance, notes || null, shift.id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Close Shift', ?, ?, ?, ?)
     `).run(
@@ -234,14 +236,14 @@ router.post('/close', (req, res) => {
 });
 
 // GET shift history
-router.get('/history', (req, res) => {
+router.get('/history', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
     // Branch-scoped history (no org-wide aggregate): owners view one branch.
-    const { branch: branchId } = resolveViewBranch(req.authUser, req.query.branchId || req.query.branch);
+    const { branch: branchId } = await resolveViewBranch(req.authUser, req.query.branchId || req.query.branch);
     const shifts = branchId
-      ? db.prepare('SELECT * FROM shifts WHERE organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId, branchId)
-      : db.prepare('SELECT * FROM shifts WHERE organization_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId);
+      ? (await db.prepare('SELECT * FROM shifts WHERE organization_id = ? AND branch_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId, branchId))
+      : (await db.prepare('SELECT * FROM shifts WHERE organization_id = ? ORDER BY start_time DESC LIMIT 20').all(orgId));
     res.json(shifts);
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -15,11 +15,11 @@ import { db } from './db.js';
 // ---------------------------------------------------------------------------
 
 // Earliest-created branch for an org = its primary/default branch.
-export function primaryBranchId(orgId) {
+export async function primaryBranchId(orgId) {
   try {
-    const b = db.prepare('SELECT id FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(orgId);
+    const b = await db.prepare('SELECT id FROM branches WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1').get(orgId);
     if (b && b.id) return b.id;
-    const any = db.prepare('SELECT id FROM branches ORDER BY created_at ASC LIMIT 1').get();
+    const any = await db.prepare('SELECT id FROM branches ORDER BY created_at ASC LIMIT 1').get();
     return any ? any.id : null;
   } catch (e) {
     return null;
@@ -35,14 +35,17 @@ export function primaryBranchId(orgId) {
 //    (a stale/legacy 'ALL' request is treated as "no branch requested").
 // `all` is retained in the return shape for call-site compatibility but is now
 // always false.
-export function resolveViewBranch(authUser, requestedBranch) {
+export async function resolveViewBranch(authUser, requestedBranch) {
   if (!authUser) return { branch: null, all: false };
   if (authUser.role !== 'owner') return { branch: authUser.branchId || null, all: false };
   const orgId = authUser.organizationId;
-  if (requestedBranch && requestedBranch !== 'ALL' && branchExists(orgId, requestedBranch)) {
+  if (requestedBranch === 'ALL') {
+    return { branch: null, all: true };
+  }
+  if (requestedBranch && (await branchExists(orgId, requestedBranch))) {
     return { branch: requestedBranch, all: false };
   }
-  return { branch: primaryBranchId(orgId), all: false };
+  return { branch: await primaryBranchId(orgId), all: false };
 }
 
 // True when a NON-owner is explicitly addressing a branch that is not their own
@@ -57,7 +60,7 @@ export function crossBranchDenied(authUser, requested) {
 // their own branch and REJECTED if they forge a different branch id; owners must
 // pass a real, accessible branch (never ALL). `canAccess` is auth.canAccessBranch,
 // passed in to avoid a cycle. Thrown errors carry `.status` for the route.
-export function assertWriteBranch(authUser, orgId, requestedBranch, canAccess) {
+export async function assertWriteBranch(authUser, orgId, requestedBranch, canAccess) {
   if (authUser.role !== 'owner') {
     if (!authUser.branchId) { const e = new Error('Your account is not assigned to a branch.'); e.status = 403; throw e; }
     if (crossBranchDenied(authUser, requestedBranch)) {
@@ -68,7 +71,7 @@ export function assertWriteBranch(authUser, orgId, requestedBranch, canAccess) {
   if (!requestedBranch || requestedBranch === 'ALL') {
     throw new Error('Please select a specific branch for this operation.');
   }
-  if (!branchExists(orgId, requestedBranch)) {
+  if (!(await branchExists(orgId, requestedBranch))) {
     throw new Error('Selected branch was not found for your organization.');
   }
   if (canAccess && !canAccess(authUser, requestedBranch)) {
@@ -78,10 +81,10 @@ export function assertWriteBranch(authUser, orgId, requestedBranch, canAccess) {
 }
 
 // True if branchId is a real branch belonging to this org.
-export function branchExists(orgId, branchId) {
+export async function branchExists(orgId, branchId) {
   if (!branchId) return false;
   try {
-    const b = db.prepare('SELECT id FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').get(branchId, orgId);
+    const b = await db.prepare('SELECT id FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').get(branchId, orgId);
     return !!b;
   } catch (e) {
     return false;
@@ -90,10 +93,10 @@ export function branchExists(orgId, branchId) {
 
 // Read a branch's stock row, or a virtual zero row (falling back to the
 // product-level min/reorder defaults) when none exists yet.
-export function getBranchStock(orgId, productId, branchId) {
-  const row = db.prepare('SELECT * FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, productId, branchId);
+export async function getBranchStock(orgId, productId, branchId) {
+  const row = await db.prepare('SELECT * FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, productId, branchId);
   if (row) return row;
-  const prod = db.prepare('SELECT min_stock, reorder_level FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
+  const prod = await db.prepare('SELECT min_stock, reorder_level FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
   return {
     id: null,
     organization_id: orgId,
@@ -108,43 +111,43 @@ export function getBranchStock(orgId, productId, branchId) {
 
 // Ensure a (product, branch) row exists; returns its id. SELECT-first so it is
 // idempotent and portable.
-export function ensureBranchStock(orgId, productId, branchId, initialStock = 0) {
-  const existing = db.prepare('SELECT id FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, productId, branchId);
+export async function ensureBranchStock(orgId, productId, branchId, initialStock = 0) {
+  const existing = await db.prepare('SELECT id FROM product_branch_stock WHERE organization_id = ? AND product_id = ? AND branch_id = ?').get(orgId, productId, branchId);
   if (existing) return existing.id;
-  const prod = db.prepare('SELECT min_stock, reorder_level FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
+  const prod = await db.prepare('SELECT min_stock, reorder_level FROM products WHERE id = ? AND organization_id = ?').get(productId, orgId);
   const id = `PBS-${productId}-${branchId}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 120);
-  db.prepare(`INSERT INTO product_branch_stock (id, organization_id, product_id, branch_id, current_stock, min_stock, reorder_level)
+  await db.prepare(`INSERT INTO product_branch_stock (id, organization_id, product_id, branch_id, current_stock, min_stock, reorder_level)
               VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .run(id, orgId, productId, branchId, initialStock, prod ? prod.min_stock : 5, prod ? prod.reorder_level : 10);
   return id;
 }
 
 // Recompute products.current_stock as the org-wide aggregate (sum of branches).
-export function syncAggregate(orgId, productId) {
-  const row = db.prepare('SELECT COALESCE(SUM(current_stock), 0) AS total FROM product_branch_stock WHERE organization_id = ? AND product_id = ?').get(orgId, productId);
+export async function syncAggregate(orgId, productId) {
+  const row = await db.prepare('SELECT COALESCE(SUM(current_stock), 0) AS total FROM product_branch_stock WHERE organization_id = ? AND product_id = ?').get(orgId, productId);
   const total = row ? Number(row.total) : 0;
-  db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(total, productId, orgId);
+  await db.prepare('UPDATE products SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?').run(total, productId, orgId);
   return total;
 }
 
 // Set a branch's ABSOLUTE stock (manual adjustment). Returns { previous, next }.
-export function setBranchStock(orgId, productId, branchId, nextStock) {
-  const cur = getBranchStock(orgId, productId, branchId);
-  ensureBranchStock(orgId, productId, branchId, 0);
-  db.prepare('UPDATE product_branch_stock SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE organization_id = ? AND product_id = ? AND branch_id = ?')
+export async function setBranchStock(orgId, productId, branchId, nextStock) {
+  const cur = await getBranchStock(orgId, productId, branchId);
+  await ensureBranchStock(orgId, productId, branchId, 0);
+  await db.prepare('UPDATE product_branch_stock SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE organization_id = ? AND product_id = ? AND branch_id = ?')
     .run(nextStock, orgId, productId, branchId);
-  syncAggregate(orgId, productId);
+  await syncAggregate(orgId, productId);
   return { previous: cur.current_stock, next: nextStock };
 }
 
 // Apply a DELTA to a branch's stock (+receive/return, -sale/damage).
 // Returns { previous, next }.
-export function adjustBranchStock(orgId, productId, branchId, delta) {
-  const cur = getBranchStock(orgId, productId, branchId);
-  ensureBranchStock(orgId, productId, branchId, 0);
+export async function adjustBranchStock(orgId, productId, branchId, delta) {
+  const cur = await getBranchStock(orgId, productId, branchId);
+  await ensureBranchStock(orgId, productId, branchId, 0);
   const next = Number(cur.current_stock) + Number(delta);
-  db.prepare('UPDATE product_branch_stock SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE organization_id = ? AND product_id = ? AND branch_id = ?')
+  await db.prepare('UPDATE product_branch_stock SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE organization_id = ? AND product_id = ? AND branch_id = ?')
     .run(next, orgId, productId, branchId);
-  syncAggregate(orgId, productId);
+  await syncAggregate(orgId, productId);
   return { previous: cur.current_stock, next };
 }

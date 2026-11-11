@@ -8,17 +8,17 @@ router.use(authenticateSession);
 router.use(requireRole('owner', 'manager'));
 
 // GET expenses list (branch-scoped)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     if (crossBranchDenied(req.authUser, req.query.branch)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
     }
-    const { branch, all } = resolveViewBranch(req.authUser, req.query.branch);
+    const { branch, all } = await resolveViewBranch(req.authUser, req.query.branch);
     let sql = 'SELECT * FROM expenses WHERE organization_id = ?';
     const params = [req.authUser.organizationId];
     if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
     sql += ' ORDER BY created_at DESC';
-    const expenses = db.prepare(sql).all(...params);
+    const expenses = await db.prepare(sql).all(...params);
     res.json(expenses.map(e => ({
       id: e.id,
       branchId: e.branch_id,
@@ -35,7 +35,7 @@ router.get('/', (req, res) => {
 });
 
 // POST Create Expense (branch-owned)
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { category, amount, description, user, receiptRef } = req.body;
 
   if (!category || !amount || amount <= 0) {
@@ -45,7 +45,7 @@ router.post('/', (req, res) => {
   const orgId = req.authUser.organizationId;
   let branchId;
   try {
-    branchId = assertWriteBranch(req.authUser, orgId, req.body.branchId, canAccessBranch);
+    branchId = await assertWriteBranch(req.authUser, orgId, req.body.branchId, canAccessBranch);
   } catch (e) {
     return res.status(403).json({ error: e.message });
   }
@@ -55,12 +55,12 @@ router.post('/', (req, res) => {
   const userName = user || req.authUser.name || 'Manager';
 
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO expenses (id, organization_id, branch_id, category, amount, description, user_name, receipt_ref, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).run(id, orgId, branchId, category, amt, description || null, userName, receiptRef || null);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Log Expense', ?, '-', ?, ?)
     `).run(`AUD-${Date.now()}`, orgId, userName, req.authUser.role, branchId, category, `KSh ${amt}`, description || 'Shop operational expense');

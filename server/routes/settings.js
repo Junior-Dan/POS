@@ -16,11 +16,11 @@ router.use((req, res, next) => {
 
 // GET all settings for THIS organization (keys stored namespaced as
 // "<orgId>::<name>"; the prefix is stripped before returning).
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const orgId = req.authUser.organizationId;
     const prefix = `${orgId}::`;
-    const rows = db.prepare('SELECT * FROM settings WHERE key LIKE ?').all(`${prefix}%`);
+    const rows = await db.prepare('SELECT * FROM settings WHERE key LIKE ?').all(`${prefix}%`);
     const settings = {};
     rows.forEach(r => {
       const name = r.key.startsWith(prefix) ? r.key.slice(prefix.length) : r.key;
@@ -37,7 +37,7 @@ router.get('/', (req, res) => {
 });
 
 // PUT update a specific settings section for THIS organization.
-router.put('/:key', (req, res) => {
+router.put('/:key', async (req, res) => {
   const { key } = req.params;
   const value = req.body;
   const orgId = req.authUser.organizationId;
@@ -45,15 +45,15 @@ router.put('/:key', (req, res) => {
   try {
     const strVal = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(settingKey(orgId, key), strVal);
+    await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(settingKey(orgId, key), strVal);
 
     // Keep the authoritative organization name in sync with the business
     // profile so owner and staff always show the exact same business name.
     if (key === 'businessProfile' && value && typeof value === 'object' && value.name) {
-      try { db.prepare('UPDATE organizations SET name = ? WHERE id = ?').run(String(value.name), orgId); } catch (e) {}
+      try { await db.prepare('UPDATE organizations SET name = ? WHERE id = ?').run(String(value.name), orgId); } catch (e) {}
     }
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Update Settings', ?, '-', 'Updated', 'Configuration settings updated')
     `).run(`AUD-${Date.now()}`, orgId, req.authUser.name, req.authUser.role, req.authUser.branchId || '-', key);

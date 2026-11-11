@@ -143,14 +143,14 @@ export function verifyPin(pin, user) {
 
 // Scan active users (optionally filtered by role and organization) for one whose PIN matches.
 // Used only for elevated-action PIN prompts (refunds, stock adjustments).
-export function findUserByPin(pin, roles, organizationId = null) {
+export async function findUserByPin(pin, roles, organizationId = null) {
   if (!pin) return null;
   const allowed = roles ? roles.map(r => r.toLowerCase()) : null;
   let list;
   if (organizationId) {
-    list = db.prepare('SELECT * FROM users WHERE active = 1 AND (organization_id = ? OR organization_id IS NULL)').all(organizationId);
+    list = await db.prepare('SELECT * FROM users WHERE active = 1 AND (organization_id = ? OR organization_id IS NULL)').all(organizationId);
   } else {
-    list = db.prepare('SELECT * FROM users WHERE active = 1').all();
+    list = await db.prepare('SELECT * FROM users WHERE active = 1').all();
   }
   return list.find(u =>
     (!allowed || allowed.includes((u.role || '').toLowerCase())) && verifyPin(pin, u)
@@ -158,18 +158,18 @@ export function findUserByPin(pin, roles, organizationId = null) {
 }
 
 // One-time migration: drop any plaintext PINs, backfill hashes for legacy rows.
-export function migratePins() {
+export async function migratePins() {
   try {
-    const rows = db.prepare('SELECT id, pin, pin_hash FROM users').all();
+    const rows = await db.prepare('SELECT id, pin, pin_hash FROM users').all();
     for (const row of rows) {
       let hash = row.pin_hash;
       if (!hash && row.pin) {
         // Legacy row with only plaintext PIN -> derive a secure hash before wiping.
         hash = hashPin(row.pin);
-        db.prepare('UPDATE users SET pin_hash = ? WHERE id = ?').run(hash, row.id);
+        await db.prepare('UPDATE users SET pin_hash = ? WHERE id = ?').run(hash, row.id);
       }
       if (row.pin && row.pin !== '') {
-        db.prepare("UPDATE users SET pin = '' WHERE id = ?").run(row.id);
+        await db.prepare("UPDATE users SET pin = '' WHERE id = ?").run(row.id);
       }
     }
     console.log('PIN migration complete: plaintext PINs cleared.');
@@ -230,7 +230,7 @@ function extractToken(req) {
 // Validates the session token and attaches the *server-trusted* user identity
 // to req.authUser. Primary path is stateless JWT verification (works on any
 // instance); falls back to the legacy in-memory/DB session for old tokens.
-export function authenticateSession(req, res, next) {
+export async function authenticateSession(req, res, next) {
   const token = extractToken(req);
 
   if (!token) {
@@ -245,7 +245,7 @@ export function authenticateSession(req, res, next) {
     session = activeSessions.get(token);
     if (!session) {
       try {
-        const dbSession = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);
+        const dbSession = await db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);
         if (dbSession) {
           const expiresAt = new Date(dbSession.expires_at).getTime();
           if (Date.now() <= expiresAt) {
@@ -258,7 +258,7 @@ export function authenticateSession(req, res, next) {
             };
             activeSessions.set(token, session);
           } else {
-            db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+            await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
           }
         }
       } catch (e) {}
@@ -271,19 +271,19 @@ export function authenticateSession(req, res, next) {
 
   if (session.expiresAt && Date.now() > session.expiresAt) {
     activeSessions.delete(token);
-    try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
+    try { await db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 
   let dbUser = null;
   try {
-    dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId);
+    dbUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId);
   } catch (e) {}
 
   if (dbUser) {
     if (dbUser.active === 0 || dbUser.status === 'INACTIVE' || dbUser.status === 'DISABLED') {
       activeSessions.delete(token);
-      try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
+      try { await db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
       return res.status(403).json({ error: 'Account disabled or suspended. Access denied.' });
     }
   }
@@ -292,7 +292,7 @@ export function authenticateSession(req, res, next) {
   let organizationName = null;
   if (authOrgId) {
     try {
-      const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(authOrgId);
+      const org = await db.prepare('SELECT name FROM organizations WHERE id = ?').get(authOrgId);
       if (org && org.name) organizationName = org.name;
     } catch (e) {}
   }
@@ -339,12 +339,12 @@ export function canAccessBranch(authUser, branchId) {
 // 1. REGISTER A NEW ORGANIZATION + ITS OWNER
 //    Single-business: Allows creating the primary owner account if none exists.
 // ---------------------------------------------------------------------------
-router.post('/setup', (req, res) => {
+router.post('/setup', async (req, res) => {
   const { name, email, phone, password, confirmPassword, pin, confirmPin, businessName, branchName, branchCode } = req.body;
 
   // Single-business guard: if an owner already exists, reject setup
   try {
-    const existingOwner = db.prepare("SELECT id FROM users WHERE LOWER(role) = 'owner'").get();
+    const existingOwner = await db.prepare("SELECT id FROM users WHERE LOWER(role) = 'owner'").get();
     if (existingOwner) {
       return res.status(400).json({ error: 'An owner account already exists. Please log in using your credentials.' });
     }
@@ -371,7 +371,7 @@ router.post('/setup', (req, res) => {
   }
 
   if (email) {
-    const exists = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
+    const exists = await db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
     if (exists) {
       return res.status(409).json({ error: 'This email is already in use. Please log in instead or use a different email.' });
     }
@@ -380,7 +380,7 @@ router.post('/setup', (req, res) => {
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const orgId = `ORG-MAIN`;
   const ownerId = `U-OWNER-${stamp}`;
-  const bCode = uniqueBranchCode(branchCode || 'main');
+  const bCode = await uniqueBranchCode(branchCode || 'main');
   const bId = `BR-${bCode}`;
   const passwordHashed = hashPin(cleanSecret);
 
@@ -400,16 +400,16 @@ router.post('/setup', (req, res) => {
       }
     }
 
-    db.prepare('INSERT OR REPLACE INTO organizations (id, name, owner_id) VALUES (?, ?, ?)')
+    await db.prepare('INSERT OR REPLACE INTO organizations (id, name, owner_id) VALUES (?, ?, ?)')
       .run(orgId, bizName, ownerId);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT OR REPLACE INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, password_hash, email, phone, status, active, created_by)
       VALUES (?, ?, NULL, ?, 'owner', '', ?, ?, ?, ?, 'ACTIVE', 1, 'SYSTEM')
     `).run(ownerId, orgId, name, passwordHashed, passwordHashed, email || null, phone || null);
 
     const bName = branchName || 'Main Branch';
-    db.prepare(`
+    await db.prepare(`
       INSERT OR REPLACE INTO branches (id, organization_id, name, code, location, phone, status)
       VALUES (?, ?, ?, ?, 'Head Office', ?, 'ACTIVE')
     `).run(bId, orgId, bName, bCode, phone || '');
@@ -422,7 +422,7 @@ router.post('/setup', (req, res) => {
       address: 'Kenya',
       kraPin: 'P051234567S'
     };
-    setOrgSetting(orgId, 'businessProfile', profile);
+    await setOrgSetting(orgId, 'businessProfile', profile);
 
     const token = signSession({ id: ownerId, role: 'owner' }, orgId, null);
 
@@ -434,10 +434,10 @@ router.post('/setup', (req, res) => {
     });
 
     try {
-      setOrgSetting(orgId, 'branches', [
+      await setOrgSetting(orgId, 'branches', [
         { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
       ]);
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
         VALUES (?, ?, ?, ?, 'owner', ?, 'Register Owner', ?, '-', 'Owner Account Created', 'Business & Initial Branch Created')
       `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), name, bId, bizName);
@@ -450,7 +450,7 @@ router.post('/setup', (req, res) => {
 // ---------------------------------------------------------------------------
 // 2. USER LOGIN
 // ---------------------------------------------------------------------------
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { pin, password, userId, username, email } = req.body;
   const loginCred = (email || username || '').trim();
   const secret = password !== undefined && password !== null && String(password).trim() !== '' ? password : pin;
@@ -468,10 +468,10 @@ router.post('/login', (req, res) => {
 
   let candidates = [];
   if (userId) {
-    const u = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(userId);
+    const u = await db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(userId);
     if (u) candidates.push(u);
   } else {
-    candidates = db.prepare('SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ? OR LOWER(phone) = LOWER(?)) AND active = 1 ORDER BY created_at DESC').all(loginCred, loginCred, loginCred, loginCred);
+    candidates = await db.prepare('SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ? OR LOWER(phone) = LOWER(?)) AND active = 1 ORDER BY created_at DESC').all(loginCred, loginCred, loginCred, loginCred);
   }
 
   if (!candidates || candidates.length === 0) {
@@ -495,7 +495,7 @@ router.post('/login', (req, res) => {
 
   let organizationName = null;
   try {
-    const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgId);
+    const org = await db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgId);
     if (org && org.name) organizationName = org.name;
   } catch (e) {}
 
@@ -531,11 +531,11 @@ router.get('/me', authenticateSession, (req, res) => {
 // ---------------------------------------------------------------------------
 // 4. LOGOUT — invalidate the current session token.
 // ---------------------------------------------------------------------------
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   const token = extractToken(req);
   if (token) {
     activeSessions.delete(token);
-    try { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
+    try { await db.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) {}
   }
   res.json({ success: true });
 });
@@ -543,21 +543,21 @@ router.post('/logout', (req, res) => {
 // ---------------------------------------------------------------------------
 // 5. PUBLIC BRANCH & STAFF ROSTER FOR LOGIN (Unified single-business roster)
 // ---------------------------------------------------------------------------
-router.get('/branch-info', (req, res) => {
+router.get('/branch-info', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const code = (req.query.code || req.query.branch || '').toLowerCase();
 
   let branch = null;
   if (code && code !== 'all') {
-    branch = db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
+    branch = await db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
   }
   if (!branch) {
-    branch = db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
+    branch = await db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
   }
 
   let branchUsers = [];
   try {
-    branchUsers = db.prepare(`
+    branchUsers = await db.prepare(`
       SELECT id, name, role, email, phone, branch_id, status, active
       FROM users
       WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
@@ -569,7 +569,7 @@ router.get('/branch-info', (req, res) => {
 
   let orgName = 'Cellar POS';
   try {
-    const org = db.prepare('SELECT name FROM organizations ORDER BY created_at ASC LIMIT 1').get();
+    const org = await db.prepare('SELECT name FROM organizations ORDER BY created_at ASC LIMIT 1').get();
     if (org && org.name) orgName = org.name;
   } catch (e) {}
 
@@ -607,18 +607,18 @@ router.get('/branch-info', (req, res) => {
 // ---------------------------------------------------------------------------
 // 5. CREATE BRANCH (OWNER ONLY)
 // ---------------------------------------------------------------------------
-router.post('/branches', authenticateSession, requireRole('owner'), (req, res) => {
+router.post('/branches', authenticateSession, requireRole('owner'), async (req, res) => {
   const { name, location, phone, code, commodityType, status } = req.body;
   if (!name) return res.status(400).json({ error: 'Branch name is required.' });
 
   const orgId = req.authUser.organizationId;
   // Globally-unique code so the branch's share URL is unambiguous across orgs.
-  const generatedCode = uniqueBranchCode(code || name);
+  const generatedCode = await uniqueBranchCode(code || name);
   const branchId = `BR-${generatedCode}`;
   const branchStatus = status || 'ACTIVE';
 
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO branches (id, organization_id, name, code, location, phone, status)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(branchId, orgId, name, generatedCode, location || '', phone || '', branchStatus);
@@ -626,11 +626,11 @@ router.post('/branches', authenticateSession, requireRole('owner'), (req, res) =
     // Keep this org's settings.branches array in sync for the frontend. The
     // settings blob is free-form JSON, so commodityType persists here without a
     // schema change (this is the array the UI reloads store.branches from).
-    const currentBranches = getOrgSetting(orgId, 'branches') || [];
+    const currentBranches = (await getOrgSetting(orgId, 'branches')) || [];
     currentBranches.push({ id: branchId, organizationId: orgId, name, code: generatedCode, commodityType: commodityType || '', location: location || '', phone: phone || '', status: branchStatus });
-    setOrgSetting(orgId, 'branches', currentBranches);
+    await setOrgSetting(orgId, 'branches', currentBranches);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, 'owner', ?, 'Create Branch', ?, '-', ?, 'New branch created')
     `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.name, branchId, name, generatedCode.toUpperCase());
@@ -647,7 +647,7 @@ router.post('/branches', authenticateSession, requireRole('owner'), (req, res) =
 // (share-URL slug) is intentionally left unchanged so existing links keep
 // working. commodityType is persisted in the settings.branches blob.
 // ---------------------------------------------------------------------------
-router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res) => {
+router.put('/branches/:id', authenticateSession, requireRole('owner'), async (req, res) => {
   const { id } = req.params;
   const { name, location, phone, status, commodityType } = req.body;
   const orgId = req.authUser.organizationId;
@@ -656,9 +656,9 @@ router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res
   const nz = (v) => (v === undefined ? null : v);
 
   try {
-    const existing = db.prepare('SELECT * FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').get(id, orgId);
+    const existing = await db.prepare('SELECT * FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').get(id, orgId);
     if (existing) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE branches
         SET name = COALESCE(?, name),
             location = COALESCE(?, location),
@@ -671,7 +671,7 @@ router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res
 
     // Update the frontend-facing settings.branches array in place (matched by
     // id, or by code when the row predates stable ids).
-    const branches = getOrgSetting(orgId, 'branches') || [];
+    const branches = (await getOrgSetting(orgId, 'branches')) || [];
     const existingCode = existing && existing.code ? String(existing.code).toLowerCase() : null;
     const idx = branches.findIndex(b =>
       b.id === id || (existingCode && b.code && String(b.code).toLowerCase() === existingCode));
@@ -686,9 +686,9 @@ router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res
       ...(commodityType !== undefined ? { commodityType } : {})
     };
     if (idx >= 0) branches[idx] = merged; else branches.push(merged);
-    setOrgSetting(orgId, 'branches', branches);
+    await setOrgSetting(orgId, 'branches', branches);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, 'owner', ?, 'Update Branch', ?, '-', ?, 'Branch details updated')
     `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.name, id, merged.name || id, merged.commodityType || '-');
@@ -702,19 +702,19 @@ router.put('/branches/:id', authenticateSession, requireRole('owner'), (req, res
 // ---------------------------------------------------------------------------
 // 5c. DELETE BRANCH (OWNER ONLY)
 // ---------------------------------------------------------------------------
-router.delete('/branches/:id', authenticateSession, requireRole('owner'), (req, res) => {
+router.delete('/branches/:id', authenticateSession, requireRole('owner'), async (req, res) => {
   const { id } = req.params;
   const orgId = req.authUser.organizationId;
   try {
-    const existing = db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(id, String(id).toLowerCase(), orgId);
+    const existing = await db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(id, String(id).toLowerCase(), orgId);
     if (existing) {
-      db.prepare('DELETE FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').run(existing.id, orgId);
+      await db.prepare('DELETE FROM branches WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)').run(existing.id, orgId);
     }
 
-    const branches = (getOrgSetting(orgId, 'branches') || []).filter(b => b.id !== id && b.code !== id && (existing ? b.id !== existing.id : true));
+    const branches = ((await getOrgSetting(orgId, 'branches')) || []).filter(b => b.id !== id && b.code !== id && (existing ? b.id !== existing.id : true));
     setOrgSetting(orgId, 'branches', branches);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, 'owner', ?, 'Delete Branch', ?, '-', 'DELETED', 'Branch deleted')
     `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), req.authUser.name, id, id);
@@ -728,7 +728,7 @@ router.delete('/branches/:id', authenticateSession, requireRole('owner'), (req, 
 // ---------------------------------------------------------------------------
 // 6. GET USERS LIST (scoped: owner sees org, manager sees own branch)
 // ---------------------------------------------------------------------------
-router.get('/users', authenticateSession, requireRole('owner', 'manager'), (req, res) => {
+router.get('/users', authenticateSession, requireRole('owner', 'manager'), async (req, res) => {
   const auth = req.authUser;
   if (crossBranchDenied(auth, req.query.branch)) {
     return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
@@ -740,15 +740,15 @@ router.get('/users', authenticateSession, requireRole('owner', 'manager'), (req,
     // branch's staff at a time — the requested branch, or the primary branch as
     // a fallback. Owner accounts (branch_id NULL) are always included so the
     // owner can always manage themselves from any branch view.
-    const { branch } = resolveViewBranch(auth, req.query.branch);
+    const { branch } = await resolveViewBranch(auth, req.query.branch);
     if (branch) {
-      rows = db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', branch);
+      rows = await db.prepare(`${cols} WHERE organization_id = ? AND (branch_id = ? OR role = 'owner') AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1', branch);
     } else {
-      rows = db.prepare(`${cols} WHERE organization_id = ? AND role = 'owner' AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
+      rows = await db.prepare(`${cols} WHERE organization_id = ? AND role = 'owner' AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.organizationId || 'ORG-1');
     }
   } else {
     // Manager: only their own branch staff (client branch input ignored).
-    rows = db.prepare(`${cols} WHERE branch_id = ? AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.branchId);
+    rows = await db.prepare(`${cols} WHERE branch_id = ? AND active = 1 AND (status IS NULL OR status <> 'DELETED') ORDER BY created_at ASC`).all(auth.branchId);
   }
   res.json(rows); // pin / pin_hash intentionally excluded
 });
@@ -756,7 +756,7 @@ router.get('/users', authenticateSession, requireRole('owner', 'manager'), (req,
 // ---------------------------------------------------------------------------
 // 7. CREATE USER / STAFF MEMBER (hierarchy enforced server-side)
 // ---------------------------------------------------------------------------
-router.post('/users', authenticateSession, (req, res) => {
+router.post('/users', authenticateSession, async (req, res) => {
   const creator = req.authUser;
   const { name, role, pin, confirmPin, email, phone, primaryBranchId, branchId, status } = req.body;
 
@@ -781,7 +781,7 @@ router.post('/users', authenticateSession, (req, res) => {
   }
 
   if (email) {
-    const exists = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
+    const exists = await db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(String(email).trim());
     if (exists) {
       return res.status(409).json({ error: 'This email is already in use by another account.' });
     }
@@ -807,20 +807,20 @@ router.post('/users', authenticateSession, (req, res) => {
 
   let branch = null;
   if (targetBranch) {
-    branch = db.prepare('SELECT * FROM branches WHERE id = ? OR LOWER(code) = ?').get(targetBranch, String(targetBranch).toLowerCase());
+    branch = await db.prepare('SELECT * FROM branches WHERE id = ? OR LOWER(code) = ?').get(targetBranch, String(targetBranch).toLowerCase());
   }
   if (!branch) {
-    branch = db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
+    branch = await db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
   }
   if (!branch) {
-    const defaultCode = uniqueBranchCode('main');
+    const defaultCode = await uniqueBranchCode('main');
     const defaultId = `BR-${defaultCode}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO branches (id, organization_id, name, code, location, status)
       VALUES (?, ?, 'Main Branch', ?, 'Head Office', 'ACTIVE')
     `).run(defaultId, orgId, defaultCode);
 
-    const currentBranches = getOrgSetting(orgId, 'branches') || [];
+    const currentBranches = (await getOrgSetting(orgId, 'branches')) || [];
     currentBranches.push({ id: defaultId, organizationId: orgId, name: 'Main Branch', code: defaultCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' });
     setOrgSetting(orgId, 'branches', currentBranches);
 
@@ -845,7 +845,7 @@ router.post('/users', authenticateSession, (req, res) => {
       }
     }
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO users (id, organization_id, branch_id, name, role, pin, pin_hash, password_hash, email, phone, status, active, created_by)
       VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'ACTIVE', 1, ?)
     `).run(userId, orgId, targetBranch, name, targetRole, pinHashed, pinHashed, email || null, phone || null, creator.id);
@@ -865,7 +865,7 @@ router.post('/users', authenticateSession, (req, res) => {
     res.status(201).json(newUser);
 
     try {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
         VALUES (?, ?, ?, ?, ?, ?, 'Create Staff Account', ?, '-', ?, 'New staff account created')
       `).run(`AUD-${Date.now()}`, orgId, new Date().toISOString(), creator.name, creator.role, targetBranch, name, targetRole.toUpperCase());
@@ -905,12 +905,12 @@ function canManageTarget(actor, target) {
 // ---------------------------------------------------------------------------
 // 8. UPDATE USER / DEACTIVATE / REACTIVATE
 // ---------------------------------------------------------------------------
-router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (req, res) => {
+router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), async (req, res) => {
   const { id } = req.params;
   const { name, role, pin, email, phone, primaryBranchId, status, active } = req.body;
 
   try {
-    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     const guard = canManageTarget(req.authUser, existing);
     if (!guard.ok) return res.status(guard.code).json({ error: guard.error });
 
@@ -920,7 +920,7 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
 
     // If the email is being changed, it must not collide with another account.
     if (email && String(email).trim() && String(email).trim().toLowerCase() !== String(existing.email || '').toLowerCase()) {
-      const clash = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?').get(String(email).trim(), id);
+      const clash = await db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?').get(String(email).trim(), id);
       if (clash) return res.status(409).json({ error: 'This email is already in use by another account.' });
     }
 
@@ -934,7 +934,7 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
 
     let newBranch = existing.branch_id;
     if (primaryBranchId && req.authUser.role === 'owner') {
-      const b = db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(primaryBranchId, String(primaryBranchId).toLowerCase(), req.authUser.organizationId);
+      const b = await db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(primaryBranchId, String(primaryBranchId).toLowerCase(), req.authUser.organizationId);
       if (b) newBranch = b.id;
     }
 
@@ -953,7 +953,7 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
     // The owner can never be demoted or disabled.
     if (targetIsOwner) { newRole = 'owner'; isActive = 1; userStatus = 'ACTIVE'; }
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE users
       SET name = COALESCE(?, name),
           role = ?,
@@ -976,7 +976,7 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
       }
     }
 
-    const updated = db.prepare('SELECT id, organization_id as organizationId, branch_id as branchId, name, role, email, phone, status, active FROM users WHERE id = ?').get(id);
+    const updated = await db.prepare('SELECT id, organization_id as organizationId, branch_id as branchId, name, role, email, phone, status, active FROM users WHERE id = ?').get(id);
     res.json(updated);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -986,10 +986,10 @@ router.put('/users/:id', authenticateSession, requireRole('owner', 'manager'), (
 // ---------------------------------------------------------------------------
 // 8b. DELETE USER (CANNOT DELETE SELF OR OWNER)
 // ---------------------------------------------------------------------------
-router.delete('/users/:id', authenticateSession, requireRole('owner', 'manager'), (req, res) => {
+router.delete('/users/:id', authenticateSession, requireRole('owner', 'manager'), async (req, res) => {
   const { id } = req.params;
   try {
-    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     const guard = canManageTarget(req.authUser, existing);
     if (!guard.ok) return res.status(guard.code).json({ error: guard.error });
 
@@ -1000,13 +1000,13 @@ router.delete('/users/:id', authenticateSession, requireRole('owner', 'manager')
       return res.status(403).json({ error: 'You cannot delete your own account.' });
     }
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(id);
 
     for (const [tok, sess] of activeSessions.entries()) {
       if (sess.userId === id) activeSessions.delete(tok);
     }
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, ?, ?, 'Delete Staff Account', ?, '-', 'DELETED', 'Staff account deleted')
     `).run(`AUD-${Date.now()}`, req.authUser.organizationId || 'ORG-MAIN', new Date().toISOString(), req.authUser.name, req.authUser.role, existing.branch_id || '-', existing.name);
@@ -1020,7 +1020,7 @@ router.delete('/users/:id', authenticateSession, requireRole('owner', 'manager')
 // ---------------------------------------------------------------------------
 // 9. RESET PIN (authorized higher-level users only)
 // ---------------------------------------------------------------------------
-router.post('/reset-pin', authenticateSession, requireRole('owner', 'manager'), (req, res) => {
+router.post('/reset-pin', authenticateSession, requireRole('owner', 'manager'), async (req, res) => {
   const { userId, newPin, confirmPin } = req.body;
   if (!userId || !newPin) {
     return res.status(400).json({ error: 'userId and a 4-digit newPin are required.' });
@@ -1035,14 +1035,14 @@ router.post('/reset-pin', authenticateSession, requireRole('owner', 'manager'), 
   }
 
   try {
-    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const target = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     const guard = canManageTarget(req.authUser, target);
     if (!guard.ok) return res.status(guard.code).json({ error: guard.error });
 
-    db.prepare("UPDATE users SET pin = '', pin_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    await db.prepare("UPDATE users SET pin = '', pin_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
       .run(hashPin(cleanPin), userId);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, ?, ?, ?, 'Reset PIN', ?, '-', 'PIN reset', 'Security PIN reset by authorized user')
     `).run(`AUD-${Date.now()}`, new Date().toISOString(), req.authUser.name, req.authUser.role, target.branch_id || '-', target.name);
@@ -1056,12 +1056,12 @@ router.post('/reset-pin', authenticateSession, requireRole('owner', 'manager'), 
 // ---------------------------------------------------------------------------
 // 10. VERIFY PIN FOR ELEVATED ACTIONS (authenticated sessions only)
 // ---------------------------------------------------------------------------
-router.post('/verify-pin', authenticateSession, (req, res) => {
+router.post('/verify-pin', authenticateSession, async (req, res) => {
   const { pin, requiredRoles } = req.body;
   if (!pin) return res.status(400).json({ error: 'PIN is required.' });
 
   const allowedRoles = (requiredRoles || ['owner', 'manager']).map(r => r.toLowerCase());
-  const user = findUserByPin(pin, allowedRoles, req.authUser.organizationId);
+  const user = await findUserByPin(pin, allowedRoles, req.authUser.organizationId);
   if (!user) {
     return res.status(403).json({ error: 'Invalid PIN or insufficient permissions.' });
   }
@@ -1088,18 +1088,18 @@ const RESET_CODE_TTL_MS = 15 * 60 * 1000;   // code valid for 15 minutes
 const RESET_MAX_ATTEMPTS = 5;               // wrong-code attempts before invalidation
 const resetKey = (email) => `pwreset::${String(email).trim().toLowerCase()}`;
 
-function storeResetCode(email, code) {
+async function storeResetCode(email, code) {
   const rec = { hash: hashPin(code), expires: Date.now() + RESET_CODE_TTL_MS, attempts: 0 };
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(resetKey(email), JSON.stringify(rec));
+  await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(resetKey(email), JSON.stringify(rec));
 }
-function readResetCode(email) {
+async function readResetCode(email) {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(resetKey(email));
+    const row = await db.prepare('SELECT value FROM settings WHERE key = ?').get(resetKey(email));
     return row && row.value ? JSON.parse(row.value) : null;
   } catch (e) { return null; }
 }
-function clearResetCode(email) {
-  try { db.prepare('DELETE FROM settings WHERE key = ?').run(resetKey(email)); } catch (e) {}
+async function clearResetCode(email) {
+  try { await db.prepare('DELETE FROM settings WHERE key = ?').run(resetKey(email)); } catch (e) {}
 }
 
 router.post('/forgot-password', async (req, res) => {
@@ -1110,14 +1110,14 @@ router.post('/forgot-password', async (req, res) => {
 
   const cleanEmail = String(email).trim().toLowerCase();
   try {
-    const user = db.prepare('SELECT id, email, name FROM users WHERE LOWER(email) = ? AND active = 1').get(cleanEmail);
+    const user = await db.prepare('SELECT id, email, name FROM users WHERE LOWER(email) = ? AND active = 1').get(cleanEmail);
     if (!user) {
       return res.status(404).json({ error: 'No active account found with this email address.' });
     }
 
     // Generate a 6-digit one-time code, store only its hash, deliver out of band.
     const code = String(crypto.randomInt(100000, 1000000));
-    storeResetCode(cleanEmail, code);
+    await storeResetCode(cleanEmail, code);
     console.log(`[PASSWORD RESET] One-time code for ${cleanEmail}: ${code} (valid 15 min)`);
 
     if (supabaseAdmin) {
@@ -1163,12 +1163,12 @@ router.post('/reset-password', async (req, res) => {
   }
 
   // Verify the one-time reset code BEFORE touching any credential.
-  const rec = readResetCode(cleanEmail);
+  const rec = await readResetCode(cleanEmail);
   if (!rec) {
     return res.status(400).json({ error: 'No active reset request. Please request a new reset code.' });
   }
   if (Date.now() > rec.expires) {
-    clearResetCode(cleanEmail);
+    await clearResetCode(cleanEmail);
     return res.status(400).json({ error: 'Reset code has expired. Please request a new one.' });
   }
   if ((rec.attempts || 0) >= RESET_MAX_ATTEMPTS) {
@@ -1177,12 +1177,12 @@ router.post('/reset-password', async (req, res) => {
   }
   if (!bcrypt.compareSync(cleanCode, rec.hash)) {
     rec.attempts = (rec.attempts || 0) + 1;
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(resetKey(cleanEmail), JSON.stringify(rec));
+    await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(resetKey(cleanEmail), JSON.stringify(rec));
     return res.status(401).json({ error: 'Invalid reset code.' });
   }
 
   try {
-    const user = db.prepare('SELECT id, email, name, organization_id FROM users WHERE LOWER(email) = ? AND active = 1').get(cleanEmail);
+    const user = await db.prepare('SELECT id, email, name, organization_id FROM users WHERE LOWER(email) = ? AND active = 1').get(cleanEmail);
     if (!user) {
       return res.status(404).json({ error: 'No account found matching this email address.' });
     }
@@ -1207,7 +1207,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const passHashed = hashPin(cleanPass);
-    db.prepare(`
+    await db.prepare(`
       UPDATE users
       SET pin = '', pin_hash = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP
       WHERE LOWER(email) = ?
@@ -1217,7 +1217,7 @@ router.post('/reset-password', async (req, res) => {
     clearResetCode(cleanEmail);
 
     try {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
         VALUES (?, ?, CURRENT_TIMESTAMP, ?, 'user', '-', 'Reset Password', ?, '-', 'Password Updated', 'Supabase Password Reset')
       `).run(`AUD-${Date.now()}`, user.organization_id || 'ORG-MAIN', user.name, user.email);

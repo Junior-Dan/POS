@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authenticateSession);
 
 // GET sales list with filters
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     if (crossBranchDenied(req.authUser, req.query.branch) || crossBranchDenied(req.authUser, req.query.branchId)) {
       return res.status(403).json({ error: 'Access denied: you cannot view another branch.' });
@@ -22,7 +22,7 @@ router.get('/', (req, res) => {
 
     // Every branch stands alone (no aggregate "ALL"): non-owners are pinned to
     // their own branch; owners view one branch at a time (requested or primary).
-    const { branch: branchId } = resolveViewBranch(req.authUser, requestedBranch);
+    const { branch: branchId } = await resolveViewBranch(req.authUser, requestedBranch);
     if (branchId) {
       sql += ` AND branch_id = ?`;
       params.push(branchId);
@@ -51,15 +51,14 @@ router.get('/', (req, res) => {
 
     sql += ` ORDER BY created_at DESC LIMIT 100`;
 
-    const sales = db.prepare(sql).all(...params);
+    const sales = await db.prepare(sql).all(...params);
 
-    // Fetch ALL line items for these sales in ONE query (avoid an N+1 storm that
-    // would block the synchronous DB layer once there are many sales).
+    // Fetch ALL line items for these sales in ONE query (avoid an N+1 storm).
     const itemsBySale = {};
     const ids = sales.map(s => s.id);
     if (ids.length) {
       const placeholders = ids.map(() => '?').join(',');
-      const allItems = db.prepare(
+      const allItems = await db.prepare(
         `SELECT * FROM sale_items WHERE organization_id = ? AND sale_id IN (${placeholders})`
       ).all(req.authUser.organizationId, ...ids);
       for (const i of allItems) {
@@ -109,15 +108,16 @@ router.get('/', (req, res) => {
 });
 
 // GET single sale details & receipt
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const sale = db.prepare('SELECT * FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, req.authUser.organizationId);
+    const sale = await db.prepare('SELECT * FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, req.authUser.organizationId);
     if (!sale) {
       return res.status(404).json({ error: "Sale transaction not found" });
     }
 
-    const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(sale.id).map(i => ({
+    const itemRows = await db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(sale.id);
+    const items = itemRows.map(i => ({
       id: i.product_id,
       productId: i.product_id,
       name: i.product_name,
@@ -154,7 +154,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST Create Transactional Sale
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const {
     items,
     subtotal,
@@ -185,7 +185,7 @@ router.post('/', (req, res) => {
   const clientRef = (req.body.clientRef || req.body.idempotencyKey || '').toString().trim();
   if (clientRef) {
     try {
-      const prior = db.prepare('SELECT value FROM settings WHERE key = ?').get(`saleref::${clientRef}`);
+      const prior = await db.prepare('SELECT value FROM settings WHERE key = ?').get(`saleref::${clientRef}`);
       if (prior && prior.value) {
         return res.status(201).json({ success: true, sale: JSON.parse(prior.value), idempotent: true });
       }
@@ -195,7 +195,7 @@ router.post('/', (req, res) => {
   const orgId = req.authUser.organizationId;
 
   // Execute sale creation in an atomic database transaction
-  const processSaleTransaction = db.transaction(() => {
+  const processSaleTransaction = db.transaction(async () => {
     // 0. Resolve the branch this sale deducts from.
     //    - Scoped users (cashier/manager/inventory_officer) are bound to their
     //      OWN assigned branch; a client-supplied branch is never trusted.
@@ -212,7 +212,7 @@ router.post('/', (req, res) => {
       if (!effectiveBranch || effectiveBranch === 'ALL') {
         throw new Error('Please select a specific branch before completing a sale.');
       }
-      if (!branchExists(orgId, effectiveBranch)) {
+      if (!(await branchExists(orgId, effectiveBranch))) {
         throw new Error('Selected branch was not found for your organization.');
       }
     }
@@ -223,14 +223,15 @@ router.post('/', (req, res) => {
     // 1. Validate per-BRANCH stock for all items (no cross-branch borrowing).
     for (const item of items) {
       const pId = item.id || item.productId;
-      const product = db.prepare('SELECT id, name, active FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
+      const product = await db.prepare('SELECT id, name, active FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
       if (!product) {
         throw new Error(`Product '${item.name || pId}' not found in database.`);
       }
       if (!product.active) {
         throw new Error(`Product '${product.name}' is inactive and cannot be sold.`);
       }
-      const branchStock = Number(getBranchStock(orgId, pId, effectiveBranch).current_stock);
+      const branchStockObj = await getBranchStock(orgId, pId, effectiveBranch);
+      const branchStock = Number(branchStockObj.current_stock);
       if (branchStock < item.qty) {
         throw new Error(`Insufficient stock for '${product.name}' at this branch. Required: ${item.qty}, Available: ${branchStock}.`);
       }
@@ -245,7 +246,7 @@ router.post('/', (req, res) => {
     const customerName = customer?.name || 'Walk-in Customer';
 
     // 3. Insert Sale Record
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO sales (
         id, organization_id, receipt_no, branch_id, cashier_id, cashier_name, customer_id, customer_name,
         subtotal, discount, tax, total, payment_method, mpesa_code, status, shift_id, created_at
@@ -274,22 +275,22 @@ router.post('/', (req, res) => {
     // 4. Create Sale Items, Deduct Stock & Record Inventory Movement
     for (const item of items) {
       const pId = item.id || item.productId;
-      const product = db.prepare('SELECT cost_price, name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
+      const product = await db.prepare('SELECT cost_price, name FROM products WHERE id = ? AND organization_id = ?').get(pId, orgId);
       const unitPrice = parseFloat(item.price || item.unitPrice || 0);
       const costSnapshot = parseFloat(product.cost_price || 0);
       const itemTotal = unitPrice * item.qty;
 
       // Insert Sale Item
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO sale_items (id, organization_id, sale_id, product_id, product_name, qty, unit_price, cost_snapshot, total)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(`SI-${Date.now()}-${Math.floor(Math.random()*1000)}`, orgId, saleId, pId, product.name, item.qty, unitPrice, costSnapshot, itemTotal);
 
       // Deduct THIS branch's stock (also re-syncs products.current_stock aggregate).
-      const { previous, next } = adjustBranchStock(orgId, pId, effectiveBranch, -item.qty);
+      const { previous, next } = await adjustBranchStock(orgId, pId, effectiveBranch, -item.qty);
 
       // Record branch-scoped Stock Movement
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
         VALUES (?, ?, ?, ?, ?, 'SALE', ?, ?, ?, ?, ?, 'POS Sale Completed')
       `).run(
@@ -307,14 +308,14 @@ router.post('/', (req, res) => {
     }
 
     // 5. Record Payment Entry
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO payments (id, organization_id, sale_id, method, amount, reference_code, status)
       VALUES (?, ?, ?, ?, ?, ?, 'SUCCESS')
     `).run(`PAY-${Date.now()}`, orgId, saleId, paymentMethod || 'CASH', parseFloat(total), mpesaCode || null);
 
     // 6. Update Customer Spend if non-walk-in
     if (customerId && customerId !== 'C1') {
-      db.prepare(`
+      await db.prepare(`
         UPDATE customers
         SET visits = visits + 1, total_spend = total_spend + ?
         WHERE id = ? AND organization_id = ?
@@ -322,7 +323,7 @@ router.post('/', (req, res) => {
     }
 
     // 7. Record Audit Log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, 'cashier', ?, 'POS Sale Completed', ?, '-', ?, 'Completed checkout transaction')
     `).run(`AUD-${Date.now()}`, orgId, cashierName, effectiveBranch, receiptNo, `KSh ${total} via ${paymentMethod}`);
@@ -349,11 +350,11 @@ router.post('/', (req, res) => {
   });
 
   try {
-    const saleResult = processSaleTransaction();
+    const saleResult = await processSaleTransaction();
     // Record the idempotency key -> persisted sale so an identical retry is a no-op.
     if (clientRef) {
       try {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`saleref::${clientRef}`, JSON.stringify(saleResult));
+        await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`saleref::${clientRef}`, JSON.stringify(saleResult));
       } catch (e) { /* non-fatal: sale already persisted */ }
     }
     res.status(201).json({
@@ -367,7 +368,7 @@ router.post('/', (req, res) => {
 });
 
 // POST Refund a Sale
-router.post('/:id/refund', (req, res) => {
+router.post('/:id/refund', async (req, res) => {
   const { id } = req.params;
   const { refundAmount, reason, managerPin } = req.body;
 
@@ -378,7 +379,7 @@ router.post('/:id/refund', (req, res) => {
   const orgId = req.authUser.organizationId;
 
   // Verify Manager/Owner PIN against secure hashes (no plaintext comparison).
-  const manager = findUserByPin(managerPin, ['owner', 'manager'], orgId);
+  const manager = await findUserByPin(managerPin, ['owner', 'manager'], orgId);
 
   if (!manager) {
     return res.status(403).json({ error: "Invalid Manager PIN or insufficient permissions for refund." });
@@ -391,13 +392,13 @@ router.post('/:id/refund', (req, res) => {
 
   // Branch isolation: the approving manager must belong to the sale's branch
   // (owners are organization-wide and may approve any branch).
-  const saleForBranch = db.prepare('SELECT branch_id FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, orgId);
+  const saleForBranch = await db.prepare('SELECT branch_id FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, orgId);
   if (saleForBranch && manager.role.toLowerCase() !== 'owner' && manager.branch_id !== saleForBranch.branch_id) {
     return res.status(403).json({ error: "Refund approver does not belong to this branch." });
   }
 
-  const processRefundTransaction = db.transaction(() => {
-    const sale = db.prepare('SELECT * FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, orgId);
+  const processRefundTransaction = db.transaction(async () => {
+    const sale = await db.prepare('SELECT * FROM sales WHERE (id = ? OR receipt_no = ?) AND organization_id = ?').get(id, id, orgId);
     if (!sale) {
       throw new Error("Sale transaction not found.");
     }
@@ -405,11 +406,11 @@ router.post('/:id/refund', (req, res) => {
       throw new Error("Sale transaction has already been refunded.");
     }
 
-    const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(sale.id);
+    const items = await db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(sale.id);
     const amountToRefund = parseFloat(refundAmount || sale.total);
 
     // Update sale record
-    db.prepare(`
+    await db.prepare(`
       UPDATE sales
       SET refunded = 1, refund_amount = ?, refund_reason = ?
       WHERE id = ?
@@ -418,11 +419,11 @@ router.post('/:id/refund', (req, res) => {
     // Restore stock to the ORIGINAL sale's branch and record movements.
     const refundBranch = sale.branch_id;
     for (const item of items) {
-      const product = db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
+      const product = await db.prepare('SELECT name FROM products WHERE id = ? AND organization_id = ?').get(item.product_id, orgId);
       if (product) {
-        const { previous, next } = adjustBranchStock(orgId, item.product_id, refundBranch, item.qty);
+        const { previous, next } = await adjustBranchStock(orgId, item.product_id, refundBranch, item.qty);
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO stock_movements (id, organization_id, product_id, product_name, branch_id, type, qty, previous_stock, new_stock, ref, user_name, reason)
           VALUES (?, ?, ?, ?, ?, 'RETURN', ?, ?, ?, ?, ?, ?)
         `).run(
@@ -442,7 +443,7 @@ router.post('/:id/refund', (req, res) => {
     }
 
     // Audit Log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'Sale Refunded', ?, ?, 'REFUNDED', ?)
     `).run(
@@ -460,7 +461,7 @@ router.post('/:id/refund', (req, res) => {
   });
 
   try {
-    const result = processRefundTransaction();
+    const result = await processRefundTransaction();
     res.json({ success: true, refund: result });
   } catch (e) {
     res.status(400).json({ error: e.message });
