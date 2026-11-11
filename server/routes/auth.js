@@ -11,10 +11,19 @@ const router = express.Router();
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+let supabaseAdmin = null;
 
-export const supabaseAdmin = (supabaseUrl && supabaseKey && !supabaseKey.includes('your_secret'))
-  ? createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  : null;
+// Creating a Supabase client initializes its Realtime transport. Keep that
+// optional integration lazy so an API request can still run wherever a native
+// WebSocket implementation is unavailable (including local Node 20 tests).
+function getSupabaseAdmin() {
+  if (supabaseAdmin || !supabaseUrl || !supabaseKey || supabaseKey.includes('your_secret')) return supabaseAdmin;
+  if (typeof WebSocket === 'undefined') return null;
+  supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  return supabaseAdmin;
+}
 
 // Legacy in-memory session cache. Kept only so any pre-existing opaque tokens
 // keep working; NEW sessions are stateless JWTs (see below).
@@ -387,6 +396,7 @@ router.post('/setup', async (req, res) => {
   try {
     const bizName = businessName || 'Cellar Wines & Spirits';
 
+    const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin && email) {
       try {
         supabaseAdmin.auth.admin.createUser({
@@ -832,6 +842,7 @@ router.post('/users', authenticateSession, async (req, res) => {
   const pinHashed = hashPin(cleanPin);
 
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin && email) {
       try {
         supabaseAdmin.auth.admin.createUser({
@@ -1120,6 +1131,7 @@ router.post('/forgot-password', async (req, res) => {
     await storeResetCode(cleanEmail, code);
     console.log(`[PASSWORD RESET] One-time code for ${cleanEmail}: ${code} (valid 15 min)`);
 
+    const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin) {
       // Best-effort: also e-mail the user via Supabase Auth recovery if configured.
       try {
@@ -1187,6 +1199,7 @@ router.post('/reset-password', async (req, res) => {
       return res.status(404).json({ error: 'No account found matching this email address.' });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin) {
       try {
         const { data: listData } = await supabaseAdmin.auth.admin.listUsers();

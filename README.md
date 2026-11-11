@@ -85,6 +85,32 @@ For a presentation-safe production bundle, run `npm run build`; preview it with
 
 ---
 
+## ☁️ Cloudflare Workers Deployment
+
+This project deploys as a **Cloudflare Worker with static assets**, not as a
+Cloudflare Pages project and not by pointing Cloudflare at `server/index.js`.
+The Worker entry and assets configuration are in `wrangler.json`.
+
+Use Node.js 22.12 or newer, then deploy with:
+
+```bash
+npm install
+npm run worker:build   # builds the Vite app and validates the Worker bundle
+npm run worker:deploy  # deploys the Worker and its static assets
+```
+
+Before the first deployment, add these as Worker **Secrets** in Cloudflare
+Workers & Pages → your Worker → Settings → Variables and Secrets:
+
+- `JWT_SECRET`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+`SUPABASE_URL` is already configured as a non-secret Worker variable. Apply
+`supabase_setup.sql` in the Supabase SQL editor once before using the hosted
+application. Do not place either secret in `wrangler.json` or commit it to Git.
+
+---
+
 ## 💾 Data Persistence & Reset
 
 - The shared POS data (catalogue, inventory movements, sales, shift logs, audit logs, and expenses) is stored in the SQLite database at `data/cellar_pos.db`.

@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cellarpos-cloudflare",
   "main": "worker/index.js",
-  "compatibility_date": "2024-09-23",
+  "compatibility_date": "2026-11-11",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -16,6 +16,9 @@
   },
   "vars": {
     "SUPABASE_URL": "https://hpjybrlunelgccuhcrfn.supabase.co"
+  },
+  "observability": {
+    "enabled": true
   }
 }
 

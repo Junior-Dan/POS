@@ -2,15 +2,16 @@ import { EventEmitter } from 'node:events';
 
 let appPromise = null;
 
-async function getApp(env) {
-  if (env) {
-    for (const [key, value] of Object.entries(env)) {
-      if (typeof value === 'string' && !process.env[key]) {
-        process.env[key] = value;
-      }
-    }
+function installBindings(env) {
+  if (!env) return;
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === 'string') process.env[key] = value;
   }
   process.env.CLOUDFLARE_WORKER = '1';
+}
+
+async function getApp(env) {
+  installBindings(env);
 
   if (!appPromise) {
     appPromise = import('../server/index.js').then((m) => m.default);
@@ -155,29 +156,41 @@ function dispatch(app, request) {
 
 export default {
   async fetch(request, env, ctx) {
-    // Populate process.env with Worker bindings (secrets and vars)
-    if (env) {
-      for (const [key, value] of Object.entries(env)) {
-        if (typeof value === 'string') {
-          process.env[key] = value;
-        }
+    try {
+      // Populate process.env with Worker bindings (secrets and vars) before
+      // dynamically importing the Express application.
+      installBindings(env);
+
+      const url = new URL(request.url);
+
+      // Route API requests to Express handler
+      if (url.pathname.startsWith('/api')) {
+        const app = await getApp(env);
+        return await dispatch(app, request);
       }
+
+      // Static assets fallback (served by Cloudflare Workers Assets)
+      if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+        return await env.ASSETS.fetch(request);
+      }
+
+      return new Response('Not Found', { status: 404 });
+    } catch (error) {
+      // Never let an application exception become Cloudflare's opaque 1101
+      // page. The detailed error remains in Worker logs, while callers get a
+      // valid response they can act on.
+      console.error('Cellar POS Worker request failed:', error);
+      const isApiRequest = new URL(request.url).pathname.startsWith('/api');
+      if (isApiRequest) {
+        return Response.json(
+          { error: 'The POS service is temporarily unavailable. Please retry shortly.' },
+          { status: 503 }
+        );
+      }
+      return new Response('Cellar POS is temporarily unavailable. Please retry shortly.', {
+        status: 503,
+        headers: { 'content-type': 'text/plain; charset=utf-8' }
+      });
     }
-    process.env.CLOUDFLARE_WORKER = '1';
-
-    const url = new URL(request.url);
-
-    // Route API requests to Express handler
-    if (url.pathname.startsWith('/api')) {
-      const app = await getApp(env);
-      return await dispatch(app, request);
-    }
-
-    // Static assets fallback (served by Cloudflare Workers Assets)
-    if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
-      return await env.ASSETS.fetch(request);
-    }
-
-    return new Response('Not Found', { status: 404 });
   }
 };
