@@ -9,15 +9,18 @@ import { crossBranchDenied, resolveViewBranch } from '../branchStock.js';
 
 const router = express.Router();
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 let supabaseAdmin = null;
 
 // Creating a Supabase client initializes its Realtime transport. Keep that
 // optional integration lazy so an API request can still run wherever a native
 // WebSocket implementation is unavailable (including local Node 20 tests).
+// supabaseUrl and supabaseKey are read inside the function (not at module load)
+// so that Cloudflare Worker env bindings are fully populated before they are used.
 function getSupabaseAdmin() {
-  if (supabaseAdmin || !supabaseUrl || !supabaseKey || supabaseKey.includes('your_secret')) return supabaseAdmin;
+  if (supabaseAdmin) return supabaseAdmin;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  if (!supabaseUrl || !supabaseKey || supabaseKey.includes('your_secret')) return null;
   if (typeof WebSocket === 'undefined') return null;
   supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
     auth: { autoRefreshToken: false, persistSession: false }
@@ -42,17 +45,31 @@ const LEGACY_SALT = 'cellar_pos_secure_salt_v2';
 // and organizations. The secret is stable across all instances (same code /
 // env), which is what makes cross-instance validation possible.
 // ---------------------------------------------------------------------------
-function resolveJwtSecret() {
-  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim() !== '') {
-    return process.env.JWT_SECRET;
+// JWT_SECRET is intentionally NOT captured at module-load time.
+// In Cloudflare Workers, env bindings are only available after the first
+// request starts — reading process.env at import time races against binding
+// injection and silently falls back to the dev key.  getJwtSecret() is called
+// lazily (inside signSession / verifySessionToken) so it always reads the
+// fully-populated process.env.
+let _jwtSecret = null;
+function getJwtSecret() {
+  if (_jwtSecret) return _jwtSecret;
+  const secret = process.env.JWT_SECRET;
+  if (secret && secret.trim() !== '') {
+    _jwtSecret = secret;
+    return _jwtSecret;
   }
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL ||
+    process.env.CLOUDFLARE_WORKER
+  ) {
     throw new Error('CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!');
   }
   console.warn('⚠️ WARNING: JWT_SECRET environment variable is missing. Using local development fallback key.');
-  return 'cellar-pos-shared-session-secret-dev-v1';
+  _jwtSecret = 'cellar-pos-shared-session-secret-dev-v1';
+  return _jwtSecret;
 }
-const JWT_SECRET = resolveJwtSecret();
 const JWT_EXPIRY = '12h';
 
 function signSession(user, orgId, branchId) {
@@ -63,14 +80,14 @@ function signSession(user, orgId, branchId) {
       branchId: branchId !== undefined ? branchId : (user.branch_id || null),
       role: (user.role || 'cashier').toLowerCase()
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: JWT_EXPIRY }
   );
 }
 
 function verifySessionToken(token) {
   try {
-    const p = jwt.verify(token, JWT_SECRET);
+    const p = jwt.verify(token, getJwtSecret());
     return {
       userId: p.userId,
       organizationId: p.organizationId || null,
