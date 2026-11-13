@@ -189,7 +189,8 @@ class DatabaseAdapter {
 
   async _executeSupabase(sql, json = false) {
     // Adapt SQLite-specific syntax for PostgreSQL compatibility
-    let pgSql = sql;
+    // Strip trailing semicolons; PostgreSQL subqueries in exec_sql throw syntax errors with trailing semicolons.
+    let pgSql = sql.trim().replace(/;+$/, '');
 
     // SQLite's DATETIME type does not exist in PostgreSQL -> use TIMESTAMP.
     pgSql = pgSql.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
@@ -355,6 +356,15 @@ export const db = new DatabaseAdapter(databasePath);
 export async function initDb() {
   if (db.isSupabase) {
     console.log(`Supabase Cloud PostgreSQL database engine active: ${db.supabaseUrl}`);
+    // Check if schema is already up to date to avoid redundant DDL round-trips on every worker boot
+    try {
+      const row = await db.prepare("SELECT value FROM settings WHERE key = '__schema_v'").get();
+      if (row && row.value === '7') {
+        return;
+      }
+    } catch (e) {
+      // settings table might not exist yet; proceed with schema creation
+    }
     // Attempt schema batch creation
     try {
       await db.execBatch(SCHEMA_STATEMENTS);
@@ -426,6 +436,8 @@ async function runTenantMigration() {
     current = row ? row.value : null;
   } catch (e) {}
 
+  if (current === MIGRATION_VERSION) return;
+
   try { await db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT'); } catch (e) {}
   try { await db.exec('ALTER TABLE users ADD COLUMN pin_hash TEXT'); } catch (e) {}
   try { await db.exec('ALTER TABLE users ADD COLUMN phone TEXT'); } catch (e) {}
@@ -433,8 +445,6 @@ async function runTenantMigration() {
   try { await db.exec('ALTER TABLE users ADD COLUMN branch_id TEXT'); } catch (e) {}
   // v7: expenses become branch-owned.
   try { await db.exec('ALTER TABLE expenses ADD COLUMN branch_id TEXT'); } catch (e) {}
-
-  if (current === MIGRATION_VERSION) return;
 
   for (const t of TENANT_TABLES) {
     try { await db.exec(`ALTER TABLE ${t} ADD COLUMN organization_id TEXT`); } catch (e) {}

@@ -94,6 +94,7 @@ The Worker entry and assets configuration are in `wrangler.json`.
 Use Node.js 22.12 or newer, then deploy with:
 
 ```bash
+nvm use              # reads .nvmrc; run `nvm install` once if needed
 npm install
 npm run worker:build   # builds the Vite app and validates the Worker bundle
 npm run worker:deploy  # deploys the Worker and its static assets

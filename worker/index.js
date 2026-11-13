@@ -69,6 +69,18 @@ function dispatch(app, request) {
     let statusCode = 200;
     let completed = false;
 
+    // Safety timeout: prevent Cloudflare Workers 1101/cancelation if a handler hangs
+    const timeoutTimer = setTimeout(() => {
+      if (!completed) {
+        completed = true;
+        console.error('Request timed out in Worker dispatch:', request.method, request.url);
+        resolve(Response.json(
+          { error: 'The POS database request timed out. Please try again in a moment.' },
+          { status: 504 }
+        ));
+      }
+    }, 25000);
+
     const res = new EventEmitter();
     res.statusCode = 200;
     res.headersSent = false;
@@ -111,6 +123,7 @@ function dispatch(app, request) {
     function finish(payload, defaultType) {
       if (completed) return;
       completed = true;
+      clearTimeout(timeoutTimer);
       res.headersSent = true;
       res.emit('finish');
       if (defaultType && !resHeaders.has('content-type')) {

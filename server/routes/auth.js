@@ -186,7 +186,8 @@ export async function findUserByPin(pin, roles, organizationId = null) {
 // One-time migration: drop any plaintext PINs, backfill hashes for legacy rows.
 export async function migratePins() {
   try {
-    const rows = await db.prepare('SELECT id, pin, pin_hash FROM users').all();
+    const rows = await db.prepare("SELECT id, pin, pin_hash FROM users WHERE pin IS NOT NULL AND pin != ''").all();
+    if (!rows || rows.length === 0) return;
     for (const row of rows) {
       let hash = row.pin_hash;
       if (!hash && row.pin) {
