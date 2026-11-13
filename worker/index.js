@@ -57,13 +57,15 @@ function dispatch(app, request) {
     req.params = {};
     req.body = body;
     req._body = true;
+    req.complete = true;
+    req.readable = false;
     req.get = (name) => headers[name.toLowerCase()];
     req.header = (name) => headers[name.toLowerCase()];
     req.ip = request.headers.get('cf-connecting-ip') || '127.0.0.1';
     req.protocol = url.protocol.replace(':', '');
     req.secure = url.protocol === 'https:';
-    req.socket = { remoteAddress: req.ip };
-    req.connection = { remoteAddress: req.ip };
+    req.socket = { remoteAddress: req.ip, readable: false, writable: true };
+    req.connection = req.socket;
 
     const resHeaders = new Headers();
     let statusCode = 200;
