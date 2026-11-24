@@ -3,7 +3,15 @@ import { store } from '../store/CellarStore.js';
 export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   const user = currentUser || store.currentUser || { name: 'Owner Account', role: 'owner' };
   const avatarText = (user.name || 'Owner').split(' ').map(n => n[0]).join('');
-  const bizName = store.businessProfile?.name || "Cellar POS";
+  const rawBizName = (store.businessProfile?.name && store.businessProfile.name !== 'Cellar POS')
+    ? store.businessProfile.name
+    : (store.currentUser?.organizationName || store.businessProfile?.name || "Organization");
+  const bizName = rawBizName;
+  const orgLogo = store.businessProfile?.logo || null;
+
+  // Primary initial for iconic squircle badge
+  const cleanBizName = (bizName || 'Organization').trim();
+  const initial = cleanBizName.charAt(0).toUpperCase() || 'O';
 
   // Navigation tabs with role permission validation
   const allNavItems = [
@@ -32,21 +40,22 @@ export function renderSidebar(currentUser, activeViewId = 'dashboard') {
   return `
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="brand-box">
+      <div class="brand-box" onclick="if(window.switchTab) window.switchTab('settings')" title="Store Settings & Identity: ${bizName}">
         <div class="brand-logo-wrap">
-          <img src="/logo.jpeg" alt="Cellar POS Logo" class="brand-logo-img" />
+          ${orgLogo
+            ? `<img src="${orgLogo}" alt="${bizName} Logo" class="brand-logo-img" />`
+            : `<div class="brand-monogram">
+                 <span class="monogram-text">${initial}</span>
+               </div>`
+          }
         </div>
         <div class="brand-info-wrap">
-          <div class="brand-title">CELLAR POS</div>
+          <div class="brand-title" title="${bizName}">${bizName}</div>
+          <svg viewBox="0 0 20 20" fill="currentColor" class="brand-dropdown-icon" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
         </div>
       </div>
-      <button class="sidebar-toggle-btn-sq sidebar-toggle-trigger" id="sidebarToggleBtn" title="Toggle Sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="18" height="18" x="3" y="3" rx="3"/>
-          <path d="M9 3v18"/>
-          <path d="m14 9-3 3 3 3"/>
-        </svg>
-      </button>
     </div>
 
     <nav class="sidebar-nav">

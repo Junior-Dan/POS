@@ -109,17 +109,104 @@ function renderSettingsTabContentHtml(tab, profile, branches, users, payment, re
       `;
 
     case 'business':
+      const currentOrgId = store.currentUser?.organizationId || '';
       return `
         <div class="section-card">
           <div class="section-header">
             <div class="section-title">Business Profile & Legal Configuration</div>
             <button class="btn btn-primary" onclick="submitSaveBusinessProfile()">Save Business Profile</button>
           </div>
+
+          ${currentOrgId ? `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+              <div>
+                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:#64748b;">Store Identifier / URL Link (Small Letters)</div>
+                <div style="font-size:20px; font-weight:800; font-family:monospace; color:var(--text-main, #0f172a); margin-top:2px;">/${currentOrgId.toLowerCase()}</div>
+                <div style="font-size:12px; color:var(--text-muted, #64748b); margin-top:2px;">Clean lowercase business link used for your POS address and staff logins.</div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${currentOrgId.toLowerCase()}'); alert('Store ID copied: ${currentOrgId.toLowerCase()}');" style="font-weight:700; font-size:12px;">
+                  📋 Copy Store ID
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId.toLowerCase()}/pos'); alert('Staff POS login link copied: ${typeof window !== 'undefined' ? window.location.origin : ''}/${currentOrgId.toLowerCase()}/pos');" style="font-weight:700; font-size:12px;">
+                  🔗 Copy Staff POS Link
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; margin-bottom:22px; box-shadow:0 1px 4px rgba(0,0,0,0.03); display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:20px;">
+            <div style="display:flex; align-items:flex-start; gap:20px; flex:1; min-width:300px;">
+              <!-- Large Interactive Logo Box -->
+              <div id="orgLogoPreviewBox" 
+                   onclick="document.getElementById('orgLogoFileInput').click()"
+                   ondragover="event.preventDefault(); this.style.borderColor='#0f172a'; this.style.background='#f1f5f9';"
+                   ondragleave="this.style.borderColor='#94a3b8'; this.style.background='transparent';"
+                   ondrop="event.preventDefault(); this.style.borderColor='#94a3b8'; this.style.background='transparent'; handleOrgLogoUpload({ target: { files: event.dataTransfer.files } });"
+                   style="width:76px; height:76px; border-radius:14px; border:2px dashed #94a3b8; background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all 0.2s ease;"
+                   title="Click or drag & drop to upload workspace icon">
+                ${profile.logo ? `
+                  <img id="orgLogoPreviewImg" src="${profile.logo}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; border-radius:12px; background:transparent; display:block;" />
+                ` : `
+                  <div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; border-radius:12px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:800; font-size:30px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">
+                    ${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}
+                  </div>
+                `}
+              </div>
+
+              <!-- Logo Details & Sidebar Mockup -->
+              <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:15px; font-weight:800; color:#0f172a;">Store Icon & Workspace Emblem (Slack Style)</span>
+                  <span style="font-size:10px; font-weight:750; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:10px; border:1px solid #e2e8f0; text-transform:uppercase;">Store Identity</span>
+                </div>
+                <div style="font-size:12.5px; color:#64748b; margin-top:4px; line-height:1.4; max-width:480px;">
+                  Upload your store icon or emblem. Formatted into a Slack-style workspace badge on your sidebar and printed on customer sales receipts.
+                </div>
+
+                <!-- Live Preview Badge -->
+                <div style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Sidebar Header Preview:</div>
+                  <div style="background:#090d16; border-radius:10px; padding:7px 12px; display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+                    <div id="orgLogoSidebarMiniMockup" style="width:32px; height:32px; border-radius:8px; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid rgba(255,255,255,0.18); box-shadow:0 1px 3px rgba(0,0,0,0.35);">
+                      ${profile.logo 
+                        ? `<img src="${profile.logo}" style="width:100%; height:100%; object-fit:contain; border-radius:7px; background:transparent; display:block;" />` 
+                        : `<div style="width:100%; height:100%; border-radius:7px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:800; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${((profile.name || store.currentUser?.organizationName || 'O').trim().charAt(0) || 'O').toUpperCase()}</span></div>`
+                      }
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <div id="orgLogoSidebarMiniTitle" style="color:#ffffff; font-size:14px; font-weight:700; line-height:1.2; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        ${profile.name || store.currentUser?.organizationName || 'Your Business'}
+                      </div>
+                      <svg viewBox="0 0 20 20" fill="currentColor" style="width:14px; height:14px; color:rgba(255,255,255,0.45); flex-shrink:0;"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Controls -->
+            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; justify-content:center;">
+              <input type="file" id="orgLogoFileInput" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleOrgLogoUpload(event)">
+              <input type="hidden" id="setBizLogoVal" value="${profile.logo || ''}">
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('orgLogoFileInput').click()" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; padding:8px 14px; font-size:12.5px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  ${profile.logo ? 'Change Logo Image' : 'Upload Organization Logo'}
+                </button>
+                <button type="button" id="removeOrgLogoBtn" class="btn btn-secondary btn-sm" onclick="removeOrgLogo()" style="display:${profile.logo ? 'inline-flex' : 'none'}; align-items:center; gap:4px; font-weight:600; font-size:12px; color:#ef4444;">
+                  Remove Logo
+                </button>
+              </div>
+              <span style="font-size:11px; color:#94a3b8;">Supports PNG, JPG, WEBP & SVG (Square or Crest)</span>
+            </div>
+          </div>
+
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
             <div class="form-group">
               <label class="form-label">Business Name *</label>
-              <input type="text" class="form-input" id="setBizName" value="${profile.name || ''}" placeholder="e.g. Cellar POS">
-              <span style="font-size:11px; color:var(--text-faint);">Official registered business identity (CELLAR remains software branding).</span>
+              <input type="text" class="form-input" id="setBizName" value="${profile.name || ''}" placeholder="e.g. Johns wines and spirit" oninput="if (!document.getElementById('setBizLogoVal')?.value) updateOrgLogoMonogramLive(this.value)">
+              <span style="font-size:11px; color:var(--text-faint);">Official business name displayed across your POS and sidebar.</span>
             </div>
             <div class="form-group">
               <label class="form-label">Business Phone Number *</label>

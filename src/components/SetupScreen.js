@@ -1,151 +1,286 @@
 import { store } from '../store/CellarStore.js';
 
 export function renderAuthLandingScreen(overrideMode = null) {
-  const rosterLoaded = store.rosterLoaded === true;
-  const userList = Array.isArray(store.loginUsers) && store.loginUsers.length > 0
-    ? store.loginUsers
-    : (store.users || []);
+  let authMode = 'login';
+  const effectiveMode = overrideMode || (typeof window !== 'undefined' ? window.currentAuthTab : null);
 
-  const realOwnerExists = (store.currentUser && (store.currentUser.role || '').toLowerCase() === 'owner') ||
-    userList.some(u => (u.role || '').toLowerCase() === 'owner');
-
-  let cachedOwnerExists = false;
-  try { cachedOwnerExists = localStorage.getItem('cellar_owner_exists') === '1'; } catch (e) {}
-
-  const hasExistingOwner = (rosterLoaded && userList.length === 0) ? false : (realOwnerExists || cachedOwnerExists);
-
-  let isRegisterSetup = false;
-  const effectiveMode = overrideMode || window.currentAuthTab;
-
-  if (effectiveMode === 'setup') {
-    isRegisterSetup = true;
+  if (effectiveMode === 'forgot') {
+    authMode = 'forgot';
+  } else if (effectiveMode === 'setup' || effectiveMode === 'register') {
+    authMode = 'register';
   } else if (effectiveMode === 'login') {
-    isRegisterSetup = false;
-  } else if (!hasExistingOwner) {
-    isRegisterSetup = true;
+    authMode = 'login';
+  } else if (typeof window !== 'undefined' && (window.location.hash.startsWith('#forgot') || window.location.search.includes('auth=forgot'))) {
+    authMode = 'forgot';
+  } else if (typeof window !== 'undefined' && (window.location.hash.startsWith('#register') || window.location.hash === '#setup' || window.location.search.includes('auth=register'))) {
+    authMode = 'register';
+  } else if (typeof window !== 'undefined' && (window.location.hash.startsWith('#login') || window.location.search.includes('auth=login'))) {
+    authMode = 'login';
+  } else if (typeof window !== 'undefined' && window.forceRegisterMode) {
+    authMode = 'register';
   } else {
-    isRegisterSetup = false;
+    const hasUsers = Array.isArray(store.loginUsers) && store.loginUsers.length > 0;
+    authMode = hasUsers ? 'login' : 'register';
   }
 
-  const bizName = store.loginBranch?.businessName || store.businessProfile?.name || 'Cellar POS';
-  const activeRoster = userList.filter(u => u.active !== 0 && (u.status || 'ACTIVE') === 'ACTIVE');
+  let pageTitle = 'Welcome Back';
+  let pageSubtitle = 'Enter your email and password to access your account.';
+  if (authMode === 'register') {
+    pageTitle = 'Create Account';
+    pageSubtitle = 'Enter your details to create your organization account.';
+  } else if (authMode === 'forgot') {
+    pageTitle = 'Reset Password';
+    pageSubtitle = 'Enter your registered email to receive a password reset code.';
+  }
 
   return `
     <div class="welcome-setup-container">
       <div class="welcome-setup-card">
-        <!-- LEFT PANEL: AUTH FORM -->
-        <div class="welcome-auth-pane">
+        <!-- LEFT PANEL: AUTH FORM (Matches Reference Design) -->
+        <div class="welcome-auth-pane auth-mode-${authMode}">
+          <!-- Top-Left Brand Logo & Name -->
           <div class="welcome-brand-header">
             <div class="welcome-logo-badge">
               <img src="/logo.jpeg" alt="Cellar POS Logo" class="sys-logo-img" />
             </div>
-            <span class="welcome-brand-name">${bizName}</span>
+            <span class="welcome-brand-name">Cellar POS</span>
           </div>
 
-          <div class="auth-pane-body">
-            ${!hasExistingOwner ? `
-              <div class="auth-tab-switcher">
-                <button type="button" class="auth-tab-btn active" onclick="switchAuthMode('setup')">Owner Setup</button>
-              </div>
-            ` : ''}
+          <!-- Centered Auth Form Box -->
+          <div class="auth-pane-content">
+            <div class="auth-header-section">
+              <h1 class="welcome-title">${pageTitle}</h1>
+              <p class="welcome-subtitle">${pageSubtitle}</p>
+            </div>
 
-            ${isRegisterSetup && !hasExistingOwner ? `
-              <!-- CREATE INITIAL OWNER ACCOUNT SETUP FORM -->
-              <div class="auth-header-section">
-                <h1 class="welcome-title">Create Owner Account</h1>
-                <p class="welcome-subtitle">Set up your business and owner account credentials</p>
-              </div>
-
+            ${authMode === 'register' ? `
+              <!-- CREATE NEW BUSINESS / ORGANIZATION ACCOUNT -->
               <form onsubmit="event.preventDefault(); submitInitialSetup();" class="welcome-setup-form">
                 <div class="form-group">
                   <label class="form-label">Business / Store Name *</label>
-                  <input type="text" class="form-input" id="setupBizNameInput" placeholder="e.g. Cellar POS" value="${bizName}" required>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>
+                    </svg>
+                    <input type="text" class="auth-field" id="setupBizNameInput" placeholder="Store or business name" required />
+                  </div>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label class="form-label">Owner Full Name *</label>
-                    <input type="text" class="form-input" id="setupNameInput" placeholder="e.g. David Kamau" required>
+                    <label class="form-label">Owner Name *</label>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                      </svg>
+                      <input type="text" class="auth-field" id="setupNameInput" placeholder="Full name" required />
+                    </div>
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Phone Number *</label>
-                    <input type="tel" class="form-input" id="setupPhoneInput" placeholder="e.g. 0722 000 111" required>
+                    <label class="form-label">Phone *</label>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                      </svg>
+                      <input type="tel" class="auth-field" id="setupPhoneInput" placeholder="Phone number" required />
+                    </div>
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="setupEmailInput" placeholder="e.g. owner@cellar.co.ke" required>
+                  <label class="form-label">Email *</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                    <input type="email" class="auth-field" id="setupEmailInput" placeholder="Email address" required />
+                  </div>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">Password *</label>
-                    <input type="password" class="form-input" id="setupPasswordInput" placeholder="••••••••" required>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <input type="password" class="auth-field" id="setupPasswordInput" placeholder="Min. 8 characters" required oninput="window.updatePasswordStrengthBars(this.value, 'setupStrengthBars')" />
+                      <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('setupPasswordInput')" title="Toggle Password Visibility">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Confirm Password *</label>
-                    <input type="password" class="form-input" id="setupConfirmPasswordInput" placeholder="••••••••" required>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <input type="password" class="auth-field" id="setupConfirmPasswordInput" placeholder="Confirm password" required />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="auth-strength-container">
+                  <div class="auth-password-bars" id="setupStrengthBars">
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                    <span class="auth-bar"></span>
+                  </div>
+                  <div class="auth-strength-info">
+                    <span id="setupStrengthLabel" class="strength-label">At least 8 characters with letters & numbers</span>
                   </div>
                 </div>
 
                 <div id="setupErrorMsg" class="setup-error-msg"></div>
 
                 <button type="submit" class="welcome-submit-btn">
-                  <span>Create Owner Account & Open Dashboard</span>
-                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px;"><polyline points="9 18 15 12 9 6"/></svg>
+                  <span>Sign Up</span>
                 </button>
+
+                <p class="auth-switch-footer">
+                  Already Have An Account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Sign In.</button>
+                </p>
+              </form>
+            ` : authMode === 'forgot' ? `
+              <!-- FORGOT / RESET PASSWORD FORM -->
+              <form onsubmit="event.preventDefault(); submitForgotPassword();" class="welcome-setup-form auth-forgot-form" id="forgotPasswordForm">
+                <div class="form-group">
+                  <label class="form-label">Registered Email Address *</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                    <input type="email" class="auth-field" id="forgotEmailInput" placeholder="name@cellarpos.com" required />
+                  </div>
+                </div>
+
+                <div id="forgotStep2Area" style="display:${(typeof window !== 'undefined' && (window.location.hash.includes('step2') || window.location.search.includes('step=2'))) ? 'flex' : 'none'}; flex-direction:column; gap:10px;">
+                  <div class="form-group">
+                    <label class="form-label">Verification Code *</label>
+                    <div class="auth-input-wrap">
+                      <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                      <input type="text" inputmode="numeric" autocomplete="one-time-code" class="auth-field" id="resetCodeInput" placeholder="6-digit code from email" style="letter-spacing:2px; font-weight:700;" />
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">New Password *</label>
+                      <div class="auth-input-wrap">
+                        <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <input type="password" class="auth-field" id="resetNewPasswordInput" placeholder="Min. 8 characters" oninput="window.updatePasswordStrengthBars(this.value, 'forgotStrengthBars', 'forgotStrengthLabel')" />
+                        <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('resetNewPasswordInput')" title="Toggle Password Visibility">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Confirm Password *</label>
+                      <div class="auth-input-wrap">
+                        <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <input type="password" class="auth-field" id="resetConfirmPasswordInput" placeholder="Confirm password" />
+                        <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('resetConfirmPasswordInput')" title="Toggle Password Visibility">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="auth-strength-container">
+                    <div class="auth-password-bars" id="forgotStrengthBars">
+                      <span class="auth-bar"></span>
+                      <span class="auth-bar"></span>
+                      <span class="auth-bar"></span>
+                      <span class="auth-bar"></span>
+                    </div>
+                    <div class="auth-strength-info">
+                      <span id="forgotStrengthLabel" class="strength-label">At least 8 characters with letters & numbers</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="forgotModalMsg" class="setup-error-msg" style="min-height: 18px;"></div>
+
+                <button type="submit" class="welcome-submit-btn" id="submitForgotBtn">
+                  <span>${(typeof window !== 'undefined' && (window.location.hash.includes('step2') || window.location.search.includes('step=2'))) ? 'Update Password' : 'Send Reset Code'}</span>
+                </button>
+
+                <p class="auth-switch-footer">
+                  Remember your password? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Back to Log In.</button>
+                </p>
               </form>
             ` : `
-              <!-- UNIFIED SINGLE-BUSINESS SIGN IN FORM -->
-              <div class="auth-header-section">
-                <h1 class="welcome-title">Sign In to your Account</h1>
-                <p class="welcome-subtitle">Enter your email and password to access your dashboard</p>
-              </div>
-
-              <!-- EMAIL & PASSWORD LOGIN ONLY -->
+              <!-- UNIFIED SIGN IN FORM -->
               <form onsubmit="event.preventDefault(); submitMainLogin();" class="welcome-setup-form">
                 <div class="form-group">
-                  <label class="form-label">Email Address *</label>
-                  <input type="email" class="form-input" id="loginEmailInput" placeholder="e.g. owner@cellar.co.ke or staff@cellar.co.ke" required>
+                  <label class="form-label">Email</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                    <input type="email" class="auth-field" id="loginEmailInput" placeholder="Email address" required />
+                  </div>
                 </div>
 
                 <div class="form-group">
-                  <div style="display:flex; justify-space-between; align-items:center; margin-bottom:4px;">
-                    <label class="form-label" style="margin:0;">Password *</label>
-                    <button type="button" onclick="openForgotPasswordModal()" style="background:none; border:none; color:#3b82f6; font-size:12px; font-weight:600; cursor:pointer; text-decoration:underline; padding:0; margin-left:auto;">
-                      Forgot Password?
+                  <label class="form-label">Password</label>
+                  <div class="auth-input-wrap">
+                    <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <input type="password" class="auth-field" id="loginPasswordInput" placeholder="Password" required />
+                    <button type="button" class="auth-eye-btn" onclick="togglePasswordInputVisibility('loginPasswordInput')" title="Toggle Password Visibility">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
                   </div>
-                  <div style="position:relative;">
-                    <input type="password" class="form-input" id="loginPasswordInput" placeholder="••••••••" style="padding-right:38px;" required>
-                    <button type="button" onclick="togglePasswordInputVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="Toggle Password Visibility">
-                      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                  </div>
+                </div>
+
+                <div class="auth-remember-row">
+                  <label class="auth-checkbox-label">
+                    <input type="checkbox" id="loginRememberMe" checked />
+                    <span>Remember Me</span>
+                  </label>
+                  <button type="button" onclick="switchAuthMode('forgot')" class="auth-forgot-link">
+                    Forgot Your Password?
+                  </button>
                 </div>
 
                 <div id="loginEmailErrorMsg" class="setup-error-msg"></div>
 
-                <button type="submit" class="welcome-submit-btn" style="margin-top:12px;">
-                  Sign In
+                <button type="submit" class="welcome-submit-btn">
+                  <span>Log In</span>
                 </button>
+
+                <p class="auth-switch-footer">
+                  Don't Have An Account? <button type="button" class="auth-toggle-link" onclick="switchAuthMode('setup')">Register Now.</button>
+                </p>
               </form>
             `}
           </div>
 
+          <!-- Bottom Footer Bar -->
           <div class="welcome-footer-bar">
-            <span>Copyright © 2026 ${bizName}.</span>
+            <span>Copyright © 2026 Cellar POS. All rights reserved.</span>
+            <span class="footer-privacy-link">Privacy Policy</span>
           </div>
         </div>
 
         <!-- RIGHT PANEL: HERO BANNER -->
-        <div class="welcome-hero-pane">
-          <div class="hero-pane-inner">
-            <div class="hero-header-text">
-              <h2 class="hero-title">Effortlessly manage your team and operations.</h2>
-              <p class="hero-subtitle">Log in to access your POS dashboard and manage your branch operations.</p>
-            </div>
+        <div class="welcome-hero-wrapper">
+          <div class="welcome-hero-pane">
+            <div class="hero-pane-inner">
+              <div class="hero-header-text">
+                <h2 class="hero-title">Effortlessly manage your team and operations.</h2>
+                <p class="hero-subtitle">Log in to access your POS dashboard and manage your branch operations.</p>
+              </div>
 
             <!-- Graphic Dashboard Cards Showcase -->
             <div class="hero-mockup-stage">
@@ -208,6 +343,24 @@ export function renderAuthLandingScreen(overrideMode = null) {
                     <span>KSh 3,000</span>
                     <span class="status-pill status-paid">PAID</span>
                   </div>
+                  <div class="hero-table-row">
+                    <span class="code">#SLR988721</span>
+                    <span>Baileys Irish Cream 1L</span>
+                    <span>KSh 3,200</span>
+                    <span class="status-pill status-pending">PENDING</span>
+                  </div>
+                  <div class="hero-table-row">
+                    <span class="code">#SLR988722</span>
+                    <span>Hennessy VS 700ml</span>
+                    <span>KSh 6,800</span>
+                    <span class="status-pill status-paid">PAID</span>
+                  </div>
+                  <div class="hero-table-row">
+                    <span class="code">#SLR988723</span>
+                    <span>Tanqueray Dry Gin 750ml</span>
+                    <span>KSh 2,850</span>
+                    <span class="status-pill status-paid">PAID</span>
+                  </div>
                 </div>
               </div>
 
@@ -235,8 +388,9 @@ export function renderAuthLandingScreen(overrideMode = null) {
 
                 <div class="donut-legend-list">
                   <div class="legend-row"><span class="legend-dot dot-indigo"></span><span>Whiskies & Spirits</span><span class="legend-val">3,620 U</span></div>
-                  <div class="legend-row"><span class="legend-dot dot-blue"></span><span>Wines</span><span class="legend-val">1,780 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-blue"></span><span>Wines & Fizz</span><span class="legend-val">1,780 U</span></div>
                   <div class="legend-row"><span class="legend-dot dot-purple"></span><span>Beers & Softs</span><span class="legend-val">848 U</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-amber"></span><span>Liqueurs</span><span class="legend-val">420 U</span></div>
                 </div>
               </div>
             </div>
@@ -244,6 +398,7 @@ export function renderAuthLandingScreen(overrideMode = null) {
         </div>
       </div>
     </div>
+  </div>
   `;
 }
 

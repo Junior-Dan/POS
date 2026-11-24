@@ -358,15 +358,25 @@ export class CellarStore {
   async fetchBranchLogin() {
     let code = '';
     let staff = '';
+    let org = '';
     if (typeof window !== 'undefined' && window.location) {
       const params = new URLSearchParams(window.location.search);
       code = params.get('branch') || '';
       staff = params.get('staff') || params.get('u') || '';
+      org = params.get('org') || params.get('organizationId') || '';
+      if (!org && window.location.pathname) {
+        const parts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+        const validViews = ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit', 'settings'];
+        if (parts[0] && !validViews.includes(parts[0].toLowerCase()) && !parts[0].includes('.')) {
+          org = parts[0].toLowerCase();
+        }
+      }
     }
     // A personal invite link (?staff=…) restricts the terminal to that one account.
     this.loginStaffRef = staff || null;
     const staffQ = staff ? `&staff=${encodeURIComponent(staff)}` : '';
-    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}${staffQ}&_t=${Date.now()}`, { cache: 'no-store' });
+    const orgQ = org ? `&org=${encodeURIComponent(org)}` : '';
+    const data = await this.safeFetchJson(`/api/auth/branch-info?code=${encodeURIComponent(code)}${orgQ}${staffQ}&_t=${Date.now()}`, { cache: 'no-store' });
     if (data && data.branch) {
       this.loginBranch = data.branch;
       this.loginUsers = Array.isArray(data.users) ? data.users : [];
@@ -649,7 +659,12 @@ export class CellarStore {
   async fetchSettings() {
     const s = await this.safeFetchJson('/api/settings');
     if (s) {
-      if (s.businessProfile) this.businessProfile = s.businessProfile;
+      if (s.businessProfile) {
+        this.businessProfile = s.businessProfile;
+        if (s.businessProfile.name && this.currentUser) {
+          this.currentUser.organizationName = s.businessProfile.name;
+        }
+      }
       if (s.branches && Array.isArray(s.branches) && s.branches.length > 0) {
         this.branches = s.branches;
         this.initActiveBranchFromUrl();

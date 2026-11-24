@@ -16,8 +16,9 @@ let supabaseAdmin = null;
 // WebSocket implementation is unavailable (including local Node 20 tests).
 // supabaseUrl and supabaseKey are read inside the function (not at module load)
 // so that Cloudflare Worker env bindings are fully populated before they are used.
-function getSupabaseAdmin() {
+export function getSupabaseAdmin() {
   if (supabaseAdmin) return supabaseAdmin;
+  if (process.env.USE_LOCAL_DB === 'true' || process.env.CELLAR_LOCAL === 'true') return null;
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
   if (!supabaseUrl || !supabaseKey || supabaseKey.includes('your_secret')) return null;
@@ -360,22 +361,45 @@ export function canAccessBranch(authUser, branchId) {
 
 // ---------------------------------------------------------------------------
 // 1. REGISTER A NEW ORGANIZATION + ITS OWNER
-//    Multi-tenant: every call creates a BRAND NEW organization with its own
-//    owner, first branch, and isolated settings. Many businesses can register
+//    Multi-tenant: every call creates a BRAND NEW organization with a clean
+//    lowercase business name slug (e.g. 'johnswin', 'apexcellar'), its own owner,
+//    first branch, and isolated settings.
 // ---------------------------------------------------------------------------
-// 1. REGISTER A NEW ORGANIZATION + ITS OWNER
-//    Single-business: Allows creating the primary owner account if none exists.
-// ---------------------------------------------------------------------------
-router.post('/setup', async (req, res) => {
-  const { name, email, phone, password, confirmPassword, pin, confirmPin, businessName, branchName, branchCode } = req.body;
+export async function generateOrgSlug(businessName, customSlug) {
+  const reservedWords = new Set([
+    'dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers',
+    'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit',
+    'settings', 'api', 'assets', 'login', 'setup', 'register', 'admin', 'auth',
+    'null', 'undefined', 'cellar'
+  ]);
 
-  // Single-business guard: if an owner already exists, reject setup
-  try {
-    const existingOwner = await db.prepare("SELECT id FROM users WHERE LOWER(role) = 'owner'").get();
-    if (existingOwner) {
-      return res.status(400).json({ error: 'An owner account already exists. Please log in using your credentials.' });
+  let raw = (customSlug || businessName || 'store')
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 24);
+
+  if (!raw || reservedWords.has(raw)) {
+    raw = `${raw || 'store'}pos`;
+  }
+
+  let candidate = raw;
+  let counter = 1;
+  while (true) {
+    try {
+      const exists = await db.prepare('SELECT id FROM organizations WHERE LOWER(id) = LOWER(?)').get(candidate);
+      if (!exists) return candidate;
+    } catch (e) {
+      return candidate;
     }
-  } catch (e) {}
+    counter += 1;
+    candidate = `${raw}${counter}`;
+  }
+}
+
+router.post(['/setup', '/register'], async (req, res) => {
+  const { name, email, phone, password, confirmPassword, pin, confirmPin, businessName, branchName, branchCode } = req.body;
 
   const secret = password !== undefined && password !== null && String(password).trim() !== ''
     ? password
@@ -393,8 +417,8 @@ router.post('/setup', async (req, res) => {
   if (confirmSecret && String(confirmSecret).trim() !== cleanSecret) {
     return res.status(400).json({ error: 'Password and Confirm Password do not match.' });
   }
-  if (cleanSecret.length < 4) {
-    return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+  if (cleanSecret.length < 8 || !/[a-zA-Z]/.test(cleanSecret) || !/[0-9]/.test(cleanSecret)) {
+    return res.status(400).json({ error: 'Password must be a strong password (at least 8 characters including both letters and numbers).' });
   }
 
   if (email) {
@@ -404,16 +428,14 @@ router.post('/setup', async (req, res) => {
     }
   }
 
-  const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  const orgId = `ORG-MAIN`;
-  const ownerId = `U-OWNER-${stamp}`;
+  const orgId = await generateOrgSlug(businessName, req.body.slug || req.body.orgSlug);
+  const bizName = (businessName || 'Cellar POS').trim();
+  const ownerId = `U-OWNER-${orgId}`;
   const bCode = await uniqueBranchCode(branchCode || 'main');
   const bId = `BR-${bCode}`;
   const passwordHashed = hashPin(cleanSecret);
 
   try {
-    const bizName = businessName || 'Cellar Wines & Spirits';
-
     const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin && email) {
       try {
@@ -448,23 +470,48 @@ router.post('/setup', async (req, res) => {
       phone: phone || '',
       email: email || '',
       address: 'Kenya',
-      kraPin: 'P051234567S'
+      kraPin: ''
     };
     await setOrgSetting(orgId, 'businessProfile', profile);
+    await setOrgSetting(orgId, 'branches', [
+      { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
+    ]);
+
+    // Seed default product categories for this new organization
+    const defaultCategories = [
+      { id: `CAT-${orgId}-1`, name: 'Spirits & Liquors', desc: 'Whiskeys, Vodkas, Gins, Rums' },
+      { id: `CAT-${orgId}-2`, name: 'Wines', desc: 'Red, White, Rose, Sparkling' },
+      { id: `CAT-${orgId}-3`, name: 'Beers & Ciders', desc: 'Local and imported beers, craft, ciders' },
+      { id: `CAT-${orgId}-4`, name: 'Soft Drinks & Mixers', desc: 'Sodas, juices, tonic, energy drinks' },
+      { id: `CAT-${orgId}-5`, name: 'General Retail', desc: 'Snacks, cigarettes, accessories' }
+    ];
+    for (const cat of defaultCategories) {
+      try {
+        await db.prepare('INSERT OR IGNORE INTO categories (id, organization_id, name, description, active) VALUES (?, ?, ?, ?, 1)')
+          .run(cat.id, orgId, cat.name, cat.desc);
+      } catch (e) {}
+    }
 
     const token = signSession({ id: ownerId, role: 'owner' }, orgId, null);
 
     res.status(201).json({
       success: true,
       token,
-      user: { id: ownerId, organizationId: orgId, branchId: null, name, role: 'owner', email, phone, status: 'ACTIVE' },
+      user: {
+        id: ownerId,
+        organizationId: orgId,
+        organizationName: bizName,
+        branchId: null,
+        name,
+        role: 'owner',
+        email,
+        phone,
+        status: 'ACTIVE'
+      },
       branch: { id: bId, code: bCode, name: bName }
     });
 
     try {
-      await setOrgSetting(orgId, 'branches', [
-        { id: bId, organizationId: orgId, name: bName, code: bCode, location: 'Head Office', phone: phone || '', status: 'ACTIVE' }
-      ]);
       await db.prepare(`
         INSERT INTO audit_logs (id, organization_id, timestamp, user_name, role, branch_id, action, item, old_val, new_val, reason)
         VALUES (?, ?, ?, ?, 'owner', ?, 'Register Owner', ?, '-', 'Owner Account Created', 'Business & Initial Branch Created')
@@ -574,32 +621,65 @@ router.post('/logout', async (req, res) => {
 router.get('/branch-info', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const code = (req.query.code || req.query.branch || '').toLowerCase();
+  const orgParam = (req.query.org || req.query.organizationId || req.query.orgId || '').trim();
 
   let branch = null;
   if (code && code !== 'all') {
     branch = await db.prepare('SELECT * FROM branches WHERE LOWER(code) = ? OR LOWER(id) = ?').get(code, code);
+  } else if (orgParam) {
+    branch = await db.prepare('SELECT * FROM branches WHERE LOWER(organization_id) = LOWER(?) ORDER BY id ASC LIMIT 1').get(orgParam);
   }
-  if (!branch) {
+  if (!branch && !orgParam) {
     branch = await db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
   }
 
   let branchUsers = [];
-  try {
-    branchUsers = await db.prepare(`
-      SELECT id, name, role, email, phone, branch_id, status, active
-      FROM users
-      WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
-      ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
-    `).all();
-  } catch (e) {
-    branchUsers = [];
-  }
-
   let orgName = 'Cellar POS';
-  try {
-    const org = await db.prepare('SELECT name FROM organizations ORDER BY created_at ASC LIMIT 1').get();
-    if (org && org.name) orgName = org.name;
-  } catch (e) {}
+
+  if (branch) {
+    if (branch.organization_id) {
+      try {
+        const org = await db.prepare('SELECT name FROM organizations WHERE LOWER(id) = LOWER(?)').get(branch.organization_id);
+        if (org && org.name) orgName = org.name;
+      } catch (e) {}
+    }
+    try {
+      branchUsers = await db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE LOWER(organization_id) = LOWER(?) AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all(branch.organization_id);
+    } catch (e) {
+      branchUsers = [];
+    }
+  } else if (orgParam) {
+    try {
+      const org = await db.prepare('SELECT name FROM organizations WHERE LOWER(id) = LOWER(?)').get(orgParam);
+      if (org && org.name) orgName = org.name;
+    } catch (e) {}
+    try {
+      branchUsers = await db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE LOWER(organization_id) = LOWER(?) AND active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all(orgParam);
+    } catch (e) {
+      branchUsers = [];
+    }
+  } else {
+    try {
+      branchUsers = await db.prepare(`
+        SELECT id, name, role, email, phone, branch_id, status, active
+        FROM users
+        WHERE active = 1 AND status != 'INACTIVE' AND status != 'DISABLED'
+        ORDER BY CASE LOWER(role) WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'inventory_officer' THEN 2 ELSE 3 END, name ASC
+      `).all();
+    } catch (e) {
+      branchUsers = [];
+    }
+  }
 
   res.json({
     branch: branch ? {
@@ -617,7 +697,7 @@ router.get('/branch-info', async (req, res) => {
       location: 'Head Office',
       phone: '',
       businessName: orgName,
-      organizationId: null
+      organizationId: orgParam || null
     },
     users: branchUsers.map(u => ({
       id: u.id,
@@ -835,10 +915,10 @@ router.post('/users', authenticateSession, async (req, res) => {
 
   let branch = null;
   if (targetBranch) {
-    branch = await db.prepare('SELECT * FROM branches WHERE id = ? OR LOWER(code) = ?').get(targetBranch, String(targetBranch).toLowerCase());
+    branch = await db.prepare('SELECT * FROM branches WHERE (id = ? OR LOWER(code) = ?) AND (organization_id = ? OR organization_id IS NULL)').get(targetBranch, String(targetBranch).toLowerCase(), orgId);
   }
   if (!branch) {
-    branch = await db.prepare('SELECT * FROM branches ORDER BY created_at ASC LIMIT 1').get();
+    branch = await db.prepare('SELECT * FROM branches WHERE organization_id = ? OR organization_id IS NULL ORDER BY created_at ASC LIMIT 1').get(orgId);
   }
   if (!branch) {
     const defaultCode = await uniqueBranchCode('main');

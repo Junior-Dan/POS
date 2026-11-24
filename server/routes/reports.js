@@ -11,8 +11,9 @@ const kenyaDate = value => new Date(value).toLocaleDateString('en-CA', { timeZon
 
 // Completed (non-refunded) sales, scoped to a branch unless `all` (owner ALL view).
 async function completedSales(date, orgId, branch, all) {
-  let sql = 'SELECT * FROM sales WHERE refunded = 0 AND organization_id = ? AND date(created_at) = ?';
-  const params = [orgId, date || kenyaDate(new Date())];
+  const targetDate = date || kenyaDate(new Date());
+  let sql = 'SELECT * FROM sales WHERE refunded = 0 AND organization_id = ? AND (date(created_at) = ? OR date(created_at, \'+3 hours\') = ?)';
+  const params = [orgId, targetDate, targetDate];
   if (!all) { sql += ' AND branch_id = ?'; params.push(branch); }
   return await db.prepare(sql).all(...params);
 }
@@ -78,8 +79,9 @@ router.get('/dashboard', async (req, res) => {
     const cashSales = sales.filter(sale => sale.payment_method === 'CASH').reduce((total, sale) => total + Number(sale.total || 0), 0);
     const mpesaSales = sales.filter(sale => sale.payment_method === 'M-PESA').reduce((total, sale) => total + Number(sale.total || 0), 0);
 
-    let refundSql = 'SELECT refund_amount FROM sales WHERE refunded = 1 AND organization_id = ? AND date(created_at) = ?';
-    const refundParams = [orgId, req.query.date || kenyaDate(new Date())];
+    let refundSql = 'SELECT refund_amount FROM sales WHERE refunded = 1 AND organization_id = ? AND (date(created_at) = ? OR date(created_at, \'+3 hours\') = ?)';
+    const refundDate = req.query.date || kenyaDate(new Date());
+    const refundParams = [orgId, refundDate, refundDate];
     if (!all) { refundSql += ' AND branch_id = ?'; refundParams.push(branch); }
     const refundedSales = await db.prepare(refundSql).all(...refundParams);
     const totalRefunds = refundedSales.reduce((total, sale) => total + Number(sale.refund_amount || 0), 0);

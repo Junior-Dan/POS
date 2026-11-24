@@ -42,18 +42,60 @@ import { renderForgotPasswordModal } from './components/ForgotPasswordModal.js';
 import { renderBranchModal } from './components/BranchModal.js';
 import { renderAuthLandingScreen } from './components/SetupScreen.js';
 
+// Parse URL route: /:orgId/:viewId or /:viewId
+export function parseRoute() {
+  if (typeof window === 'undefined') return { orgId: null, viewId: null };
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (!pathname) return { orgId: null, viewId: null };
+  const parts = pathname.split('/');
+  const validViews = ['dashboard', 'pos', 'products', 'inventory', 'sales', 'shift', 'suppliers', 'purchases', 'expenses', 'customers', 'compliance', 'reports', 'audit', 'settings'];
+  
+  if (parts.length >= 2 && validViews.includes(parts[1].toLowerCase())) {
+    return { orgId: parts[0].toLowerCase(), viewId: parts[1].toLowerCase() };
+  } else if (parts.length === 1) {
+    if (validViews.includes(parts[0].toLowerCase())) {
+      return { orgId: null, viewId: parts[0].toLowerCase() };
+    }
+    return { orgId: parts[0].toLowerCase(), viewId: null };
+  }
+  return { orgId: null, viewId: null };
+}
+
+export function syncBrowserUrl(viewId, replace = false) {
+  if (typeof window === 'undefined' || !window.history) return;
+  const orgId = store.currentUser?.organizationId;
+  if (!orgId) {
+    const route = parseRoute();
+    if (route.orgId || route.viewId) {
+      return; // Keep deep-link in address bar for unauthenticated login
+    }
+    if (window.location.pathname !== '/' && !window.location.pathname.includes('.')) {
+      window.history.replaceState({}, '', '/');
+    }
+    return;
+  }
+  const cleanOrg = String(orgId).toLowerCase();
+  const targetView = viewId || activeViewId || 'dashboard';
+  const targetPath = `/${cleanOrg}/${targetView}`;
+  if (window.location.pathname !== targetPath) {
+    if (replace) {
+      window.history.replaceState({ orgId: cleanOrg, viewId: targetView }, '', targetPath);
+    } else {
+      window.history.pushState({ orgId: cleanOrg, viewId: targetView }, '', targetPath);
+    }
+  }
+}
+
 // Remember the last-opened view across reloads (per tab) so a refresh keeps the
 // user on the same page instead of snapping back to the Dashboard.
 function readPersistedView() {
+  const route = parseRoute();
+  if (route.viewId) return route.viewId;
   try { return sessionStorage.getItem('cellar_active_view') || null; } catch (e) { return null; }
 }
 let activeViewId = readPersistedView() || 'dashboard';
 
-// Safely read a JSON body. Some responses (proxy 401s, gateway errors, empty
-// 204s, HTML error pages) have no/invalid JSON, which makes res.json() throw
-// "Unexpected end of JSON input" and masks the real HTTP error. This returns
-// {} for an empty body, or {error:<snippet>} for a non-JSON body, so callers
-// can surface a meaningful message using res.ok / res.status instead.
+// Safely read a JSON body.
 async function readJsonSafe(res) {
   let text = '';
   try { text = await res.text(); } catch (e) { return {}; }
@@ -70,11 +112,7 @@ async function readJsonSafe(res) {
 window.currentAuthTab = null;
 
 window.switchAuthTab = (tab) => {
-  window.currentAuthTab = tab;
-  const root = document.getElementById('app-root');
-  if (root) {
-    root.innerHTML = renderAuthLandingScreen(tab);
-  }
+  window.switchAuthMode(tab);
 };
 
 window.logoutUser = () => {
@@ -86,6 +124,9 @@ window.logoutUser = () => {
     sessionStorage.removeItem('cellar_active_view');
     sessionStorage.removeItem('cellar_active_branch');
   } catch (e) {}
+  if (typeof window !== 'undefined' && window.history) {
+    window.history.replaceState({}, '', '/');
+  }
   initApp();
 };
 
@@ -94,9 +135,12 @@ export function initApp() {
   if (!root) return;
 
   // If unauthenticated, render the single full-screen Auth Landing Page:
-  // first run (no owner yet) shows Owner Setup; otherwise the one unified
-  // email + password Sign In form used by the owner and all staff alike.
   if (!store.currentUser || !store.currentUser.id) {
+    const route = parseRoute();
+    if (route.viewId || route.orgId) {
+      window._intendedRoute = route;
+    }
+    syncBrowserUrl(null, true);
     root.innerHTML = `
       ${renderAuthLandingScreen()}
       <div id="modals-root">
@@ -107,11 +151,17 @@ export function initApp() {
     return;
   }
 
-  if (!store.canUserAccessView(store.currentUser, activeViewId)) {
+  // If a valid route view is in the URL, apply it
+  const currentRoute = parseRoute();
+  if (currentRoute.viewId && store.canUserAccessView(store.currentUser, currentRoute.viewId)) {
+    activeViewId = currentRoute.viewId;
+  } else if (!store.canUserAccessView(store.currentUser, activeViewId)) {
     const allowedModules = ['pos', 'sales', 'shift', 'customers', 'dashboard', 'products', 'inventory', 'suppliers', 'purchases', 'expenses', 'compliance', 'reports', 'audit', 'settings'];
     const fallback = allowedModules.find(id => store.canUserAccessView(store.currentUser, id));
     activeViewId = fallback || 'pos';
   }
+
+  syncBrowserUrl(activeViewId, true);
 
   root.innerHTML = `
     <div class="app-container">
@@ -329,6 +379,9 @@ function bindEvents() {
   if (notifBtn && notifPopover) {
     notifBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      document.getElementById('calendarPopover')?.classList.remove('active');
+      document.getElementById('branchPopover')?.classList.remove('active');
+      document.getElementById('topbarBranchBtn')?.classList.remove('open');
       notifPopover.classList.toggle('active');
     });
 
@@ -338,6 +391,47 @@ function bindEvents() {
       }
     });
   }
+
+  // Branch Switcher Popover Handlers
+  const branchBtn = document.getElementById('topbarBranchBtn');
+  const branchPopover = document.getElementById('branchPopover');
+  if (branchBtn && branchPopover) {
+    document.addEventListener('click', (e) => {
+      if (branchPopover && branchPopover.classList.contains('active') && !branchPopover.contains(e.target) && !branchBtn.contains(e.target)) {
+        branchPopover.classList.remove('active');
+        branchBtn.classList.remove('open');
+      }
+    });
+  }
+
+  window.toggleBranchPopover = () => {
+    const popover = document.getElementById('branchPopover');
+    const btn = document.getElementById('topbarBranchBtn');
+    if (!popover || !btn) return;
+    const isOpen = popover.classList.contains('active');
+    document.getElementById('calendarPopover')?.classList.remove('active');
+    document.getElementById('notificationsPopover')?.classList.remove('active');
+
+    if (isOpen) {
+      popover.classList.remove('active');
+      btn.classList.remove('open');
+    } else {
+      popover.classList.add('active');
+      btn.classList.add('open');
+    }
+  };
+
+  window.selectBranchContext = async (branchId) => {
+    document.getElementById('branchPopover')?.classList.remove('active');
+    document.getElementById('topbarBranchBtn')?.classList.remove('open');
+    await window.switchActiveBranch(branchId);
+  };
+
+  window.openCreateBranchFromDropdown = () => {
+    document.getElementById('branchPopover')?.classList.remove('active');
+    document.getElementById('topbarBranchBtn')?.classList.remove('open');
+    window.openAddBranchModal();
+  };
 
   window.markAllNotificationsRead = () => {
     store.markNotificationsRead();
@@ -419,6 +513,17 @@ function bindEvents() {
     }, 2000);
   }
 
+  window.updateStoreSlugPreview = (val) => {
+    const slugInput = document.getElementById('setupSlugInput');
+    if (!slugInput || slugInput._userModified) return;
+    slugInput.value = (val || '')
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 24);
+  };
+
   window.submitInitialSetup = async () => {
     const name = document.getElementById('setupNameInput')?.value.trim();
     const phone = document.getElementById('setupPhoneInput')?.value.trim() || "";
@@ -426,6 +531,8 @@ function bindEvents() {
     const password = document.getElementById('setupPasswordInput')?.value.trim() || document.getElementById('setupPinInput')?.value.trim() || "";
     const confirmPassword = document.getElementById('setupConfirmPasswordInput')?.value.trim() || document.getElementById('setupConfirmPinInput')?.value.trim() || "";
     const businessName = document.getElementById('setupBizNameInput')?.value.trim() || "Cellar POS";
+    const autoSlug = businessName.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]/g, '').slice(0, 24);
+    const slug = (document.getElementById('setupSlugInput')?.value || autoSlug).trim().toLowerCase() || autoSlug;
     const err = document.getElementById('setupErrorMsg');
 
     if (!name) {
@@ -436,8 +543,14 @@ function bindEvents() {
       if (err) err.textContent = "Please enter Email Address!";
       return;
     }
-    if (!password || password.length < 4) {
-      if (err) err.textContent = "Please enter a password (at least 4 characters)!";
+    if (!password || password.length < 8) {
+      if (err) err.textContent = "Please enter a strong password (at least 8 characters)!";
+      return;
+    }
+    const hasLetters = /[a-zA-Z]/.test(password);
+    const hasNumbers = /[0-9]/.test(password);
+    if (!hasLetters || !hasNumbers) {
+      if (err) err.textContent = "Password must be strong (include both letters and numbers)!";
       return;
     }
     if (confirmPassword && confirmPassword !== password) {
@@ -449,7 +562,7 @@ function bindEvents() {
       const res = await fetch('/api/auth/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, email, password, confirmPassword, businessName })
+        body: JSON.stringify({ name, phone, email, password, confirmPassword, businessName, slug })
       });
       const data = await readJsonSafe(res);
       if (!res.ok) {
@@ -474,6 +587,7 @@ function bindEvents() {
       if (data.branch && data.branch.id) store.activeBranchId = data.branch.id;
 
       activeViewId = 'dashboard';
+      syncBrowserUrl('dashboard', true);
       await store.loadAuthenticatedData();
       store.fetchBranchLogin();
       store.saveLocalBackup();
@@ -495,14 +609,25 @@ function bindEvents() {
   };
 
   window.switchAuthMode = (mode) => {
-    if (mode === 'setup') {
+    window.currentAuthTab = mode;
+    if (mode === 'setup' || mode === 'register') {
       window.forceRegisterMode = true;
+      try { window.history.replaceState(null, '', '#register'); } catch(e) {}
+    } else if (mode === 'forgot') {
+      window.forceRegisterMode = false;
+      try { window.history.replaceState(null, '', '#forgot'); } catch(e) {}
     } else {
       window.forceRegisterMode = false;
+      try { window.history.replaceState(null, '', '#login'); } catch(e) {}
     }
     const root = document.getElementById('app-root');
     if (root) {
-      root.innerHTML = renderAuthLandingScreen(mode);
+      root.innerHTML = `
+        ${renderAuthLandingScreen(mode)}
+        <div id="modals-root">
+          ${renderForgotPasswordModal()}
+        </div>
+      `;
       bindEvents();
     }
   };
@@ -512,10 +637,75 @@ function bindEvents() {
     initApp();
   };
 
-  window.togglePasswordInputVisibility = () => {
-    const input = document.getElementById('loginPasswordInput');
+  window.togglePasswordInputVisibility = (inputId = 'loginPasswordInput') => {
+    const input = document.getElementById(inputId) || document.getElementById('loginPasswordInput') || document.getElementById('setupPasswordInput');
     if (input) {
       input.type = input.type === 'password' ? 'text' : 'password';
+    }
+  };
+
+  window.updatePasswordStrengthBars = (val, containerId, labelId = null) => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const bars = container.querySelectorAll('.auth-bar');
+    const label = (labelId && document.getElementById(labelId)) || 
+                  container.parentElement?.querySelector('.strength-label') || 
+                  document.getElementById('setupStrengthLabel');
+    if (!bars.length) return;
+
+    const value = val || '';
+    const len = value.length;
+    let score = 0;
+
+    if (len === 0) {
+      score = 0;
+    } else if (len < 6) {
+      score = 1;
+    } else {
+      const hasLower = /[a-z]/.test(value);
+      const hasUpper = /[A-Z]/.test(value);
+      const hasNumber = /[0-9]/.test(value);
+      const hasSpecial = /[^a-zA-Z0-9]/.test(value);
+      const criteriaCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
+
+      if (len >= 8 && criteriaCount >= 3) {
+        score = 4;
+      } else if (len >= 8 && criteriaCount >= 2) {
+        score = 3;
+      } else if (len >= 6) {
+        score = 2;
+      } else {
+        score = 1;
+      }
+    }
+
+    bars.forEach((bar, idx) => {
+      bar.classList.remove('active', 'weak', 'fair', 'good', 'strong');
+      if (idx < score) {
+        if (score === 4) bar.classList.add('strong');
+        else if (score === 3) bar.classList.add('good');
+        else if (score === 2) bar.classList.add('fair');
+        else bar.classList.add('weak');
+      }
+    });
+
+    if (label) {
+      if (score === 0) {
+        label.textContent = 'At least 8 characters with letters & numbers';
+        label.className = 'strength-label';
+      } else if (score === 1) {
+        label.textContent = 'Weak password (too short)';
+        label.className = 'strength-label weak';
+      } else if (score === 2) {
+        label.textContent = 'Fair password (add numbers or uppercase)';
+        label.className = 'strength-label fair';
+      } else if (score === 3) {
+        label.textContent = 'Good password (meets requirements)';
+        label.className = 'strength-label good';
+      } else if (score === 4) {
+        label.textContent = 'Strong password ✓';
+        label.className = 'strength-label strong';
+      }
     }
   };
 
@@ -572,7 +762,13 @@ function bindEvents() {
         inventory_officer: 'inventory',
         cashier: 'pos'
       };
-      activeViewId = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+      const fallbackView = roleMap[(data.user.role || '').toLowerCase()] || 'pos';
+      if (window._intendedRoute && window._intendedRoute.viewId && store.canUserAccessView(data.user, window._intendedRoute.viewId)) {
+        activeViewId = window._intendedRoute.viewId;
+      } else {
+        activeViewId = fallbackView;
+      }
+      syncBrowserUrl(activeViewId, true);
 
       window._isSubmittingMainLogin = false;
       if (errDiv) errDiv.textContent = '';
@@ -587,6 +783,10 @@ function bindEvents() {
   };
 
   window.openForgotPasswordModal = () => {
+    if (!store.currentUser || !store.currentUser.id) {
+      window.switchAuthMode('forgot');
+      return;
+    }
     const emailIn = document.getElementById('loginEmailInput');
     const forgotEmail = document.getElementById('forgotEmailInput');
     const msg = document.getElementById('forgotModalMsg');
@@ -600,7 +800,7 @@ function bindEvents() {
     if (step2) step2.style.display = 'none';
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Send Reset Code';
+      submitBtn.innerHTML = '<span>Send Reset Code</span>';
       submitBtn.onclick = () => window.submitForgotPassword();
     }
     window.openModal('forgotPasswordModal');
@@ -615,13 +815,13 @@ function bindEvents() {
     if (!email) {
       if (msg) {
         msg.style.color = '#ef4444';
-        msg.textContent = 'Please enter your email address.';
+        msg.textContent = 'Please enter your registered email address.';
       }
       return;
     }
 
     if (msg) {
-      msg.style.color = '#6366f1';
+      msg.style.color = '#2563eb';
       msg.textContent = 'Sending one-time reset code...';
     }
     if (submitBtn) submitBtn.disabled = true;
@@ -639,13 +839,20 @@ function bindEvents() {
 
       if (msg) {
         msg.style.color = '#10b981';
-        msg.textContent = '✅ A one-time reset code was sent to your email. Enter the code and your new password below.';
+        msg.textContent = '✅ Reset code sent! Enter the 6-digit code and choose a new password below.';
       }
       if (step2) step2.style.display = 'flex';
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Update Password';
+        submitBtn.innerHTML = '<span>Update Password</span>';
         submitBtn.onclick = () => window.submitResetPasswordDirect();
+      }
+      const forgotForm = document.getElementById('forgotPasswordForm');
+      if (forgotForm) {
+        forgotForm.onsubmit = (e) => {
+          e.preventDefault();
+          window.submitResetPasswordDirect();
+        };
       }
     } catch (e) {
       if (submitBtn) submitBtn.disabled = false;
@@ -667,14 +874,17 @@ function bindEvents() {
     if (!resetCode) {
       if (msg) {
         msg.style.color = '#ef4444';
-        msg.textContent = 'Please enter the reset code sent to your email.';
+        msg.textContent = 'Please enter the 6-digit reset code sent to your email.';
       }
       return;
     }
-    if (!newPassword || newPassword.length < 4) {
+
+    const hasLetters = /[a-zA-Z]/.test(newPassword || '');
+    const hasNumbers = /[0-9]/.test(newPassword || '');
+    if (!newPassword || newPassword.length < 8 || !hasLetters || !hasNumbers) {
       if (msg) {
         msg.style.color = '#ef4444';
-        msg.textContent = 'Password must be at least 4 characters.';
+        msg.textContent = 'Password must be at least 8 characters and include both letters and numbers.';
       }
       return;
     }
@@ -687,8 +897,8 @@ function bindEvents() {
     }
 
     if (msg) {
-      msg.style.color = '#6366f1';
-      msg.textContent = 'Updating password in Supabase Auth & database...';
+      msg.style.color = '#2563eb';
+      msg.textContent = 'Updating your password...';
     }
     if (submitBtn) submitBtn.disabled = true;
 
@@ -703,10 +913,22 @@ function bindEvents() {
         throw new Error(data.error || `Failed to reset password (HTTP ${res.status}).`);
       }
 
-      alert('Password reset successfully! You can now sign in with your new password.');
-      window.closeModal('forgotPasswordModal');
-      const loginPassInput = document.getElementById('loginPasswordInput');
-      if (loginPassInput) loginPassInput.value = newPassword;
+      if (msg) {
+        msg.style.color = '#10b981';
+        msg.textContent = '✅ Password reset successfully! Redirecting to login...';
+      }
+      if (typeof window.closeModal === 'function') {
+        try { window.closeModal('forgotPasswordModal'); } catch (e) {}
+      }
+      setTimeout(() => {
+        if (window.switchAuthMode) {
+          window.switchAuthMode('login');
+          const loginEmailInput = document.getElementById('loginEmailInput');
+          const loginPassInput = document.getElementById('loginPasswordInput');
+          if (loginEmailInput && email) loginEmailInput.value = email;
+          if (loginPassInput && newPassword) loginPassInput.value = newPassword;
+        }
+      }, 1200);
     } catch (e) {
       if (submitBtn) submitBtn.disabled = false;
       if (msg) {
@@ -1224,6 +1446,111 @@ function bindEvents() {
     }
   };
 
+  // --- ORGANIZATION LOGO & BRANDING HANDLERS ---
+  window.updateOrgLogoMonogramLive = (bizName) => {
+    const previewBox = document.getElementById('orgLogoPreviewBox');
+    if (!previewBox) return;
+    const clean = (bizName || 'Organization').trim();
+    const initial = clean.charAt(0).toUpperCase() || 'O';
+
+    const placeholder = document.getElementById('orgLogoPreviewPlaceholder');
+    if (placeholder) {
+      placeholder.textContent = initial;
+    }
+
+    const miniTitle = document.getElementById('orgLogoSidebarMiniTitle');
+    if (miniTitle) miniTitle.textContent = bizName || 'Your Business';
+
+    if (!document.getElementById('setBizLogoVal')?.value) {
+      const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
+      if (miniMockup) {
+        miniMockup.innerHTML = `<div style="width:100%; height:100%; border-radius:7px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:800; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${initial}</span></div>`;
+      }
+    }
+  };
+
+  window.handleOrgLogoUpload = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Please select an image file under 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawDataUrl = e.target.result;
+      const img = new Image();
+      img.onload = () => {
+        // High quality proportional canvas resize down to max 300x300 to keep payload fast and light
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 300;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const optimizedDataUrl = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.9);
+
+        const previewBox = document.getElementById('orgLogoPreviewBox');
+        if (previewBox) {
+          previewBox.innerHTML = `<img id="orgLogoPreviewImg" src="${optimizedDataUrl}" alt="Organization Logo" style="width:100%; height:100%; object-fit:contain; border-radius:12px; background:transparent; display:block;" />`;
+        }
+
+        const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
+        if (miniMockup) {
+          miniMockup.innerHTML = `<img src="${optimizedDataUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:7px; background:transparent; display:block;" />`;
+        }
+
+        const valInput = document.getElementById('setBizLogoVal');
+        if (valInput) valInput.value = optimizedDataUrl;
+
+        const removeBtn = document.getElementById('removeOrgLogoBtn');
+        if (removeBtn) removeBtn.style.display = 'inline-flex';
+      };
+      img.onerror = () => {
+        alert("Could not load the selected image file.");
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.removeOrgLogo = () => {
+    const fileInput = document.getElementById('orgLogoFileInput');
+    if (fileInput) fileInput.value = '';
+    const valInput = document.getElementById('setBizLogoVal');
+    if (valInput) valInput.value = '';
+
+    const bizName = document.getElementById('setBizName')?.value || store.currentUser?.organizationName || 'O';
+    const clean = (bizName || 'Organization').trim();
+    const initial = clean.charAt(0).toUpperCase() || 'O';
+
+    const previewBox = document.getElementById('orgLogoPreviewBox');
+    if (previewBox) {
+      previewBox.innerHTML = `<div id="orgLogoPreviewPlaceholder" style="width:100%; height:100%; border-radius:12px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%); color:#ffffff; font-weight:800; font-size:30px; letter-spacing:-0.5px; text-shadow:0 0 10px rgba(255,255,255,0.4);">${initial}</div>`;
+    }
+
+    const miniMockup = document.getElementById('orgLogoSidebarMiniMockup');
+    if (miniMockup) {
+      miniMockup.innerHTML = `<div style="width:100%; height:100%; border-radius:7px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 25%, #1e293b 0%, #090d16 100%);"><span style="color:#ffffff; font-weight:800; font-size:16px; text-shadow:0 0 8px rgba(255,255,255,0.45);">${initial}</span></div>`;
+    }
+
+    const removeBtn = document.getElementById('removeOrgLogoBtn');
+    if (removeBtn) removeBtn.style.display = 'none';
+  };
+
   // --- ADMINISTRATION CENTER HANDLERS ---
   window.submitSaveBusinessProfile = async () => {
     const name = document.getElementById('setBizName').value.trim();
@@ -1235,13 +1562,18 @@ function bindEvents() {
     const receiptName = document.getElementById('setReceiptName').value.trim() || name;
     const receiptPhone = document.getElementById('setReceiptPhone').value.trim() || phone;
     const receiptAddress = document.getElementById('setReceiptAddress').value.trim() || address;
+    const logoVal = document.getElementById('setBizLogoVal');
+    const logo = logoVal ? (logoVal.value || null) : (store.businessProfile?.logo || null);
 
     if (!name || !phone || !kraPin) return alert("Please enter Business Name, Phone, and KRA PIN!");
 
     try {
       await store.updateSettings('businessProfile', {
-        name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress
+        name, phone, email, address, kraPin, regNo, receiptName, receiptPhone, receiptAddress, logo
       });
+      if (store.currentUser) {
+        store.currentUser.organizationName = name;
+      }
       initApp();
       alert("Business Profile saved successfully!");
     } catch (e) {
@@ -1407,7 +1739,10 @@ function bindEvents() {
     if (emailVal) emailVal.textContent = user.email || 'Not set';
     if (passVal) passVal.textContent = pass;
 
-    const formattedMsg = `Welcome to ${bizName}!\nHere are your staff login credentials:\n\nRole: ${(user.role || 'cashier').toUpperCase()}\nEmail: ${user.email || 'your email'}\nPassword / Temporary Password: ${pass}\n\nLog in at: ${window.location.origin}`;
+    const orgId = store.currentUser?.organizationId;
+    const defaultRoleView = (user.role === 'cashier') ? 'pos' : (user.role === 'inventory_officer' ? 'inventory' : 'dashboard');
+    const directUrl = orgId ? `${window.location.origin}/${orgId}/${defaultRoleView}` : `${window.location.origin}`;
+    const formattedMsg = `Welcome to ${bizName}!\nHere are your staff login credentials:\n\nRole: ${(user.role || 'cashier').toUpperCase()}\nEmail: ${user.email || 'your email'}\nPassword / Temporary Password: ${pass}\n\nLog in at: ${directUrl}`;
     if (msgText) msgText.value = formattedMsg;
 
     window.openModal('shareStaffModal');
@@ -1969,7 +2304,7 @@ function bindEvents() {
   });
 }
 
-export function switchTab(viewId) {
+export function switchTab(viewId, skipUrlPush = false) {
   if (!store.canUserAccessView(store.currentUser, viewId)) {
     alert(`Access Denied: Your assigned role (${store.currentUser.role.toUpperCase()}) does not have permission to access module "${viewId.toUpperCase()}".`);
     return;
@@ -1978,6 +2313,11 @@ export function switchTab(viewId) {
   activeViewId = viewId;
   // Persist so a page refresh reopens this same view instead of the Dashboard.
   try { sessionStorage.setItem('cellar_active_view', viewId); } catch (e) {}
+
+  if (!skipUrlPush) {
+    syncBrowserUrl(viewId, false);
+  }
+
   document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
 
@@ -1995,6 +2335,16 @@ export function switchTab(viewId) {
   if (viewId === 'dashboard' && window.triggerDashboardCharts) {
     setTimeout(() => window.triggerDashboardCharts(), 50);
   }
+}
+
+// Support browser back/forward buttons smoothly
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    const route = parseRoute();
+    if (route.viewId && route.viewId !== activeViewId && store.currentUser && store.currentUser.id) {
+      switchTab(route.viewId, true);
+    }
+  });
 }
 
 window.switchTab = switchTab;

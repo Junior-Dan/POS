@@ -15,6 +15,8 @@ try {
 let databasePath;
 if (process.env.CELLAR_DB_PATH) {
   databasePath = path.resolve(process.env.CELLAR_DB_PATH);
+} else if (process.env.USE_LOCAL_DB === 'true' || process.env.CELLAR_LOCAL === 'true' || process.env.NODE_ENV === 'development') {
+  databasePath = path.join(__dirname, '../data/cellar_dev.db');
 } else if (process.env.VERCEL) {
   databasePath = '/tmp/cellar_pos.db';
 } else if (__dirname) {
@@ -164,7 +166,9 @@ class DatabaseAdapter {
   }
 
   get isSupabase() {
-    if (process.env.USE_LOCAL_DB === '1' || process.env.USE_LOCAL_DB === 'true') return false;
+    if (process.env.USE_LOCAL_DB === '1' || process.env.USE_LOCAL_DB === 'true' || process.env.CELLAR_LOCAL === 'true') {
+      return false;
+    }
     const key = this.supabaseKey;
     return !!(this.supabaseUrl && key && key.trim() !== '' && !key.includes('your_secret'));
   }
@@ -178,7 +182,9 @@ class DatabaseAdapter {
   }
 
   get isTurso() {
-    if (process.env.USE_LOCAL_DB === '1' || process.env.USE_LOCAL_DB === 'true') return false;
+    if (process.env.USE_LOCAL_DB === '1' || process.env.USE_LOCAL_DB === 'true' || process.env.CELLAR_LOCAL === 'true') {
+      return false;
+    }
     const token = this.tursoToken;
     return !!(this.tursoUrl && token && !token.includes('your_turso') && token.trim() !== '');
   }
@@ -194,6 +200,9 @@ class DatabaseAdapter {
 
     // SQLite's DATETIME type does not exist in PostgreSQL -> use TIMESTAMP.
     pgSql = pgSql.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
+
+    // Convert SQLite date modifier date(col, '+3 hours') to PostgreSQL syntax
+    pgSql = pgSql.replace(/date\(([^,]+),\s*['"]\+3 hours['"]\)/gi, "($1 AT TIME ZONE 'Africa/Nairobi')::date");
 
     // Convert SQLite PRAGMA statements (ignore on Postgres)
     if (pgSql.trim().toUpperCase().startsWith('PRAGMA')) {
